@@ -1,0 +1,2 @@
+# Preserve shell script line endings on every host.
+gradlew text eol=lf
