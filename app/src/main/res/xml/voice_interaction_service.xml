@@ -1,0 +1,5 @@
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.manh.panelsassistive.PanelsVoiceInteractionSessionService"
+    android:recognitionService="com.manh.panelsassistive.PanelsRecognitionService"
+    android:settingsActivity="com.manh.panelsassistive.MainActivity"
+    android:supportsAssist="true" />
