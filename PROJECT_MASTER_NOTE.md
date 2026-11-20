@@ -548,3 +548,8 @@
 
 ### Verification
 - Static review only. Gate: GitHub Actions "Android build". On device: icon pack dạng khung đen không còn khoét lỗ, bảng tiện ích hết viền, widget pin/nhạc/âm lượng hiển thị và bấm đúng, bóng nổi mặc định khớp màu accent.
+
+### Follow-up (v30) — icon bảng tiện ích theo kích thước ô
+- `createPanelShortcut` nhận `tileWidthDp`/`tileHeightDp`; icon = `min(tileW, tileH) - 18dp` (kẹp 18..320) nên ô 2x3 hiển thị icon cỡ 2x2, ô 1x1 icon cỡ 1x1.
+- `createPopupItem`, grid của bảng nổi và `previewTile` trong trình biên tập truyền span đã kẹp theo số cột/hàng, nên icon phóng to/thu nhỏ đúng ô thực tế.
+- Lối tắt ở bảng mở rộng giữ nguyên cỡ cũ (tile 52dp → icon 40dp).

@@ -753,18 +753,20 @@ class WidgetPanelSettingsActivity : Activity() {
             val row = position / columns
             val column = position % columns
             if (row >= rows) return@forEach
-            for (dy in 0 until item.spanY.coerceIn(1, rows - row)) {
-                for (dx in 0 until item.spanX.coerceIn(1, columns - column)) {
+            val spanX = item.spanX.coerceIn(1, columns - column)
+            val spanY = item.spanY.coerceIn(1, rows - row)
+            for (dy in 0 until spanY) {
+                for (dx in 0 until spanX) {
                     occupied.add((row + dy) * columns + column + dx)
                 }
             }
-            val tile = previewTile(item, position)
+            val tile = previewTile(item, position, spanX, spanY)
             val params = GridLayout.LayoutParams(
-                GridLayout.spec(row, item.spanY.coerceIn(1, rows - row)),
-                GridLayout.spec(column, item.spanX.coerceIn(1, columns - column))
+                GridLayout.spec(row, spanY),
+                GridLayout.spec(column, spanX)
             ).apply {
-                width = dp(page.cellWidthDp * item.spanX.coerceIn(1, columns - column))
-                height = dp(page.rowHeightDp * item.spanY.coerceIn(1, rows - row))
+                width = dp(page.cellWidthDp * spanX)
+                height = dp(page.rowHeightDp * spanY)
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             }
             grid.addView(tile, params)
@@ -848,7 +850,12 @@ class WidgetPanelSettingsActivity : Activity() {
         PanelEditDialogs.reattachUndoNotice(previewGrid)
     }
 
-    private fun previewTile(item: PanelItem, position: Int): View {
+    private fun previewTile(
+        item: PanelItem,
+        position: Int,
+        spanX: Int = item.spanX,
+        spanY: Int = item.spanY
+    ): View {
         val page = selectedPage()
         val tile = FrameLayout(this)
         if (item.type == PanelItemType.WIDGET) {
@@ -857,8 +864,8 @@ class WidgetPanelSettingsActivity : Activity() {
             if (info != null) {
                 try {
                     val widgetView = host.createView(this, widgetId, info)
-                    val widthDp = page.cellWidthDp * item.spanX
-                    val heightDp = page.rowHeightDp * item.spanY
+                    val widthDp = page.cellWidthDp * spanX
+                    val heightDp = page.rowHeightDp * spanY
                     widgetView.updateAppWidgetSize(
                         null,
                         widthDp,
@@ -880,7 +887,9 @@ class WidgetPanelSettingsActivity : Activity() {
                 gravity = Gravity.CENTER
                 setPadding(dp(6), dp(6), dp(6), dp(6))
             }
-            val iconSize = dp(minOf(40, page.cellWidthDp - 12).coerceAtLeast(18))
+            val iconDp = (minOf(page.cellWidthDp * spanX, page.rowHeightDp * spanY) - 18)
+                .coerceIn(18, 320)
+            val iconSize = dp(iconDp)
             if (item.type == PanelItemType.ACTION) {
                 cell.addView(
                     ActionGlyphView(this, item.value, Color.rgb(125, 188, 255)),

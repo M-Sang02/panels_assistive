@@ -922,7 +922,7 @@ class FloatBallService : Service() {
             for (dy in 0 until spanY) for (dx in 0 until spanX) {
                 occupied.add((row + dy) * columns + column + dx)
             }
-            val child = createPopupItem(item, page.cellWidthDp, page.rowHeightDp)
+            val child = createPopupItem(item, page.cellWidthDp, page.rowHeightDp, spanX, spanY)
             val params = GridLayout.LayoutParams(
                 GridLayout.spec(row, spanY),
                 GridLayout.spec(column, spanX)
@@ -968,7 +968,13 @@ class FloatBallService : Service() {
         }
     }
 
-    private fun createPopupItem(item: PanelItem, cellWidthDp: Int, rowHeightDp: Int): View {
+    private fun createPopupItem(
+        item: PanelItem,
+        cellWidthDp: Int,
+        rowHeightDp: Int,
+        spanX: Int = item.spanX,
+        spanY: Int = item.spanY
+    ): View {
         val wrapper = FrameLayout(this).apply {
             clipChildren = false
             clipToPadding = false
@@ -985,10 +991,10 @@ class FloatBallService : Service() {
                 widgetHost.createView(this, id, info).apply {
                     updateAppWidgetSize(
                         null,
-                        cellWidthDp * item.spanX,
-                        rowHeightDp * item.spanY,
-                        cellWidthDp * item.spanX,
-                        rowHeightDp * item.spanY
+                        cellWidthDp * spanX,
+                        rowHeightDp * spanY,
+                        cellWidthDp * spanX,
+                        rowHeightDp * spanY
                     )
                     setOnTouchListener { _, event ->
                         if (popupEditMode) return@setOnTouchListener true
@@ -1001,7 +1007,12 @@ class FloatBallService : Service() {
                 View(this)
             }
         } else {
-            createPanelShortcut(item, showLabel = AppPrefs.showPanelLabels(this))
+            createPanelShortcut(
+                item,
+                showLabel = AppPrefs.showPanelLabels(this),
+                tileWidthDp = cellWidthDp * spanX - 6,
+                tileHeightDp = rowHeightDp * spanY - 6
+            )
         }
         wrapper.addView(content, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1106,7 +1117,10 @@ class FloatBallService : Service() {
                     val cell = FrameLayout(this).apply {
                         background = sliderTileBackground()
                         val shortcutView = createPanelShortcut(
-                            PanelItem(shortcut.type, shortcut.value, shortcut.label), showLabel = false
+                            PanelItem(shortcut.type, shortcut.value, shortcut.label),
+                            showLabel = false,
+                            tileWidthDp = 52,
+                            tileHeightDp = 52
                         )
                         addView(shortcutView, FrameLayout.LayoutParams(
                             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
@@ -1699,14 +1713,18 @@ class FloatBallService : Service() {
     private fun createPanelShortcut(
         item: PanelItem,
         showLabel: Boolean = AppPrefs.showPanelLabels(this),
-        touchObserver: ((View, MotionEvent) -> Boolean)? = null
+        touchObserver: ((View, MotionEvent) -> Boolean)? = null,
+        tileWidthDp: Int = selectedCellWidth() - 6,
+        tileHeightDp: Int = selectedRowHeight() - 6
     ): View {
         val cell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(6), dp(6), dp(6), dp(6))
         }
-        val iconSize = dp(minOf(40, selectedCellWidth() - 12).coerceAtLeast(18))
+        // The icon grows with the slot: a 2x3 slot gets a 2x2 icon, a 1x1 slot a 1x1 icon.
+        val iconDp = (minOf(tileWidthDp, tileHeightDp) - 12).coerceIn(18, 320)
+        val iconSize = dp(iconDp)
         if (item.type == PanelItemType.ACTION) {
             cell.addView(ActionGlyphView(this, item.value, Color.rgb(125, 188, 255)), LinearLayout.LayoutParams(iconSize, iconSize))
         } else {
@@ -1914,6 +1932,11 @@ class FloatBallService : Service() {
         AppPrefs.panelPages(this, usesLandscapeLayout())
             .firstOrNull { it.id == AppPrefs.currentPanelId(this, usesLandscapeLayout()) }
             ?.cellWidthDp ?: 64
+
+    private fun selectedRowHeight(): Int =
+        AppPrefs.panelPages(this, usesLandscapeLayout())
+            .firstOrNull { it.id == AppPrefs.currentPanelId(this, usesLandscapeLayout()) }
+            ?.rowHeightDp ?: 56
 
 
     private fun showOverlayPanel(
