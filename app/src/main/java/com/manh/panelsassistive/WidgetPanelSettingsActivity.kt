@@ -994,7 +994,7 @@ class WidgetPanelSettingsActivity : Activity() {
     private fun styledSwitch(title: Int, checked: Boolean, onChanged: (Boolean) -> Unit): Switch =
         GlassUi.switch(this, checked, onChanged).apply {
             text = getString(title)
-            setTextColor(foreground)
+            setTextColor(this@WidgetPanelSettingsActivity.foreground)
             setPadding(0, dp(6), 0, dp(6))
         }
 
