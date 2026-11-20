@@ -49,6 +49,7 @@ class WidgetPanelSettingsActivity : Activity() {
     private lateinit var previewScroll: HorizontalScrollView
     private var selectingPanel = false
     private var editingPreview = false
+    private var previewHostListening = false
     private val popupChips = mutableListOf<Pair<Int, View>>()
     private val panelRefreshHandler = Handler(Looper.getMainLooper())
     private val panelRefreshRunnable = Runnable {
@@ -61,12 +62,7 @@ class WidgetPanelSettingsActivity : Activity() {
         window.statusBarColor = pageColor
         window.navigationBarColor = pageColor
         host = AppWidgetHost(applicationContext, FloatBallService.WIDGET_HOST_ID)
-        try {
-            host.startListening()
-        } catch (error: Exception) {
-            Log.e(TAG, "Unable to start widget previews", error)
-            Toast.makeText(this, R.string.widget_host_unavailable, Toast.LENGTH_LONG).show()
-        }
+        startPreviewHost()
         render()
     }
 
@@ -90,17 +86,41 @@ class WidgetPanelSettingsActivity : Activity() {
 
     override fun onDestroy() {
         panelRefreshHandler.removeCallbacks(panelRefreshRunnable)
-        try {
-            host.stopListening()
-        } catch (error: Exception) {
-            Log.e(TAG, "Unable to stop widget preview host", error)
-        }
+        stopPreviewHost()
         super.onDestroy()
     }
 
     override fun onResume() {
         super.onResume()
+        startPreviewHost()
         if (::previewGrid.isInitialized) render()
+    }
+
+    override fun onPause() {
+        // Previews only stay live while this screen is in front.
+        stopPreviewHost()
+        super.onPause()
+    }
+
+    private fun startPreviewHost() {
+        if (previewHostListening) return
+        try {
+            host.startListening()
+            previewHostListening = true
+        } catch (error: Exception) {
+            Log.e(TAG, "Unable to start widget previews", error)
+            Toast.makeText(this, R.string.widget_host_unavailable, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun stopPreviewHost() {
+        if (!previewHostListening) return
+        try {
+            host.stopListening()
+        } catch (error: Exception) {
+            Log.w(TAG, "Unable to stop widget preview host", error)
+        }
+        previewHostListening = false
     }
 
     private fun render() {

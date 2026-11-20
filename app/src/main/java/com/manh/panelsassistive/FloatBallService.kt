@@ -79,6 +79,7 @@ class FloatBallService : Service() {
     private var popupAddButton: View? = null
     private var popupTemporarilyHidden = false
     private var popupEditMode = false
+    private var widgetHostListening = false
     private var crossWindowBlurListener: Consumer<Boolean>? = null
     private var brightnessPermissionPrompted = false
     private var longPressTriggered = false
@@ -116,10 +117,23 @@ class FloatBallService : Service() {
             when (intent?.action) {
                 Intent.ACTION_CONFIGURATION_CHANGED -> {
                     repositionFloatBall()
-                    if (popup != null) populateWidgetList()
+                    if (popup != null) {
+                        startWidgetUpdates()
+                        populateWidgetList()
+                    }
                 }
-                Intent.ACTION_SCREEN_OFF -> floatBall?.onScreenOff()
-                Intent.ACTION_SCREEN_ON -> floatBall?.onScreenOn()
+                Intent.ACTION_SCREEN_OFF -> {
+                    floatBall?.onScreenOff()
+                    // Nothing in the widget panel is visible while the screen is off.
+                    if (popupList != null) stopWidgetUpdates()
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    floatBall?.onScreenOn()
+                    if (popupList != null) {
+                        startWidgetUpdates()
+                        populateWidgetList()
+                    }
+                }
             }
         }
     }
@@ -193,12 +207,6 @@ class FloatBallService : Service() {
             }
         }
         widgetHost = AppWidgetHost(applicationContext, WIDGET_HOST_ID)
-        try {
-            widgetHost.startListening()
-        } catch (error: Exception) {
-            Log.e(TAG, "Unable to start widget host", error)
-            Toast.makeText(this, R.string.widget_host_unavailable, Toast.LENGTH_LONG).show()
-        }
         createNotificationChannel()
         startInForeground()
         val filter = IntentFilter().apply {
@@ -212,6 +220,31 @@ class FloatBallService : Service() {
             @Suppress("DEPRECATION")
             registerReceiver(configurationReceiver, filter)
         }
+    }
+
+    /**
+     * The widget host only listens while the widget panel is open, so widgets do
+     * not keep receiving/applying updates in the background and drain the battery.
+     */
+    private fun startWidgetUpdates() {
+        if (widgetHostListening) return
+        try {
+            widgetHost.startListening()
+            widgetHostListening = true
+        } catch (error: Exception) {
+            Log.e(TAG, "Unable to start widget host", error)
+            Toast.makeText(this, R.string.widget_host_unavailable, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun stopWidgetUpdates() {
+        if (!widgetHostListening) return
+        try {
+            widgetHost.stopListening()
+        } catch (error: Exception) {
+            Log.w(TAG, "Unable to pause widget host", error)
+        }
+        widgetHostListening = false
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -292,7 +325,10 @@ class FloatBallService : Service() {
                     bringFloatBallToFront()
                     return START_STICKY
                 }
-                if (popup != null) populateWidgetList()
+                if (popup != null) {
+                    startWidgetUpdates()
+                    populateWidgetList()
+                }
                 if (popupTemporarilyHidden) {
                     popupTemporarilyHidden = false
                     popupDialog?.show()
@@ -367,11 +403,7 @@ class FloatBallService : Service() {
         pendingVolumeUpdates.clear()
         removePopup()
         removeFloatBall()
-        try {
-            widgetHost.stopListening()
-        } catch (error: Exception) {
-            Log.e(TAG, "Unable to stop widget host", error)
-        }
+        stopWidgetUpdates()
         QuickSettingsTiles.updateListeningServices(this)
         super.onDestroy()
     }
@@ -777,12 +809,7 @@ class FloatBallService : Service() {
             return
         }
         popupEditMode = false
-        try {
-            widgetHost.startListening()
-        } catch (error: Exception) {
-            Log.e(TAG, "Unable to resume widget updates for popup", error)
-            Toast.makeText(this, R.string.widget_host_unavailable, Toast.LENGTH_LONG).show()
-        }
+        startWidgetUpdates()
         val landscape = usesLandscapeLayout()
         val pages = AppPrefs.panelPages(this, landscape)
         val page = pages.firstOrNull { it.id == AppPrefs.currentPanelId(this, landscape) } ?: pages.first()
@@ -842,7 +869,6 @@ class FloatBallService : Service() {
         })
         grid.setOnTouchListener(panelSwipeListener)
         root.setOnTouchListener(panelSwipeListener)
-        populateWidgetList(root)
         showOverlayPanel(
             root,
             dp(PanelViewportMetrics.panelWidthDp(page)),
@@ -850,12 +876,15 @@ class FloatBallService : Service() {
             windowBackground = popupBackground,
             surface = OverlaySurface.WIDGETS
         )
-        root.post {
+        // Widget views are inflated only after the panel window is up, during the
+        // open fade, so RemoteViews loading does not stall the first frame.
+        root.postDelayed({
+            populateWidgetList(root)
             horizontal.scrollTo(
                 ((vertical.width - horizontal.width) / 2).coerceAtLeast(0),
                 0
             )
-        }
+        }, 32L)
     }
 
     private fun populateWidgetList(root: View? = popup) {
@@ -2024,6 +2053,17 @@ class FloatBallService : Service() {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
+        // Fade the panel in so RemoteViews/widget inflation does not read as jank.
+        val animateIn = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            android.animation.ValueAnimator.areAnimatorsEnabled()
+        val scalePanel = windowBackground == null
+        if (animateIn) {
+            freeformContainer.alpha = 0f
+            if (scalePanel) {
+                freeformContainer.scaleX = 0.95f
+                freeformContainer.scaleY = 0.95f
+            }
+        }
         dialog.setContentView(freeformContainer)
         dialog.setCanceledOnTouchOutside(true)
         val window = dialog.window
@@ -2090,6 +2130,7 @@ class FloatBallService : Service() {
                     popupAddButton = null
                     popupEditMode = false
                     overlaySurface = OverlaySurface.NONE
+                    stopWidgetUpdates()
                     keepFloatBallAvailable()
                 }
             }
@@ -2098,6 +2139,14 @@ class FloatBallService : Service() {
                 shown.setLayout(panelWidth, panelHeight)
                 // Radius/layout only stick reliably once the window is attached.
                 applyPopupBlur(shown, surface)
+            }
+            if (animateIn) {
+                val animation = freeformContainer.animate()
+                    .alpha(1f)
+                    .setDuration(200L)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                if (scalePanel) animation.scaleX(1f).scaleY(1f)
+                animation.start()
             }
             popupDialog = dialog
             popup = view
@@ -2173,6 +2222,7 @@ class FloatBallService : Service() {
         popup = null
         popupList = null
         overlaySurface = OverlaySurface.NONE
+        stopWidgetUpdates()
         if (stopIfEmpty && floatBall == null) keepFloatBallAvailable()
     }
 

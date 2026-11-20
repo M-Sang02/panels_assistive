@@ -376,3 +376,17 @@
 
 ### Verification and remaining work
 - Static review only; no local JDK/Android SDK, so Gradle compilation must run through GitHub Actions. On-device checks: panel-scope blur on Android 12+, independent widget blur, 8 expansion shortcuts (picker + long-press remove), brightness bar spacing, and matching top inset between preview and live popup.
+
+## 2026-11-20 — v28.16 Widget updates only while panels are visible, fade-in opening
+
+### User-requested changes
+- Widgets no longer keep receiving/applying updates in the background while the float ball service idles; the widget host listens only while the widget panel is open (and pauses while the screen is off).
+- The widget panel now fades in (~200 ms, slight scale for self-drawn panels) so RemoteViews inflation does not read as a janky instant appearance.
+- The widget panel preview in settings only keeps its host alive while the editor screen is in front (loads on entering/resuming, stops on pause).
+
+### Changes in this source
+- `FloatBallService`: `widgetHost.startListening()` moved out of `onCreate` into `startWidgetUpdates()`, paired with `stopWidgetUpdates()` in `removePopup()`, `onDestroy()`, and screen-off; screen-on re-arms the host and rebuilds the grid. `showPopup()` starts the host, shows the window first, then inflates widgets via `root.post { populateWidgetList(root) }` during the fade. `showOverlayPanel()` fades/scales content in when `ValueAnimator.areAnimatorsEnabled()` allows it.
+- `WidgetPanelSettingsActivity`: preview host lifecycle tied to `onResume`/`onPause`/`onDestroy` through `startPreviewHost()`/`stopPreviewHost()`, with a guard flag.
+
+### Verification and remaining work
+- Static review only; run the GitHub Actions build and check: open/close widget panel (no background widget updates after close, fade-in without a hard pop), screen off/on with the panel open, and settings preview while leaving/returning to the editor.
