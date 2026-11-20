@@ -303,4 +303,21 @@
     <string name="float_ball_notification_text">Chạm bóng nổi để thực hiện thao tác đã gán.</string>
     <string name="float_ball_fgs_subtype">Phím tắt hỗ trợ và bảng tiện ích nổi do người dùng bật</string>
     <string name="accessibility_service_description">Chỉ thực hiện thao tác điều hướng hệ thống mà bạn gán, chẳng hạn mở bảng thông báo. Dịch vụ không đọc nội dung màn hình.</string>
+
+    <string name="float_ball_static_image">Ảnh tĩnh</string>
+    <string name="float_ball_gif_image">GIF</string>
+    <string name="float_ball_static_image_hint">Chọn một hoặc nhiều ảnh. Hiệu ứng tự động TẮT mặc định.</string>
+    <string name="float_ball_gif_hint">Chọn một GIF. Phát GIF TẮT mặc định.</string>
+    <string name="float_ball_play_gif">Phát hiệu ứng GIF</string>
+    <string name="float_ball_play_gif_description">TẮT chỉ dùng frame đầu và không chạy bộ hẹn giờ animation.</string>
+    <string name="float_ball_gif_pause_idle">Tạm dừng GIF khi không chạm</string>
+    <string name="float_ball_gif_pause_idle_description">Dừng phát và trở về frame đầu sau khi không tương tác.</string>
+    <string name="float_ball_gif_idle_seconds">Thời gian chờ GIF: %1$d giây</string>
+    <string name="float_ball_slideshow">Trình phát nhiều ảnh</string>
+    <string name="float_ball_slideshow_description">Chỉ hoạt động khi đã chọn từ 2 ảnh tĩnh trở lên.</string>
+    <string name="float_ball_slideshow_interval">Thời gian chuyển ảnh: %1$d giây</string>
+    <string name="float_ball_slideshow_pause_screen_off">Tạm dừng khi tắt màn hình</string>
+    <string name="float_ball_slideshow_pause_screen_off_description">Dừng slideshow trong khi màn hình tắt.</string>
+
+<string name="gif_choose_from_gif_tab">Hãy chọn GIF trong mục GIF.</string>
 </resources>

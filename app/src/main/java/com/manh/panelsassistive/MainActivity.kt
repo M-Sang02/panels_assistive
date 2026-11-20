@@ -70,12 +70,24 @@ class MainActivity : Activity() {
         handlePendingRecordingStart()
     }
 
-    fun openFloatBallIconPicker() {
+    fun openFloatBallIconPicker() = openFloatBallStaticPicker()
+
+    fun openFloatBallStaticPicker() {
         startActivityForResult(
             Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("image/*"),
-            REQUEST_FLOAT_ICON
+                .setType("image/*")
+                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
+            REQUEST_FLOAT_ICON_STATIC
+        )
+    }
+
+    fun openFloatBallGifPicker() {
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("image/gif"),
+            REQUEST_FLOAT_ICON_GIF
         )
     }
 
@@ -208,14 +220,38 @@ class MainActivity : Activity() {
     @Deprecated("Handles the system picker result on supported Android versions")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_FLOAT_ICON && resultCode == RESULT_OK) {
-            val uri = data?.data ?: return
+        if ((requestCode == REQUEST_FLOAT_ICON_STATIC || requestCode == REQUEST_FLOAT_ICON_GIF) &&
+            resultCode == RESULT_OK
+        ) {
+            val uris = buildList {
+                data?.data?.let(::add)
+                data?.clipData?.let { clip ->
+                    for (index in 0 until clip.itemCount) add(clip.getItemAt(index).uri)
+                }
+            }.distinct()
+            if (uris.isEmpty()) return
             try {
-                contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-                AppPrefs.setFloatBallIconUri(this, uri.toString())
+                uris.forEach { uri ->
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
+                if (requestCode == REQUEST_FLOAT_ICON_GIF) {
+                    AppPrefs.setFloatBallGifUri(this, uris.first().toString())
+                    AppPrefs.setFloatBallGifPlayEnabled(this, false)
+                } else {
+                    val staticUris = uris.filterNot { uri ->
+                        contentResolver.getType(uri)?.equals("image/gif", ignoreCase = true) == true ||
+                            uri.toString().lowercase().endsWith(".gif")
+                    }
+                    if (staticUris.isEmpty()) {
+                        Toast.makeText(this, R.string.gif_choose_from_gif_tab, Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    AppPrefs.setFloatBallStaticUris(this, staticUris.map(Uri::toString))
+                    AppPrefs.setFloatBallSlideshowEnabled(this, false)
+                }
                 updateFloatBall()
             } catch (error: SecurityException) {
                 Toast.makeText(this, R.string.icon_permission_failed, Toast.LENGTH_LONG).show()
@@ -378,7 +414,8 @@ class MainActivity : Activity() {
         const val EXTRA_RECORDING_OVERLAY_REQUESTED =
             "com.manh.panelsassistive.extra.RECORDING_OVERLAY_REQUESTED"
         private const val REQUEST_CAMERA = 41
-        private const val REQUEST_FLOAT_ICON = 42
+        private const val REQUEST_FLOAT_ICON_STATIC = 42
+        private const val REQUEST_FLOAT_ICON_GIF = 43
         private const val REQUEST_ASSISTANT_ROLE = 43
         private const val REQUEST_RECORDING_PERMISSION = 44
         private const val REQUEST_EXPORT_SETTINGS = 45

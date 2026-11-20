@@ -20,7 +20,7 @@ android {
         applicationId = "com.manh.panelsassistive"
         minSdk = 23
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 27
+        versionName = "0.2.7"
     }
 }

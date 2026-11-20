@@ -303,4 +303,21 @@
     <string name="float_ball_notification_text">Tap the floating shortcut to run its assigned action.</string>
     <string name="float_ball_fgs_subtype">User-enabled floating assistive shortcut and widget popup</string>
     <string name="accessibility_service_description">Performs only system navigation actions you assign, such as opening the notification shade. It does not retrieve screen content.</string>
+
+    <string name="float_ball_static_image">Static image</string>
+    <string name="float_ball_gif_image">GIF</string>
+    <string name="float_ball_static_image_hint">Choose one or several images. Animation is OFF by default.</string>
+    <string name="float_ball_gif_hint">Choose one GIF. Playback is OFF by default.</string>
+    <string name="float_ball_play_gif">Play GIF animation</string>
+    <string name="float_ball_play_gif_description">OFF uses only the first frame and runs no animation timer.</string>
+    <string name="float_ball_gif_pause_idle">Pause GIF when not touched</string>
+    <string name="float_ball_gif_pause_idle_description">Stops playback and returns to the first frame after inactivity.</string>
+    <string name="float_ball_gif_idle_seconds">GIF idle timeout: %1$d s</string>
+    <string name="float_ball_slideshow">Multi-image slideshow</string>
+    <string name="float_ball_slideshow_description">Works only when two or more static images are selected.</string>
+    <string name="float_ball_slideshow_interval">Slide interval: %1$d s</string>
+    <string name="float_ball_slideshow_pause_screen_off">Pause slideshow when screen is off</string>
+    <string name="float_ball_slideshow_pause_screen_off_description">Stops the slideshow while the display is off.</string>
+
+<string name="gif_choose_from_gif_tab">GIF files belong in the GIF tab.</string>
 </resources>

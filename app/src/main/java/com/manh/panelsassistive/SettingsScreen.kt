@@ -50,16 +50,38 @@ class SettingsScreen(private val activity: Activity) {
             addView(label(activity.getString(R.string.float_ball_description), 14, secondaryText).apply {
                 setPadding(0, dp(6), 0, dp(12))
             })
-            addView(actionButton(R.string.choose_float_ball_icon) {
-                (activity as? MainActivity)?.openFloatBallIconPicker()
+            addView(actionButton(R.string.float_ball_static_image) {
+                (activity as? MainActivity)?.openFloatBallStaticPicker()
             })
+            addView(label(activity.getString(R.string.float_ball_static_image_hint), 12, mutedText).apply {
+                setPadding(0, dp(4), 0, dp(4))
+            })
+            addView(actionButton(R.string.float_ball_gif_image) {
+                (activity as? MainActivity)?.openFloatBallGifPicker()
+            })
+            addView(label(activity.getString(R.string.float_ball_gif_hint), 12, mutedText).apply {
+                setPadding(0, dp(4), 0, dp(4))
+            })
+            val gifControls = gifAnimationControls().apply {
+                visibility = if (AppPrefs.floatBallIconMode(activity) == AppPrefs.FloatBallIconMode.GIF) {
+                    View.VISIBLE
+                } else View.GONE
+            }
+            val slideshowControls = slideshowControls().apply {
+                visibility = if (
+                    AppPrefs.floatBallIconMode(activity) == AppPrefs.FloatBallIconMode.STATIC &&
+                    AppPrefs.floatBallStaticUris(activity).size >= 2
+                ) View.VISIBLE else View.GONE
+            }
+            addView(gifControls)
+            addView(slideshowControls)
             addView(actionButton(R.string.reset_float_ball_icon) {
                 AlertDialog.Builder(activity)
                     .setTitle(R.string.reset_float_ball_icon)
                     .setMessage(R.string.reset_float_ball_icon_confirmation)
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(R.string.reset_float_ball_icon) { _, _ ->
-                        AppPrefs.setFloatBallIconUri(activity, null)
+                        AppPrefs.clearFloatBallIcon(activity)
                         updateFloatBall()
                     }
                     .show()
@@ -791,6 +813,112 @@ class SettingsScreen(private val activity: Activity) {
             AppPrefs.freezeAnimationWhenIdle(activity)
         ) {
             AppPrefs.setFreezeAnimationWhenIdle(activity, it)
+            updateFloatBall()
+        })
+        return controls
+    }
+
+    private fun gifAnimationControls(): LinearLayout {
+        val controls = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val idleOptions = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        controls.addView(switchRow(
+            R.string.float_ball_play_gif,
+            R.string.float_ball_play_gif_description,
+            AppPrefs.floatBallGifPlayEnabled(activity)
+        ) {
+            AppPrefs.setFloatBallGifPlayEnabled(activity, it)
+            idleOptions.visibility = if (
+                it && AppPrefs.floatBallGifPauseWhenIdle(activity)
+            ) View.VISIBLE else View.GONE
+            updateFloatBall()
+        })
+        controls.addView(switchRow(
+            R.string.float_ball_gif_pause_idle,
+            R.string.float_ball_gif_pause_idle_description,
+            AppPrefs.floatBallGifPauseWhenIdle(activity)
+        ) {
+            AppPrefs.setFloatBallGifPauseWhenIdle(activity, it)
+            idleOptions.visibility = if (
+                AppPrefs.floatBallGifPlayEnabled(activity) && it
+            ) View.VISIBLE else View.GONE
+            updateFloatBall()
+        })
+        val idleValue = label(
+            activity.getString(
+                R.string.float_ball_gif_idle_seconds,
+                AppPrefs.floatBallGifIdleSeconds(activity)
+            ),
+            13,
+            secondaryText
+        )
+        idleOptions.addView(idleValue)
+        idleOptions.addView(SeekBar(activity).apply {
+            max = 25
+            progress = AppPrefs.floatBallGifIdleSeconds(activity) - 5
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    val seconds = progress + 5
+                    AppPrefs.setFloatBallGifIdleSeconds(activity, seconds)
+                    idleValue.text =
+                        activity.getString(R.string.float_ball_gif_idle_seconds, seconds)
+                    updateFloatBall()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        })
+        idleOptions.visibility = if (
+            AppPrefs.floatBallGifPlayEnabled(activity) &&
+            AppPrefs.floatBallGifPauseWhenIdle(activity)
+        ) View.VISIBLE else View.GONE
+        controls.addView(idleOptions)
+        return controls
+    }
+
+    private fun slideshowControls(): LinearLayout {
+        val controls = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        controls.addView(switchRow(
+            R.string.float_ball_slideshow,
+            R.string.float_ball_slideshow_description,
+            AppPrefs.floatBallSlideshowEnabled(activity)
+        ) {
+            AppPrefs.setFloatBallSlideshowEnabled(activity, it)
+            updateFloatBall()
+        })
+        val intervalValue = label(
+            activity.getString(
+                R.string.float_ball_slideshow_interval,
+                AppPrefs.floatBallSlideshowIntervalSeconds(activity)
+            ),
+            13,
+            secondaryText
+        )
+        controls.addView(intervalValue)
+        controls.addView(SeekBar(activity).apply {
+            max = 295
+            progress = AppPrefs.floatBallSlideshowIntervalSeconds(activity) - 5
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    val seconds = progress + 5
+                    AppPrefs.setFloatBallSlideshowIntervalSeconds(activity, seconds)
+                    intervalValue.text =
+                        activity.getString(R.string.float_ball_slideshow_interval, seconds)
+                    updateFloatBall()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        })
+        controls.addView(switchRow(
+            R.string.float_ball_slideshow_pause_screen_off,
+            R.string.float_ball_slideshow_pause_screen_off_description,
+            AppPrefs.floatBallSlideshowPauseWhenScreenOff(activity)
+        ) {
+            AppPrefs.setFloatBallSlideshowPauseWhenScreenOff(activity, it)
             updateFloatBall()
         })
         return controls

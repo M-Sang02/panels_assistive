@@ -101,6 +101,15 @@ object AppPrefs {
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
     private const val KEY_FLOAT_BALL_ICON_URI = "float_ball_icon_uri"
+    private const val KEY_FLOAT_BALL_ICON_MODE = "float_ball_icon_mode"
+    private const val KEY_FLOAT_BALL_STATIC_URIS = "float_ball_static_uris"
+    private const val KEY_FLOAT_BALL_GIF_URI = "float_ball_gif_uri"
+    private const val KEY_FLOAT_BALL_GIF_PLAY = "float_ball_gif_play"
+    private const val KEY_FLOAT_BALL_GIF_PAUSE_IDLE = "float_ball_gif_pause_idle"
+    private const val KEY_FLOAT_BALL_GIF_IDLE_SECONDS = "float_ball_gif_idle_seconds"
+    private const val KEY_FLOAT_BALL_SLIDESHOW = "float_ball_slideshow"
+    private const val KEY_FLOAT_BALL_SLIDESHOW_INTERVAL = "float_ball_slideshow_interval"
+    private const val KEY_FLOAT_BALL_SLIDESHOW_PAUSE_SCREEN_OFF = "float_ball_slideshow_pause_screen_off"
     private const val KEY_FLOAT_BALL_OPACITY = "float_ball_opacity"
     private const val KEY_FLOAT_BALL_CORNER = "float_ball_corner"
     private const val KEY_FLOAT_BALL_EDGE_HIDE_ENABLED = "float_ball_edge_hide_enabled"
@@ -245,6 +254,7 @@ object AppPrefs {
             "Unsupported settings file."
         }
         val values = root.optJSONObject("preferences") ?: throw JSONException("Missing preferences.")
+        val iconMimeType = root.optJSONObject("floatBallIcon")?.optString("mimeType", "image/*")
         val iconBytes = root.optJSONObject("floatBallIcon")?.let { icon ->
             val encoded = icon.getString("base64")
             if (encoded.isBlank()) throw JSONException("Empty Float Ball icon.")
@@ -289,7 +299,20 @@ object AppPrefs {
             } finally {
                 if (temporaryFile.exists()) temporaryFile.delete()
             }
-            editor.putString(KEY_FLOAT_BALL_ICON_URI, android.net.Uri.fromFile(file).toString())
+            val importedUri = android.net.Uri.fromFile(file).toString()
+            editor.putString(KEY_FLOAT_BALL_ICON_URI, importedUri)
+            if (iconMimeType.equals("image/gif", ignoreCase = true)) {
+                editor.putString(KEY_FLOAT_BALL_ICON_MODE, "gif")
+                editor.putString(KEY_FLOAT_BALL_GIF_URI, importedUri)
+                editor.putBoolean(KEY_FLOAT_BALL_GIF_PLAY, false)
+            } else {
+                editor.putString(KEY_FLOAT_BALL_ICON_MODE, "static")
+                editor.putString(
+                    KEY_FLOAT_BALL_STATIC_URIS,
+                    JSONArray().put(importedUri).toString()
+                )
+                editor.putBoolean(KEY_FLOAT_BALL_SLIDESHOW, false)
+            }
         }
         editor.apply()
     }
@@ -617,6 +640,118 @@ object AppPrefs {
 
     fun setFloatBallIconUri(context: Context, uri: String?) {
         store(context).edit().putString(KEY_FLOAT_BALL_ICON_URI, uri).apply()
+    }
+
+    enum class FloatBallIconMode { STATIC, GIF }
+
+    fun floatBallIconMode(context: Context): FloatBallIconMode {
+        return when (store(context).getString(KEY_FLOAT_BALL_ICON_MODE, null)) {
+            "gif" -> FloatBallIconMode.GIF
+            else -> FloatBallIconMode.STATIC
+        }
+    }
+
+    fun setFloatBallIconMode(context: Context, mode: FloatBallIconMode) {
+        store(context).edit().putString(
+            KEY_FLOAT_BALL_ICON_MODE,
+            if (mode == FloatBallIconMode.GIF) "gif" else "static"
+        ).apply()
+    }
+
+    fun floatBallStaticUris(context: Context): List<String> {
+        val saved = store(context).getString(KEY_FLOAT_BALL_STATIC_URIS, null)
+        if (!saved.isNullOrBlank()) {
+            return try {
+                JSONArray(saved).let { array ->
+                    (0 until array.length()).mapNotNull { index ->
+                        array.optString(index).takeIf { it.isNotBlank() }
+                    }
+                }
+            } catch (_: JSONException) {
+                emptyList()
+            }
+        }
+        val legacy = floatBallIconUri(context)
+        return legacy?.let { listOf(it) } ?: emptyList()
+    }
+
+    fun setFloatBallStaticUris(context: Context, uris: List<String>) {
+        val array = JSONArray()
+        uris.distinct().take(20).forEach(array::put)
+        store(context).edit()
+            .putString(KEY_FLOAT_BALL_STATIC_URIS, array.toString())
+            .putString(KEY_FLOAT_BALL_ICON_MODE, "static")
+            .putString(KEY_FLOAT_BALL_ICON_URI, uris.firstOrNull())
+            .apply()
+    }
+
+    fun floatBallGifUri(context: Context): String? =
+        store(context).getString(KEY_FLOAT_BALL_GIF_URI, null)
+
+    fun setFloatBallGifUri(context: Context, uri: String?) {
+        store(context).edit()
+            .putString(KEY_FLOAT_BALL_GIF_URI, uri)
+            .putString(KEY_FLOAT_BALL_ICON_MODE, if (uri == null) "static" else "gif")
+            .apply()
+    }
+
+    fun clearFloatBallIcon(context: Context) {
+        store(context).edit()
+            .remove(KEY_FLOAT_BALL_ICON_URI)
+            .remove(KEY_FLOAT_BALL_STATIC_URIS)
+            .remove(KEY_FLOAT_BALL_GIF_URI)
+            .putString(KEY_FLOAT_BALL_ICON_MODE, "static")
+            .putBoolean(KEY_FLOAT_BALL_GIF_PLAY, false)
+            .putBoolean(KEY_FLOAT_BALL_SLIDESHOW, false)
+            .apply()
+    }
+
+    fun floatBallGifPlayEnabled(context: Context) =
+        store(context).getBoolean(KEY_FLOAT_BALL_GIF_PLAY, false)
+
+    fun setFloatBallGifPlayEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_FLOAT_BALL_GIF_PLAY, enabled).apply()
+    }
+
+    fun floatBallGifPauseWhenIdle(context: Context) =
+        store(context).getBoolean(KEY_FLOAT_BALL_GIF_PAUSE_IDLE, true)
+
+    fun setFloatBallGifPauseWhenIdle(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_FLOAT_BALL_GIF_PAUSE_IDLE, enabled).apply()
+    }
+
+    fun floatBallGifIdleSeconds(context: Context) =
+        store(context).getInt(KEY_FLOAT_BALL_GIF_IDLE_SECONDS, 10).coerceIn(5, 30)
+
+    fun setFloatBallGifIdleSeconds(context: Context, seconds: Int) {
+        store(context).edit().putInt(
+            KEY_FLOAT_BALL_GIF_IDLE_SECONDS,
+            seconds.coerceIn(5, 30)
+        ).apply()
+    }
+
+    fun floatBallSlideshowEnabled(context: Context) =
+        store(context).getBoolean(KEY_FLOAT_BALL_SLIDESHOW, false)
+
+    fun setFloatBallSlideshowEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_FLOAT_BALL_SLIDESHOW, enabled).apply()
+    }
+
+    fun floatBallSlideshowIntervalSeconds(context: Context) =
+        store(context).getInt(KEY_FLOAT_BALL_SLIDESHOW_INTERVAL, 10).coerceIn(5, 300)
+
+    fun setFloatBallSlideshowIntervalSeconds(context: Context, seconds: Int) {
+        store(context).edit().putInt(
+            KEY_FLOAT_BALL_SLIDESHOW_INTERVAL,
+            seconds.coerceIn(5, 300)
+        ).apply()
+    }
+
+    fun floatBallSlideshowPauseWhenScreenOff(context: Context) =
+        store(context).getBoolean(KEY_FLOAT_BALL_SLIDESHOW_PAUSE_SCREEN_OFF, true)
+
+    fun setFloatBallSlideshowPauseWhenScreenOff(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_FLOAT_BALL_SLIDESHOW_PAUSE_SCREEN_OFF, enabled).apply()
     }
 
     fun floatBallOpacity(context: Context) =

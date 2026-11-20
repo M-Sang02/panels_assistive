@@ -27,6 +27,8 @@ import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.ImageDecoder
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -89,12 +91,15 @@ class FloatBallService : Service() {
 
     private val configurationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_CONFIGURATION_CHANGED) {
-                repositionFloatBall()
-                if (popup != null) populateWidgetList()
+            when (intent?.action) {
+                Intent.ACTION_CONFIGURATION_CHANGED -> {
+                    repositionFloatBall()
+                    if (popup != null) populateWidgetList()
+                }
+                Intent.ACTION_SCREEN_OFF -> floatBall?.onScreenOff()
+                Intent.ACTION_SCREEN_ON -> floatBall?.onScreenOn()
             }
         }
-
     }
 
     private val longPressRunnable = Runnable {
@@ -160,7 +165,11 @@ class FloatBallService : Service() {
         }
         createNotificationChannel()
         startInForeground()
-        val filter = IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED)
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_CONFIGURATION_CHANGED)
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(configurationReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -355,7 +364,7 @@ class FloatBallService : Service() {
         if (floatBall != null || BackgroundRecordingService.isActive) return
         val size = dp(AppPrefs.floatBallSize(this))
         val view = FloatBallIconView(this).apply {
-            setIconUri(AppPrefs.floatBallIconUri(this@FloatBallService))
+            setIconSources(this@FloatBallService)
             setCornerPercent(AppPrefs.floatBallCorner(this@FloatBallService))
             alpha = AppPrefs.floatBallOpacity(this@FloatBallService) / 100f
             elevation = dp(8).toFloat()
@@ -399,6 +408,7 @@ class FloatBallService : Service() {
         val params = floatBallParams ?: return@OnTouchListener false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                view.onUserInteraction()
                 scheduleIdleDim()
                 downRawX = event.rawX
                 downRawY = event.rawY
@@ -687,7 +697,7 @@ class FloatBallService : Service() {
         params.width = size
         params.height = size
         view.alpha = AppPrefs.floatBallOpacity(this) / 100f
-        view.setIconUri(AppPrefs.floatBallIconUri(this))
+        view.setIconSources(this)
         view.setCornerPercent(AppPrefs.floatBallCorner(this))
         params.x = (position.first * maxX(size)).toInt()
         params.y = safeTop() + (position.second * maxY(size)).toInt()
@@ -1111,1039 +1121,409 @@ class FloatBallService : Service() {
     }
 
     private class FloatBallIconView(context: Context) : View(context) {
-            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            private var sourceUri: String? = null
-            private var bitmap: Bitmap? = null
-            private var movie: Movie? = null
-            private var animationStart = SystemClock.uptimeMillis()
-            private var animationFrozen = false
-            private var frozenPosition = 0
-            private var cornerPercent = 34
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        private val iconHandler = Handler(Looper.getMainLooper())
+        private var sourceMode = AppPrefs.FloatBallIconMode.STATIC
+        private var sourceUris: List<String> = emptyList()
+        private var currentIndex = 0
+        private var bitmap: Bitmap? = null
+        private var animatedDrawable: AnimatedImageDrawable? = null
+        private var fallbackMovie: Movie? = null
+        private var animationStart = SystemClock.uptimeMillis()
+        private var playing = false
+        private var screenOn = true
+        private var cornerPercent = 34
+        private var lastInteraction = SystemClock.uptimeMillis()
 
-            fun setCornerPercent(percent: Int) {
-                cornerPercent = percent.coerceIn(0, 100)
+        private val animationTick = object : Runnable {
+            override fun run() {
+                if (!playing || !screenOn || sourceMode != AppPrefs.FloatBallIconMode.GIF) return
                 invalidate()
+                iconHandler.postDelayed(this, 100L)
             }
+        }
 
-            fun setIconUri(uri: String?) {
-                if (uri == sourceUri) return
-                sourceUri = uri
-                bitmap = null
-                movie = null
-                if (uri == null) {
-                    invalidate()
-                    return
+        private val idleStopRunnable = Runnable {
+            if (playing &&
+                AppPrefs.floatBallGifPlayEnabled(context) &&
+                AppPrefs.floatBallGifPauseWhenIdle(context) &&
+                elapsedSinceInteraction() >= AppPrefs.floatBallGifIdleSeconds(context) * 1000L
+            ) {
+                stopGifToFirstFrame()
+            }
+        }
+
+        private val slideshowRunnable = object : Runnable {
+            override fun run() {
+                if ((!screenOn && AppPrefs.floatBallSlideshowPauseWhenScreenOff(context)) ||
+                    sourceMode != AppPrefs.FloatBallIconMode.STATIC ||
+                    !AppPrefs.floatBallSlideshowEnabled(context) ||
+                    sourceUris.size < 2
+                ) return
+                currentIndex = (currentIndex + 1) % sourceUris.size
+                loadStaticBitmap()
+                iconHandler.postDelayed(
+                    this,
+                    AppPrefs.floatBallSlideshowIntervalSeconds(context) * 1000L
+                )
+            }
+        }
+
+        fun setCornerPercent(percent: Int) {
+            cornerPercent = percent.coerceIn(0, 100)
+            invalidate()
+        }
+
+        fun setIconSources(context: Context) {
+            stopAllPlayback()
+            sourceMode = AppPrefs.floatBallIconMode(context)
+            sourceUris = when (sourceMode) {
+                AppPrefs.FloatBallIconMode.GIF -> listOfNotNull(AppPrefs.floatBallGifUri(context))
+                AppPrefs.FloatBallIconMode.STATIC -> AppPrefs.floatBallStaticUris(context)
+            }
+            currentIndex = 0
+            if (sourceMode == AppPrefs.FloatBallIconMode.GIF) {
+                loadGifFirstFrame()
+                if (AppPrefs.floatBallGifPlayEnabled(context)) startGifIfAllowed()
+            } else {
+                loadStaticBitmap()
+                if (AppPrefs.floatBallSlideshowEnabled(context) && sourceUris.size >= 2) {
+                    startSlideshowIfAllowed()
                 }
+            }
+        }
+
+        fun onUserInteraction() {
+            lastInteraction = SystemClock.uptimeMillis()
+            if (sourceMode == AppPrefs.FloatBallIconMode.GIF &&
+                AppPrefs.floatBallGifPlayEnabled(context)
+            ) {
+                if (!playing) startGifIfAllowed()
+                scheduleGifIdleStop()
+            }
+        }
+
+        fun onScreenOff() {
+            screenOn = false
+            // GIF always stops on screen-off. Slideshow can be explicitly allowed
+            // to continue by the user, although the battery-friendly default is ON.
+            stopAnimationOnly()
+            if (AppPrefs.floatBallSlideshowPauseWhenScreenOff(context)) {
+                cancelSlideshow()
+            } else if (sourceMode == AppPrefs.FloatBallIconMode.STATIC &&
+                AppPrefs.floatBallSlideshowEnabled(context) &&
+                sourceUris.size >= 2
+            ) {
+                startSlideshowIfAllowed()
+            }
+        }
+
+        fun onScreenOn() {
+            screenOn = true
+            lastInteraction = SystemClock.uptimeMillis()
+            if (sourceMode == AppPrefs.FloatBallIconMode.GIF &&
+                AppPrefs.floatBallGifPlayEnabled(context)
+            ) {
+                loadGifFirstFrame()
+            } else {
+                loadStaticBitmap()
+            }
+            if (sourceMode == AppPrefs.FloatBallIconMode.STATIC &&
+                AppPrefs.floatBallSlideshowEnabled(context) &&
+                sourceUris.size >= 2
+            ) {
+                startSlideshowIfAllowed()
+            }
+        }
+
+        fun setAnimationFrozen(frozen: Boolean) {
+            if (frozen) {
+                stopAnimationOnly()
+            } else if (screenOn) {
+                if (sourceMode == AppPrefs.FloatBallIconMode.GIF &&
+                    AppPrefs.floatBallGifPlayEnabled(context)
+                ) {
+                    startGifIfAllowed()
+                } else if (
+                    sourceMode == AppPrefs.FloatBallIconMode.STATIC &&
+                    AppPrefs.floatBallSlideshowEnabled(context) &&
+                    sourceUris.size >= 2
+                ) {
+                    startSlideshowIfAllowed()
+                }
+            }
+        }
+
+        private fun elapsedSinceInteraction() =
+            SystemClock.uptimeMillis() - lastInteraction
+
+        private fun scheduleGifIdleStop() {
+            iconHandler.removeCallbacks(idleStopRunnable)
+            if (AppPrefs.floatBallGifPauseWhenIdle(context)) {
+                iconHandler.postDelayed(
+                    idleStopRunnable,
+                    AppPrefs.floatBallGifIdleSeconds(context) * 1000L
+                )
+            }
+        }
+
+        private fun startGifIfAllowed() {
+            if (!screenOn ||
+                sourceMode != AppPrefs.FloatBallIconMode.GIF ||
+                !AppPrefs.floatBallGifPlayEnabled(context) ||
+                sourceUris.isEmpty()
+            ) return
+
+            if (animatedDrawable == null && fallbackMovie == null) loadGifAnimated()
+            if (animatedDrawable != null) {
+                animatedDrawable?.start()
+                playing = true
+            } else if (fallbackMovie != null) {
+                animationStart = SystemClock.uptimeMillis()
+                playing = true
+            }
+            if (!playing) return
+            iconHandler.removeCallbacks(animationTick)
+            iconHandler.post(animationTick)
+            scheduleGifIdleStop()
+            invalidate()
+        }
+
+        private fun stopGifToFirstFrame() {
+            stopAnimationOnly()
+            loadGifFirstFrame()
+        }
+
+        private fun stopAnimationOnly() {
+            playing = false
+            iconHandler.removeCallbacks(animationTick)
+            iconHandler.removeCallbacks(idleStopRunnable)
+            animatedDrawable?.stop()
+            animatedDrawable?.callback = null
+            animatedDrawable = null
+            fallbackMovie = null
+            invalidate()
+        }
+
+        private fun stopAllPlayback() {
+            stopAnimationOnly()
+            cancelSlideshow()
+            bitmap?.recycle()
+            bitmap = null
+        }
+
+        private fun startSlideshowIfAllowed() {
+            if ((!screenOn && AppPrefs.floatBallSlideshowPauseWhenScreenOff(context)) ||
+                sourceMode != AppPrefs.FloatBallIconMode.STATIC ||
+                !AppPrefs.floatBallSlideshowEnabled(context) ||
+                sourceUris.size < 2
+            ) return
+            cancelSlideshow()
+            iconHandler.postDelayed(
+                slideshowRunnable,
+                AppPrefs.floatBallSlideshowIntervalSeconds(context) * 1000L
+            )
+        }
+
+        private fun cancelSlideshow() {
+            iconHandler.removeCallbacks(slideshowRunnable)
+        }
+
+        private fun loadStaticBitmap() {
+            stopAnimationOnly()
+            bitmap?.recycle()
+            bitmap = null
+            val uri = sourceUris.getOrNull(currentIndex) ?: return
+            bitmap = decodeBitmapForView(Uri.parse(uri))
+            invalidate()
+        }
+
+        private fun loadGifFirstFrame() {
+            stopAnimationOnly()
+            bitmap?.recycle()
+            bitmap = null
+            val uri = sourceUris.firstOrNull()?.let(Uri::parse) ?: return
+            bitmap = decodeBitmapForView(uri)
+            invalidate()
+        }
+
+        private fun loadGifAnimated() {
+            val uri = sourceUris.firstOrNull()?.let(Uri::parse) ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
-                    val parsedUri = Uri.parse(uri)
-                    movie = context.contentResolver.openInputStream(parsedUri)?.use { Movie.decodeStream(it) }
-                    if (movie == null) {
-                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        context.contentResolver.openInputStream(parsedUri)?.use {
-                            BitmapFactory.decodeStream(it, null, bounds)
-                        }
-                        val longestSide = maxOf(bounds.outWidth, bounds.outHeight)
-                        var sampleSize = 1
-                        while (longestSide > 0 && longestSide / sampleSize > 512) sampleSize *= 2
-                        bitmap = context.contentResolver.openInputStream(parsedUri)?.use {
-                            BitmapFactory.decodeStream(
-                                it,
-                                null,
-                                BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                            )
-                        }
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    val drawable = ImageDecoder.decodeDrawable(source) { decoder, info, _ ->
+                        val target = maxOf(width, height, dp(48))
+                        val size = info.size
+                        val scale = minOf(
+                            target.toFloat() / size.width.coerceAtLeast(1),
+                            target.toFloat() / size.height.coerceAtLeast(1)
+                        )
+                        decoder.setTargetSize(
+                            (size.width * scale).toInt().coerceAtLeast(1),
+                            (size.height * scale).toInt().coerceAtLeast(1)
+                        )
                     }
-                    animationStart = SystemClock.uptimeMillis()
-                    animationFrozen = false
-                    frozenPosition = 0
-                } catch (error: SecurityException) {
-                    Log.e("FloatBallIcon", "Cannot read the saved icon URI", error)
-                    sourceUri = null
-                    AppPrefs.setFloatBallIconUri(context, null)
-                } catch (error: IllegalArgumentException) {
-                    Log.e("FloatBallIcon", "Saved icon URI is invalid", error)
-                    sourceUri = null
-                    AppPrefs.setFloatBallIconUri(context, null)
+                    if (drawable is AnimatedImageDrawable) {
+                        drawable.setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE)
+                        drawable.callback = this
+                        animatedDrawable = drawable
+                        bitmap?.recycle()
+                        bitmap = null
+                        return
+                    }
+                } catch (error: Exception) {
+                    Log.w("FloatBallIcon", "Animated GIF decode failed; using legacy decoder", error)
                 }
-                invalidate()
+            }
+            try {
+                context.contentResolver.openInputStream(uri)?.use {
+                    fallbackMovie = Movie.decodeStream(it)
+                }
+                bitmap?.recycle()
+                bitmap = null
+            } catch (error: Exception) {
+                Log.e("FloatBallIcon", "Cannot decode GIF", error)
+                fallbackMovie = null
+            }
+        }
+
+        private fun decodeBitmapForView(uri: Uri): Bitmap? {
+            return try {
+                val target = maxOf(width, height, dp(48))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                        val size = info.size
+                        val scale = minOf(
+                            target.toFloat() / size.width.coerceAtLeast(1),
+                            target.toFloat() / size.height.coerceAtLeast(1)
+                        )
+                        decoder.setTargetSize(
+                            (size.width * scale).toInt().coerceAtLeast(1),
+                            (size.height * scale).toInt().coerceAtLeast(1)
+                        )
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        decoder.memorySizePolicy = ImageDecoder.MEMORY_POLICY_LOW_RAM
+                    }
+                } else {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    context.contentResolver.openInputStream(uri)?.use {
+                        BitmapFactory.decodeStream(it, null, bounds)
+                    }
+                    val longest = maxOf(bounds.outWidth, bounds.outHeight)
+                    var sample = 1
+                    while (longest > target * sample * 2 && sample < 32) sample *= 2
+                    context.contentResolver.openInputStream(uri)?.use {
+                        BitmapFactory.decodeStream(
+                            it,
+                            null,
+                            BitmapFactory.Options().apply {
+                                inSampleSize = sample
+                                inPreferredConfig = Bitmap.Config.RGB_565
+                            }
+                        )
+                    }
+                }
+            } catch (error: Exception) {
+                Log.e("FloatBallIcon", "Cannot decode icon", error)
+                null
+            }
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val saveCount = canvas.save()
+            val clipRadius = width * 0.5f * cornerPercent / 100f
+            val clipPath = android.graphics.Path().apply {
+                addRoundRect(
+                    RectF(0f, 0f, width.toFloat(), height.toFloat()),
+                    clipRadius,
+                    clipRadius,
+                    android.graphics.Path.Direction.CW
+                )
+            }
+            canvas.clipPath(clipPath)
+
+            val drawable = animatedDrawable
+            if (drawable != null && playing) {
+                drawable.setBounds(0, 0, width, height)
+                drawable.draw(canvas)
+                canvas.restoreToCount(saveCount)
+                return
             }
 
-            fun setAnimationFrozen(frozen: Boolean) {
-                if (animationFrozen == frozen) return
-                val animated = movie
-                if (animated != null) {
-                    val duration = animated.duration().coerceAtLeast(1)
-                    if (frozen) {
-                        frozenPosition =
-                            ((SystemClock.uptimeMillis() - animationStart) % duration).toInt()
-                    } else {
-                        animationStart = SystemClock.uptimeMillis() - frozenPosition
-                    }
-                }
-                animationFrozen = frozen
-                invalidate()
+            val movie = fallbackMovie
+            if (movie != null && playing) {
+                val duration = movie.duration().coerceAtLeast(1)
+                val position =
+                    ((SystemClock.uptimeMillis() - animationStart) % duration).toInt()
+                movie.setTime(position)
+                val scale = minOf(
+                    width.toFloat() / movie.width().coerceAtLeast(1),
+                    height.toFloat() / movie.height().coerceAtLeast(1)
+                )
+                val drawWidth = movie.width() * scale
+                val drawHeight = movie.height() * scale
+                canvas.save()
+                canvas.translate((width - drawWidth) / 2f, (height - drawHeight) / 2f)
+                canvas.scale(scale, scale)
+                movie.draw(canvas, 0f, 0f, paint)
+                canvas.restore()
+                canvas.restoreToCount(saveCount)
+                return
             }
 
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val saveCount = canvas.save()
-                val clipRadius = width * 0.5f * cornerPercent / 100f
-                val clipPath = android.graphics.Path().apply {
-                    addRoundRect(
-                        RectF(0f, 0f, width.toFloat(), height.toFloat()),
-                        clipRadius,
-                        clipRadius,
-                        android.graphics.Path.Direction.CW
-                    )
-                }
-                canvas.clipPath(clipPath)
-                val animated = movie
-                if (animated != null && animated.width() > 0 && animated.height() > 0) {
-                    val duration = animated.duration().coerceAtLeast(1)
-                    if (!animationFrozen) {
-                        frozenPosition =
-                            ((SystemClock.uptimeMillis() - animationStart) % duration).toInt()
-                    }
-                    animated.setTime(frozenPosition)
-                    val scale = minOf(width.toFloat() / animated.width(), height.toFloat() / animated.height())
-                    val drawWidth = animated.width() * scale
-                    val drawHeight = animated.height() * scale
-                    canvas.save()
-                    canvas.translate((width - drawWidth) / 2f, (height - drawHeight) / 2f)
-                    canvas.scale(scale, scale)
-                    animated.draw(canvas, 0f, 0f, paint)
-                    canvas.restore()
-                    canvas.restoreToCount(saveCount)
-                    if (!animationFrozen) postInvalidateDelayed(33)
-                    return
-                }
-                bitmap?.let { image ->
-                    val scale = minOf(width.toFloat() / image.width, height.toFloat() / image.height)
-                    val drawWidth = image.width * scale
-                    val drawHeight = image.height * scale
-                    val destination = RectF(
+            bitmap?.let { image ->
+                val scale = minOf(
+                    width.toFloat() / image.width.coerceAtLeast(1),
+                    height.toFloat() / image.height.coerceAtLeast(1)
+                )
+                val drawWidth = image.width * scale
+                val drawHeight = image.height * scale
+                canvas.drawBitmap(
+                    image,
+                    null,
+                    RectF(
                         (width - drawWidth) / 2f,
                         (height - drawHeight) / 2f,
                         (width + drawWidth) / 2f,
                         (height + drawHeight) / 2f
-                    )
-                    canvas.drawBitmap(image, null, destination, paint)
-                    canvas.restoreToCount(saveCount)
-                    return
-                }
-                val inset = width * 0.06f
-                paint.color = Color.rgb(20, 57, 91)
-                val radius = width * 0.5f * cornerPercent / 100f
-                canvas.drawRoundRect(
-                    RectF(inset, inset, width - inset, height - inset),
-                    radius,
-                    radius,
+                    ),
                     paint
                 )
-                paint.color = Color.rgb(103, 184, 255)
-                val barHeight = height * 0.09f
-                val startX = width * 0.3f
-                val endX = width * 0.7f
-                val centerY = height * 0.5f
-                for (index in -1..1) {
-                    val y = centerY + index * barHeight * 1.8f
-                    canvas.drawRoundRect(
-                        RectF(startX, y - barHeight / 2f, endX, y + barHeight / 2f),
-                        barHeight,
-                        barHeight,
-                        paint
-                    )
-                }
                 canvas.restoreToCount(saveCount)
-            }
-    }
-
-    private fun createPanelShortcut(
-        item: PanelItem,
-        showLabel: Boolean = AppPrefs.showPanelLabels(this),
-        touchObserver: ((View, MotionEvent) -> Boolean)? = null
-    ): View {
-        val cell = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(6), dp(6), dp(6), dp(6))
-            background = GradientDrawable().apply {
-                setColor(Color.argb(24, 255, 255, 255))
-                cornerRadius = dp(16).toFloat()
-            }
-        }
-        val iconSize = dp(minOf(40, selectedCellWidth() - 12).coerceAtLeast(18))
-        if (item.type == PanelItemType.ACTION) {
-            cell.addView(ActionGlyphView(this, item.value, Color.rgb(125, 188, 255)), LinearLayout.LayoutParams(iconSize, iconSize))
-        } else {
-            cell.addView(ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                try {
-                    val icon = when (item.type) {
-                        PanelItemType.APP -> ComponentName.unflattenFromString(item.value)
-                            ?.let { packageManager.getActivityIcon(it) }
-                        PanelItemType.SHORTCUT -> Intent.parseUri(item.value, 0)
-                            .resolveActivity(packageManager)
-                            ?.let { packageManager.getActivityIcon(it) }
-                        else -> null
-                    }
-                    setImageDrawable(icon ?: packageManager.getDefaultActivityIcon())
-                } catch (error: Exception) {
-                    Log.w(TAG, "Unable to load panel item icon", error)
-                    setImageResource(android.R.drawable.sym_def_app_icon)
-                }
-            })
-        }
-        if (showLabel) {
-            cell.addView(TextView(this).apply {
-                text = item.label
-                textSize = 11f
-                setTextColor(Color.rgb(225, 229, 235))
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                setPadding(dp(2), dp(4), dp(2), 0)
-            })
-        }
-        cell.setOnClickListener {
-            launchPanelItem(item)
-            scheduleCloseAfterTap()
-        }
-        cell.setOnTouchListener { view, event ->
-            if (touchObserver?.invoke(view, event) == true) return@setOnTouchListener true
-            panelSwipeListener.onTouch(view, event)
-            false
-        }
-        return cell
-    }
-
-    private fun launchPanelItem(item: PanelItem) {
-        try {
-            if (item.type == PanelItemType.ACTION) {
-                ActionDispatcher.dispatch(this, item.value)
                 return
             }
-            val intent = when (item.type) {
-                PanelItemType.APP -> Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                    component = ComponentName.unflattenFromString(item.value)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                PanelItemType.SHORTCUT -> Intent.parseUri(item.value, 0).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                else -> return
-            }
-            startActivity(intent)
-        } catch (error: Exception) {
-            Log.e(TAG, "Unable to launch panel item", error)
-            Toast.makeText(this, R.string.panel_item_launch_failed, Toast.LENGTH_SHORT).show()
-        }
-    }
 
-    private fun scheduleCloseAfterTap() {
-        if (AppPrefs.closePanelAfterTap(this)) {
-            handler.postDelayed({ removePopup() }, 180)
-        }
-    }
-
-    private val panelSwipeListener = View.OnTouchListener { _, event ->
-        when (event.actionMasked) {
-            MotionEvent.ACTION_OUTSIDE -> {
-                removePopup()
-                return@OnTouchListener true
-            }
-            MotionEvent.ACTION_DOWN -> {
-                downRawX = event.rawX
-                downRawY = event.rawY
-            }
-            MotionEvent.ACTION_UP -> {
-                val dx = event.rawX - downRawX
-                val dy = event.rawY - downRawY
-                if (kotlin.math.abs(dx) > dp(60) && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
-                    changePanel(if (dx < 0) 1 else -1)
-                }
-            }
-        }
-        false
-    }
-
-    private fun changePanel(direction: Int) {
-        val landscape = usesLandscapeLayout()
-        val pages = AppPrefs.panelPages(this, landscape)
-        if (pages.size < 2) return
-        val current = pages.indexOfFirst { it.id == AppPrefs.currentPanelId(this, landscape) }.coerceAtLeast(0)
-        val next = (current + direction + pages.size) % pages.size
-        AppPrefs.setCurrentPanel(this, landscape, pages[next].id)
-        populateWidgetList()
-    }
-
-    private fun popupIconButton(icon: PopupIcon, description: Int, action: () -> Unit) =
-        FrameLayout(this).apply {
-            background = roundedControlBackground()
-            isClickable = true
-            isFocusable = true
-            contentDescription = getString(description)
-            addView(PopupIconView(this@FloatBallService, icon).apply {
-                setIconColor(Color.rgb(225, 232, 241))
-            }, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
-            setOnClickListener { action() }
-        }
-
-    private fun popupActionButton(label: String, action: () -> Unit) =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(dp(14), 0, dp(16), 0)
-            background = roundedBackground(Color.rgb(49, 87, 128), dp(14))
-            isClickable = true
-            isFocusable = true
-            addView(
-                PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
-                    setIconColor(Color.WHITE)
-                },
-                LinearLayout.LayoutParams(dp(16), dp(16)).apply {
-                    marginEnd = dp(8)
-                }
+            val inset = width * 0.06f
+            paint.color = Color.rgb(20, 57, 91)
+            val radius = width * 0.5f * cornerPercent / 100f
+            canvas.drawRoundRect(
+                RectF(inset, inset, width - inset, height - inset),
+                radius,
+                radius,
+                paint
             )
-            addView(TextView(this@FloatBallService).apply {
-                text = label
-                textSize = 13f
-                setTextColor(Color.WHITE)
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-            })
-            setOnClickListener { action() }
+            paint.color = Color.WHITE
+            canvas.drawCircle(width / 2f, height / 2f, width * 0.18f, paint)
+            canvas.restoreToCount(saveCount)
         }
 
-    private fun roundedBackground(color: Int, radius: Int) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = radius.toFloat()
-    }
-
-    private fun openWidgetPicker(type: String, position: Int = -1) {
-        launchPicker(type, position)
-    }
-
-    private fun launchPicker(type: String, position: Int = -1, expansionIndex: Int = -1) {
-        popupTemporarilyHidden = popupDialog?.isShowing == true
-        popupDialog?.hide()
-        removeFloatBall()
-        startActivity(
-            Intent(this, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_OPEN_WIDGET_PICKER, true)
-                .putExtra(WidgetPickerActivity.EXTRA_LANDSCAPE_LAYOUT, usesLandscapeLayout())
-                .putExtra(
-                    WidgetPickerActivity.EXTRA_PANEL_ID,
-                    AppPrefs.currentPanelId(this, usesLandscapeLayout())
-                )
-                .putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, type)
-                .putExtra(WidgetPickerActivity.EXTRA_POSITION, position)
-                .putExtra(WidgetPickerActivity.EXTRA_EXPANSION_SLOT, expansionIndex)
-                .addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                )
-        )
-    }
-
-    private fun showOverlayDialog(builder: android.app.AlertDialog.Builder) {
-        val dialog = builder.create()
-        dialog.window?.setType(overlayWindowType())
-        dialog.show()
-    }
-
-    private fun showExpansionPanel() {
-        if (popup != null) removePopup(stopIfEmpty = false)
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(14), dp(18), dp(18))
-            background = frostedPanelBackground(24)
-        }
-        panel.addView(TextView(this).apply {
-            text = getString(R.string.expansion_panel_title)
-            textSize = 16f
-            setTextColor(Color.WHITE)
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(8))
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ))
-        val sliderRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        addBrightnessControl(sliderRow)
-        addVolumeControl(sliderRow, R.string.alarm_volume, PopupIcon.ALARM, android.media.AudioManager.STREAM_ALARM)
-        addVolumeControl(sliderRow, R.string.notification_volume, PopupIcon.NOTIFICATION, android.media.AudioManager.STREAM_NOTIFICATION)
-        addVolumeControl(sliderRow, R.string.ring_volume, PopupIcon.RING, android.media.AudioManager.STREAM_RING)
-        addVolumeControl(sliderRow, R.string.media_volume, PopupIcon.MEDIA, android.media.AudioManager.STREAM_MUSIC)
-        panel.addView(sliderRow, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(190)
-        ))
-        val shortcutItems = AppPrefs.expansionShortcuts(this)
-        val shortcuts = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        shortcutItems.forEachIndexed { index, shortcut ->
-            val cell = if (shortcut == null) {
-                FrameLayout(this).apply {
-                    contentDescription = getString(R.string.add_shortcut)
-                    background = roundedControlBackground()
-                    isClickable = true
-                    isFocusable = true
-                    addView(PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
-                        setIconColor(Color.WHITE)
-                    }, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
-                    setOnClickListener { showExpansionShortcutOptions(index) }
-                }
-            } else {
-                val shortcutView = createPanelShortcut(
-                    PanelItem(shortcut.type, shortcut.value, shortcut.label),
-                    showLabel = false
-                )
-                val removeButton = popupItemControl(PopupIcon.CLOSE, R.string.remove_shortcut) {
-                    AppPrefs.setExpansionShortcut(this@FloatBallService, index, null)
-                    showExpansionPanel()
-                }.apply {
-                    visibility = View.GONE
-                    contentDescription = getString(R.string.remove_shortcut)
-                }
-                FrameLayout(this).apply {
-                    addView(shortcutView, FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    ))
-                    addView(removeButton, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.TOP or Gravity.END))
-                    shortcutView.setOnLongClickListener {
-                        removeButton.visibility = View.VISIBLE
-                        true
-                    }
-                }
-            }
-            shortcuts.addView(cell, LinearLayout.LayoutParams(0, dp(72), 1f).apply {
-                setMargins(dp(3), 0, dp(3), 0)
-            })
-        }
-        panel.addView(shortcuts)
-        showOverlayPanel(panel, dp(360), dp(390))
-    }
-
-    private fun showExpansionShortcutOptions(index: Int) {
-        val choices = arrayOf(
-            getString(R.string.choose_app),
-            getString(R.string.choose_shortcut),
-            getString(R.string.choose_phone_action)
-        )
-        showOverlayDialog(android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.select_expansion_shortcut_type)
-            .setItems(choices) { _, selected ->
-                when (selected) {
-                    0 -> openExpansionPicker(PanelItemType.APP, index)
-                    1 -> openExpansionPicker(PanelItemType.SHORTCUT, index)
-                    2 -> showExpansionActionChoices(index)
-                }
-            }
-        )
-    }
-
-    private fun openExpansionPicker(type: String, index: Int) {
-        launchPicker(type, expansionIndex = index)
-    }
-
-    private fun showExpansionActionChoices(index: Int) {
-        val actions = ActionDispatcher.quickActions(this)
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        lateinit var dialog: android.app.AlertDialog
-        actions.forEach { choice ->
-            content.addView(LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(14), dp(10), dp(14), dp(10))
-                isClickable = true
-                isFocusable = true
-                addView(ActionGlyphView(this@FloatBallService, choice.id, Color.rgb(125, 188, 255)),
-                    LinearLayout.LayoutParams(dp(28), dp(28)))
-                addView(TextView(this@FloatBallService).apply {
-                    text = choice.label
-                    textSize = 15f
-                    setTextColor(Color.WHITE)
-                    setPadding(dp(12), 0, 0, 0)
-                })
-                setOnClickListener {
-                    AppPrefs.setExpansionShortcut(
-                        this@FloatBallService,
-                        index,
-                        ExpansionShortcut(PanelItemType.ACTION, choice.id, choice.label)
-                    )
-                    dialog.dismiss()
-                    showExpansionPanel()
-                }
-            })
-        }
-        dialog = android.app.AlertDialog.Builder(this)
-            .setTitle(R.string.select_action)
-            .setView(ScrollView(this).apply { addView(content) })
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-        dialog.window?.setType(overlayWindowType())
-        dialog.show()
-    }
-
-    private fun showBrightnessSlider() {
-        if (popup != null) removePopup(stopIfEmpty = false)
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            background = frostedPanelBackground(24)
-        }
-        val icon = PopupIconView(this, PopupIcon.BRIGHTNESS).apply {
-            setIconColor(Color.rgb(125, 188, 255))
-            contentDescription = getString(R.string.brightness_slider)
-        }
-        panel.addView(icon, LinearLayout.LayoutParams(dp(28), dp(28)).apply {
-            topMargin = dp(8)
-        })
-        val current = if (Settings.System.canWrite(this)) {
-            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
-        } else {
-            128
-        }
-        panel.addView(verticalSlider(255, current, dp(190)) { updateBrightness(it) }, LinearLayout.LayoutParams(
-            dp(64),
-            dp(210)
-        ))
-        showOverlayPanel(panel, dp(150), dp(310))
-    }
-
-    private fun addBrightnessControl(row: LinearLayout) {
-        val current = if (Settings.System.canWrite(this)) {
-            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
-        } else {
-            128
-        }
-        row.addView(sliderColumn(
-            R.string.brightness_short_label,
-            PopupIcon.BRIGHTNESS,
-            verticalSlider(255, current) { updateBrightness(it) }
-        ), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-    }
-
-    private fun addVolumeControl(row: LinearLayout, label: Int, icon: PopupIcon, stream: Int) {
-        val audio = getSystemService(android.media.AudioManager::class.java) ?: return
-        val maximum = audio.getStreamMaxVolume(stream).coerceAtLeast(1)
-        val current = audio.getStreamVolume(stream).coerceIn(0, maximum)
-        val deferUntilReleased = stream == android.media.AudioManager.STREAM_MUSIC
-        var pendingProgress = current
-        val applyPendingVolume = Runnable {
-            setStreamVolume(audio, stream, pendingProgress.coerceIn(0, maximum))
-        }
-        row.addView(sliderColumn(
-            label,
-            icon,
-            verticalSlider(
-                maximum,
-                current,
-                deferUpdatesUntilReleased = deferUntilReleased,
-                onTrackingStarted = {
-                    if (deferUntilReleased) handler.removeCallbacks(applyPendingVolume)
-                },
-                onReleased = {
-                    if (deferUntilReleased) {
-                        handler.removeCallbacks(applyPendingVolume)
-                        handler.postDelayed(applyPendingVolume, MEDIA_VOLUME_RELEASE_DELAY_MS)
-                    }
-                }
-            ) { progress ->
-                pendingProgress = progress
-                if (!deferUntilReleased) {
-                    setStreamVolume(audio, stream, progress.coerceIn(0, maximum))
-                }
-            }
-        ), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-    }
-
-    private fun setStreamVolume(
-        audio: android.media.AudioManager,
-        stream: Int,
-        requested: Int
-    ) {
-        try {
-            val flags = android.media.AudioManager.FLAG_SHOW_UI or
-                android.media.AudioManager.FLAG_PLAY_SOUND
-            audio.setStreamVolume(stream, requested, flags)
-            var actual = audio.getStreamVolume(stream)
-            var attempts = 0
-            val maximumAttempts = audio.getStreamMaxVolume(stream).coerceAtLeast(1) + 1
-            while (actual != requested && attempts++ < maximumAttempts) {
-                val direction = if (actual < requested) {
-                    android.media.AudioManager.ADJUST_RAISE
-                } else {
-                    android.media.AudioManager.ADJUST_LOWER
-                }
-                audio.adjustStreamVolume(
-                    stream,
-                    direction,
-                    if (actual == requested - 1 || actual == requested + 1) flags else 0
-                )
-                val updated = audio.getStreamVolume(stream)
-                if (updated == actual) break
-                actual = updated
-            }
-            if (actual != requested) {
-                Log.w(TAG, "System volume did not accept level $requested for stream $stream")
-                Toast.makeText(this, R.string.volume_update_failed, Toast.LENGTH_SHORT).show()
-            }
-        } catch (error: SecurityException) {
-            Log.e(TAG, "Unable to update volume stream $stream", error)
-            Toast.makeText(this, R.string.volume_update_failed, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun sliderColumn(label: Int, icon: PopupIcon, slider: View) =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            addView(PopupIconView(this@FloatBallService, icon).apply {
-                setIconColor(Color.rgb(125, 188, 255))
-                contentDescription = getString(label)
-            }, LinearLayout.LayoutParams(dp(22), dp(22)))
-            addView(slider, LinearLayout.LayoutParams(dp(48), dp(132)).apply {
-                topMargin = dp(6)
-            })
-            addView(TextView(this@FloatBallService).apply {
-                text = getString(label)
-                textSize = 9f
-                setTextColor(Color.rgb(166, 173, 185))
-                gravity = Gravity.CENTER
-                maxLines = 2
-            }, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(30)
-            ))
+        override fun invalidateDrawable(drawable: Drawable) {
+            super.invalidateDrawable(drawable)
+            invalidate()
         }
 
-    private fun verticalSlider(
-        maximum: Int,
-        current: Int,
-        sliderLength: Int = dp(132),
-        deferUpdatesUntilReleased: Boolean = false,
-        onTrackingStarted: () -> Unit = {},
-        onReleased: () -> Unit = {},
-        onChanged: (Int) -> Unit
-    ): FrameLayout {
-        val frame = FrameLayout(this)
-        val seekBar = SeekBar(this).apply {
-            max = maximum.coerceAtLeast(1)
-            progress = current.coerceIn(0, max)
-            rotation = -90f
-            layoutParams = FrameLayout.LayoutParams(sliderLength, dp(48), Gravity.CENTER)
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    if (fromUser) {
-                        onChanged(progress)
-                    }
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                    if (deferUpdatesUntilReleased) onTrackingStarted()
-                }
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                    if (deferUpdatesUntilReleased) onReleased()
-                }
-            })
-        }
-        frame.addView(seekBar)
-        return frame
-    }
-
-    private fun updateBrightness(progress: Int) {
-        if (!Settings.System.canWrite(this)) {
-            if (!brightnessPermissionPrompted) {
-                brightnessPermissionPrompted = true
-                Toast.makeText(this, R.string.brightness_permission_required, Toast.LENGTH_LONG).show()
-                startActivity(Intent(
-                    Settings.ACTION_MANAGE_WRITE_SETTINGS,
-                    Uri.parse("package:$packageName")
-                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-            return
-        }
-        brightnessPermissionPrompted = false
-        try {
-            val modeSaved = Settings.System.putInt(
-                contentResolver,
-                Settings.System.SCREEN_BRIGHTNESS_MODE,
-                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
-            )
-            val brightnessSaved = Settings.System.putInt(
-                contentResolver,
-                Settings.System.SCREEN_BRIGHTNESS,
-                progress.coerceIn(1, 255)
-            )
-            if (!modeSaved || !brightnessSaved) {
-                Toast.makeText(this, R.string.brightness_update_failed, Toast.LENGTH_SHORT).show()
-            }
-        } catch (error: SecurityException) {
-            Log.e(TAG, "Permission to change system brightness was revoked", error)
-            Toast.makeText(this, R.string.brightness_update_failed, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun panelHeader(title: Int, onClose: () -> Unit): LinearLayout =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(this@FloatBallService).apply {
-                text = getString(title)
-                textSize = 16f
-                setTextColor(Color.WHITE)
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-            }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            addView(
-                popupIconButton(PopupIcon.CLOSE, R.string.close, onClose),
-                LinearLayout.LayoutParams(dp(42), dp(42))
-            )
+        override fun onDetachedFromWindow() {
+            stopAllPlayback()
+            bitmap?.recycle()
+            bitmap = null
+            super.onDetachedFromWindow()
         }
 
-    private fun roundedControlBackground() = GradientDrawable().apply {
-        setColor(Color.rgb(35, 39, 48))
-        cornerRadius = dp(18).toFloat()
-        setStroke(dp(1), Color.argb(100, 91, 174, 255))
-    }
-
-    private fun frostedPanelBackground(
-        radius: Int,
-        color: Int = Color.rgb(19, 24, 33),
-        opacity: Int = 66
-    ) = GradientDrawable().apply {
-        val alpha = opacity.coerceIn(0, 100) * 255 / 100
-        setColor((color and 0x00FFFFFF) or (alpha shl 24))
-        cornerRadius = dp(radius).toFloat()
-        if (alpha > 0) setStroke(1, Color.argb((alpha * 0.42f).toInt(), 225, 235, 248))
-    }
-
-    private fun selectedCellWidth(): Int =
-        AppPrefs.panelPages(this, usesLandscapeLayout())
-            .firstOrNull { it.id == AppPrefs.currentPanelId(this, usesLandscapeLayout()) }
-            ?.cellWidthDp ?: 72
-
-    private fun showOverlayPanel(
-        view: View,
-        width: Int,
-        height: Int,
-        dragHandle: View? = null,
-        windowBackground: Drawable? = null,
-        backgroundOpacity: Int? = null
-    ) {
-        val panelWidth = minOf(width, (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(1)))
-        val panelHeight = minOf(height, (resources.displayMetrics.heightPixels - dp(64)).coerceAtLeast(dp(1)))
-        val dialog = Dialog(this)
-        val freeformContainer = FrameLayout(this)
-        freeformContainer.addView(view, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        ))
-        dialog.setContentView(freeformContainer)
-        dialog.setCanceledOnTouchOutside(true)
-        val window = dialog.window
-        try {
-            if (window == null) {
-                Toast.makeText(this, R.string.overlay_permission_required, Toast.LENGTH_LONG).show()
-                return
-            }
-            window.setType(overlayWindowType())
-            window.setBackgroundDrawable(windowBackground ?: GradientDrawable().apply {
-                setColor(Color.TRANSPARENT)
-            })
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                    WindowManager.LayoutParams.FLAG_DIM_BEHIND
-            )
-            window.attributes = window.attributes.apply { dimAmount = 0.18f }
-            window.setLayout(panelWidth, panelHeight)
-            window.attributes = window.attributes.apply { gravity = Gravity.CENTER }
-            applyPopupBlur(window)
-            var panelDownRawX = 0f
-            var panelDownRawY = 0f
-            var panelStartX = 0
-            var panelStartY = 0
-            dragHandle?.setOnTouchListener { _, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        panelDownRawX = event.rawX
-                        panelDownRawY = event.rawY
-                        panelStartX = (resources.displayMetrics.widthPixels - panelWidth).coerceAtLeast(0) / 2
-                        panelStartY = (resources.displayMetrics.heightPixels - panelHeight).coerceAtLeast(0) / 2
-                        true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val attributes = window.attributes
-                        attributes.gravity = Gravity.TOP or Gravity.START
-                        val currentWidth = attributes.width.takeIf { it > 0 } ?: panelWidth
-                        val currentHeight = attributes.height.takeIf { it > 0 } ?: panelHeight
-                        attributes.x = (panelStartX + (event.rawX - panelDownRawX).toInt())
-                            .coerceIn(0, (resources.displayMetrics.widthPixels - currentWidth).coerceAtLeast(0))
-                        attributes.y = (panelStartY + (event.rawY - panelDownRawY).toInt())
-                            .coerceIn(0, (resources.displayMetrics.heightPixels - currentHeight).coerceAtLeast(0))
-                        window.attributes = attributes
-                        true
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
-                    else -> false
-                }
-            }
-            dialog.setOnDismissListener {
-                if (popupDialog === dialog) {
-                    crossWindowBlurListener?.let { listener ->
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            windowManager.removeCrossWindowBlurEnabledListener(listener)
-                        }
-                    }
-                    crossWindowBlurListener = null
-                    popupDialog = null
-                    popup = null
-                    popupList = null
-                    popupAddButton = null
-                    popupEditMode = false
-                    keepFloatBallAvailable()
-                }
-            }
-            dialog.show()
-            dialog.window?.setLayout(panelWidth, panelHeight)
-            popupDialog = dialog
-            popup = view
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val listener = Consumer<Boolean> { applyPopupBlur(window) }
-                windowManager.addCrossWindowBlurEnabledListener(listener)
-                crossWindowBlurListener = listener
-            }
-            bringFloatBallToFront()
-        } catch (error: WindowManager.BadTokenException) {
-            Log.e(TAG, "Unable to display assistive panel", error)
-            Toast.makeText(this, R.string.overlay_permission_required, Toast.LENGTH_LONG).show()
-        } catch (error: SecurityException) {
-            Log.e(TAG, "Overlay permission was revoked before the panel appeared", error)
-            AppPrefs.setFloatBallEnabled(this, false)
-            stopSelf()
-        }
-    }
-
-    private fun applyPopupBlur(window: android.view.Window) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val blurRequested = AppPrefs.popupBlurEnabled(this)
-        val requestedRadius = if (blurRequested) {
-            AppPrefs.popupBlurRadius(this).coerceIn(0, 80)
-        } else {
-            0
-        }
-        val blurAvailable = windowManager.isCrossWindowBlurEnabled
-        val blurEnabled = requestedRadius > 0 && blurAvailable
-        val panelOnly = AppPrefs.popupBlurScope(this) == AppPrefs.BLUR_SCOPE_PANEL
-        if (blurEnabled && !panelOnly) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-        }
-        window.setBackgroundBlurRadius(
-            if (blurEnabled && panelOnly) requestedRadius else 0
-        )
-        val attributes = window.attributes
-        attributes.setBlurBehindRadius(
-            if (blurEnabled && !panelOnly) requestedRadius else 0
-        )
-        attributes.dimAmount = if (blurEnabled) 0.14f else 0.42f
-        window.attributes = attributes
-    }
-
-    private fun hasFlashlightPermission(): Boolean =
-        checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-
-    private fun requestFlashlightPermission() {
-        startActivity(
-            Intent(this, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_REQUEST_CAMERA_PERMISSION, true)
-                .putExtra(MainActivity.EXTRA_RUN_TORCH_AFTER_PERMISSION, true)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-    }
-
-    private fun toggleFlashlight() {
-        if (!hasFlashlightPermission()) {
-            requestFlashlightPermission()
-            return
-        }
-        val cameraManager = getSystemService(CameraManager::class.java)
-        if (cameraManager == null) {
-            Toast.makeText(this, R.string.flashlight_unavailable, Toast.LENGTH_SHORT).show()
-            return
-        }
-        try {
-            val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
-                cameraManager.getCameraCharacteristics(id)
-                    .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
-            } ?: run {
-                Toast.makeText(this, R.string.flashlight_unavailable, Toast.LENGTH_SHORT).show()
-                return
-            }
-            val enabled = !AppPrefs.flashlightEnabled(this)
-            cameraManager.setTorchMode(cameraId, enabled)
-            AppPrefs.setFlashlightEnabled(this, enabled)
-        } catch (error: CameraAccessException) {
-            Log.e(TAG, "Unable to toggle flashlight", error)
-            Toast.makeText(this, R.string.flashlight_unavailable, Toast.LENGTH_SHORT).show()
-        } catch (error: SecurityException) {
-            Log.e(TAG, "Camera permission is required for flashlight control", error)
-            requestFlashlightPermission()
-        }
-    }
-
-    private fun usesLandscapeLayout() =
-        resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE &&
-            AppPrefs.landscapeWidgetLayoutEnabled(this)
-
-    private fun removePopup(stopIfEmpty: Boolean = true) {
-        popupTemporarilyHidden = false
-        popupEditMode = false
-        val dialog = popupDialog
-        popupDialog = null
-        popup?.let { view ->
-            if (dialog != null) {
-                if (dialog.isShowing) dialog.dismiss()
-                return@let
-            }
-            try {
-                windowManager.removeView(view)
-            } catch (error: IllegalArgumentException) {
-                Log.w(TAG, "Widget popup was already removed", error)
-            }
-        }
-        popup = null
-        popupList = null
-        if (stopIfEmpty && floatBall == null) keepFloatBallAvailable()
-    }
-
-    private fun keepFloatBallAvailable() {
-        if (AppPrefs.floatBallEnabled(this) && Settings.canDrawOverlays(this)) {
-            showFloatBall()
-        } else if (!BackgroundRecordingService.isActive) {
-            stopSelf()
-        }
-    }
-
-    private fun bringFloatBallToFront() {
-        if (!AppPrefs.floatBallEnabled(this) || floatBall == null) return
-        removeFloatBall()
-        showFloatBall()
-    }
-
-    private fun removeFloatBall() {
-        handler.removeCallbacks(idleDimRunnable)
-        floatBall?.let { view ->
-            try {
-                windowManager.removeView(view)
-            } catch (error: IllegalArgumentException) {
-                Log.w(TAG, "Floating shortcut was already removed", error)
-            }
-        }
-        floatBall = null
-        floatBallParams = null
-    }
-
-    private fun scheduleIdleDim() {
-        handler.removeCallbacks(idleDimRunnable)
-        val view = floatBall ?: return
-        view.animate().cancel()
-        view.alpha = AppPrefs.floatBallOpacity(this) / 100f
-        view.setAnimationFrozen(false)
-        if (AppPrefs.dimWhenIdle(this)) {
-            handler.postDelayed(
-                idleDimRunnable,
-                AppPrefs.idleDelaySeconds(this) * 1000L
-            )
-        }
-    }
-
-    private fun openOverlaySettings() {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:$packageName")
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
-    }
-
-    private fun clampPosition(params: WindowManager.LayoutParams, size: Int) {
-        params.x = params.x.coerceIn(0, maxX(size))
-        params.y = params.y.coerceIn(safeTop(), safeTop() + maxY(size))
-    }
-
-    private fun persistPosition(params: WindowManager.LayoutParams, size: Int) {
-        val rangeX = maxX(size).coerceAtLeast(1)
-        val rangeY = maxY(size).coerceAtLeast(1)
-        AppPrefs.setPosition(
-            this,
-            params.x.toFloat() / rangeX,
-            (params.y - safeTop()).toFloat() / rangeY
-        )
-    }
-
-    private fun applyEdgeHide(params: WindowManager.LayoutParams, size: Int) {
-        if (!AppPrefs.floatBallEdgeHideEnabled(this)) return
-        val landscape = resources.displayMetrics.widthPixels > resources.displayMetrics.heightPixels
-        val autoMirror = AppPrefs.floatBallAutoMirror(this)
-        val fixedLeft = AppPrefs.floatBallFixedSide(this) == "left"
-        val left = if (autoMirror) {
-            val centerX = params.x + size / 2
-            centerX < resources.displayMetrics.widthPixels / 2
-        } else {
-            fixedLeft
-        }
-        val percent = AppPrefs.floatBallEdgeOffset(this, landscape, left)
-        val extra = (size * percent / 100f).toInt()
-        params.x = if (left) {
-            -extra.coerceIn(0, size)
-        } else {
-            (maxX(size) + extra.coerceIn(0, size)).coerceAtLeast(0)
-        }
-    }
-
-    private fun maxX(size: Int) = (resources.displayMetrics.widthPixels - size).coerceAtLeast(0)
-
-    private fun maxY(size: Int) =
-        (resources.displayMetrics.heightPixels - safeTop() - safeBottom() - size).coerceAtLeast(0)
-
-    private fun safeTop() = systemDimension("status_bar_height")
-
-    private fun safeBottom() = systemDimension("navigation_bar_height")
-
-    private fun systemDimension(name: String): Int {
-        val resourceId = resources.getIdentifier(name, "dimen", "android")
-        return if (resourceId != 0) resources.getDimensionPixelSize(resourceId) else 0
-    }
-
-    private fun overlayWindowType() =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
-
-    private fun dp(value: Int) =
-        (value * resources.displayMetrics.density).toInt()
-
-    private fun refreshTile() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            QuickSettingsTiles.updateListeningServices(this)
-        }
+        private fun dp(value: Int) =
+            (value * resources.displayMetrics.density).toInt()
     }
 
     companion object {
