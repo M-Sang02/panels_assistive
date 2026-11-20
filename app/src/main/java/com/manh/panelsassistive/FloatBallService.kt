@@ -52,7 +52,6 @@ import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
-import android.widget.SeekBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -1047,9 +1046,9 @@ class FloatBallService : Service() {
         val scroll = android.widget.ScrollView(this).apply {
             isFillViewport = true
             clipToPadding = false
-            addView(panel, android.widget.ScrollView.LayoutParams(
-                android.widget.ScrollView.LayoutParams.MATCH_PARENT,
-                android.widget.ScrollView.LayoutParams.WRAP_CONTENT
+            addView(panel, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
         showOverlayPanel(scroll, dp(360), minOf(dp(520), resources.displayMetrics.heightPixels - dp(80)))
@@ -1119,58 +1118,129 @@ class FloatBallService : Service() {
         compact: Boolean,
         onChanged: (Int) -> Unit
     ): View {
-        val row = LinearLayout(this).apply {
+        // A custom-drawn track avoids the platform SeekBar's inconsistent
+        // thumb/track insets and gives brightness + every volume row one design.
+        return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(5), dp(12), dp(5))
+            setPadding(dp(14), dp(5), dp(14), dp(5))
             background = sliderPillBackground()
             contentDescription = description
+            addView(FrameLayout(this@FloatBallService).apply {
+                addView(PopupIconView(this@FloatBallService, icon).apply {
+                    setIconColor(Color.WHITE)
+                    contentDescription = description
+                }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+            }, LinearLayout.LayoutParams(dp(26), dp(30)))
+            addView(SliderTrackView(
+                context = this@FloatBallService,
+                maximum = max.coerceAtLeast(1),
+                initialProgress = progress.coerceIn(0, max.coerceAtLeast(1)),
+                onValueChanged = onChanged
+            ), LinearLayout.LayoutParams(0, dp(38), 1f).apply {
+                leftMargin = dp(12)
+            })
         }
-        row.addView(PopupIconView(this, icon).apply {
-            setIconColor(Color.WHITE)
-            contentDescription = description
-        }, LinearLayout.LayoutParams(dp(22), dp(22)))
-
-        val seekBar = SeekBar(this).apply {
-            this.max = max.coerceAtLeast(1)
-            this.progress = progress.coerceIn(0, this.max)
-            if (android.os.Build.VERSION.SDK_INT >= 21) {
-                progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(119, 190, 255))
-                thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
-                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(100, 225, 235, 248))
-            }
-        }
-        row.addView(seekBar, LinearLayout.LayoutParams(0, dp(34), 1f).apply {
-            leftMargin = dp(10)
-            rightMargin = dp(8)
-        })
-
-        val percent = TextView(this).apply {
-            text = "${(progress.coerceAtLeast(0) * 100 / max.coerceAtLeast(1))}%"
-            textSize = 11f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            minWidth = dp(34)
-            maxLines = 1
-        }
-        row.addView(percent)
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
-                percent.text = "${(value * 100 / max.coerceAtLeast(1))}%"
-                if (fromUser) onChanged(value)
-            }
-            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
-            override fun onStopTrackingTouch(bar: SeekBar?) = Unit
-        })
-        return row
     }
 
-    private fun sliderPillBackground() = GradientDrawable(
-        GradientDrawable.Orientation.LEFT_RIGHT,
-        intArrayOf(Color.argb(218, 86, 107, 132), Color.argb(205, 48, 69, 94))
-    ).apply {
-        cornerRadius = dp(26).toFloat()
-        setStroke(dp(1), Color.argb(95, 220, 235, 250))
+    /** Rounded, inset-safe slider shared by brightness and all audio streams. */
+    private inner class SliderTrackView(
+        context: Context,
+        private val maximum: Int,
+        initialProgress: Int,
+        private val onValueChanged: (Int) -> Unit
+    ) : View(context) {
+        private val density = resources.displayMetrics.density
+        private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(105, 230, 240, 250)
+            style = Paint.Style.FILL
+        }
+        private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(132, 198, 255)
+            style = Paint.Style.FILL
+        }
+        private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+            setShadowLayer(2.5f * density, 0f, 1f * density, Color.argb(110, 0, 0, 0))
+        }
+        private var value = initialProgress.coerceIn(0, maximum)
+        private val inset = 9f * density
+        private val trackHeight = 4.5f * density
+        private val thumbRadius = 7f * density
+        private var tracking = false
+
+        init {
+            isClickable = true
+            isFocusable = true
+            setLayerType(LAYER_TYPE_SOFTWARE, null)
+            contentDescription = "Thanh điều chỉnh"
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val left = inset
+            val right = (width.toFloat() - inset).coerceAtLeast(left + 1f)
+            val centerY = height / 2f
+            val fraction = value.toFloat() / maximum.toFloat()
+            val thumbX = left + (right - left) * fraction
+            val top = centerY - trackHeight / 2f
+            val bottom = centerY + trackHeight / 2f
+            canvas.drawRoundRect(left, top, right, bottom, trackHeight, trackHeight, trackPaint)
+            activePaint.alpha = 255
+            if (thumbX > left) {
+                canvas.drawRoundRect(left, top, thumbX, bottom, trackHeight, trackHeight, activePaint)
+            }
+            activePaint.alpha = 75
+            canvas.drawCircle(thumbX, centerY, thumbRadius + 2f * density, activePaint)
+            thumbPaint.alpha = 255
+            canvas.drawCircle(thumbX, centerY, thumbRadius, thumbPaint)
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    tracking = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    updateFromTouch(event.x)
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (tracking) updateFromTouch(event.x)
+                    return tracking
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (tracking) updateFromTouch(event.x)
+                    tracking = false
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                    performClick()
+                    return true
+                }
+            }
+            return tracking
+        }
+
+        override fun performClick(): Boolean {
+            super.performClick()
+            return true
+        }
+
+        private fun updateFromTouch(x: Float) {
+            val usable = (width.toFloat() - inset * 2f).coerceAtLeast(1f)
+            val fraction = ((x - inset) / usable).coerceIn(0f, 1f)
+            val next = (fraction * maximum).toInt()
+            if (next != value) {
+                value = next
+                invalidate()
+                onValueChanged(value)
+            }
+        }
+    }
+
+    private fun sliderPillBackground() = GradientDrawable().apply {
+        setColor(Color.argb(72, 225, 237, 250))
+        cornerRadius = dp(16).toFloat()
+        setStroke(dp(1), Color.argb(58, 225, 237, 250))
     }
 
     private fun sliderTileBackground() = GradientDrawable().apply {

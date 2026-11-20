@@ -201,3 +201,21 @@
 - The shared color/opacity/corner values are currently applied to the Expansion Panel; other popup surfaces still need migration to the shared defaults.
 - The collapse control currently collapses the four volume streams; the shortcut row remains visible.
 - Static source review and ZIP integrity checks are required. Gradle compilation/device testing are not verified in this environment.
+
+
+## v28.9 – Slider redesign and Kotlin compile fix (2026-11-20)
+
+### Updated
+- Replaced the platform `SeekBar` in the Expansion Panel and compact brightness popup with one custom-drawn slider component (`SliderTrackView`). The new control uses a consistent rounded track, blue active segment, centered white thumb, and direct touch-to-value mapping.
+- Removed the percentage text from slider rows to keep the control uncluttered. Brightness still calls `updateBrightness`; audio rows still use the existing `scheduleStreamVolume` debounce callback.
+- Reworked slider row surfaces to a subtler translucent rounded style.
+- Fixed the reported Kotlin error around `ScrollView.LayoutParams` by using `ViewGroup.LayoutParams` when adding the panel to the ScrollView.
+
+### Validation
+- Source-level edits applied to `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`.
+- ZIP integrity will be checked before delivery. Android/Gradle compilation and on-device visual/touch testing have **not** been verified in this environment.
+
+### Remaining checks
+- Run the GitHub Actions Android build and share any new compiler output if it fails.
+- Test thumb positioning, drag responsiveness, volume update timing, brightness permission flow, and shortcut visibility on-device.
+- Confirm whether the redesigned slider appearance matches the requested reference; further visual tuning may be needed after a device screenshot.
