@@ -71,3 +71,20 @@
 2. Run GitHub Actions and inspect the Kotlin compile stage.
 3. On device, verify Popup open/close, swipe between panels, shortcut/app launch, idle dim, and static no-blur appearance.
 4. Enable optional blur on a supported Android 12+ device and verify blur controls appear and blur can be disabled again.
+
+## 2026-11-20 — v28.3 follow-up Kotlin compile repair
+
+### Reported GitHub Actions errors addressed
+- Added the missing screen-position helpers in `FloatBallService.kt`: `maxX`, `safeTop`, `maxY`, `clampPosition`, `persistPosition`, and `applyEdgeHide`.
+- Corrected `selectedCellWidth()` to return the selected page's `cellWidthDp` (with a safe 64dp fallback), rather than returning a nullable `WidgetPanelPage`.
+- Completed `overlayWindowType()` with the pre-Android-O `TYPE_PHONE` fallback, fixing the incomplete `if` expression.
+- Confirmed that `panelSwipeListener`, `createPanelShortcut`, `removePopup`, and `scheduleIdleDim` are present as actual service members in this source. The previous diagnostics were consistent with parser/type errors around the incomplete helpers and malformed expressions, not missing stubs for these methods.
+
+### Behavior notes
+- Float Ball position is normalized and persisted against the usable screen area; status-bar height is accounted for vertically.
+- Optional edge hiding moves most of the Float Ball beyond the nearest horizontal edge while leaving a small visible grip.
+- Drag clamping keeps the Float Ball within the usable screen area before optional edge hiding is applied.
+
+### Build/test status
+- ZIP integrity is checked after packaging.
+- Compilation is still not confirmed in this environment unless the Gradle wrapper can run with a locally available Gradle distribution. GitHub Actions remains the authoritative compile check.

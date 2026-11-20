@@ -946,6 +946,37 @@ class FloatBallService : Service() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
+    private fun maxX(size: Int): Int =
+        (resources.displayMetrics.widthPixels - size).coerceAtLeast(0)
+
+    private fun safeTop(): Int {
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else 0
+    }
+
+    private fun maxY(size: Int): Int =
+        (resources.displayMetrics.heightPixels - safeTop() - size).coerceAtLeast(0)
+
+    private fun clampPosition(params: WindowManager.LayoutParams, size: Int) {
+        params.x = params.x.coerceIn(0, maxX(size))
+        params.y = (params.y - safeTop()).coerceIn(0, maxY(size)) + safeTop()
+    }
+
+    private fun persistPosition(params: WindowManager.LayoutParams, size: Int) {
+        val normalizedX = if (maxX(size) == 0) 0f else params.x.toFloat() / maxX(size)
+        val normalizedY = if (maxY(size) == 0) 0f else (params.y - safeTop()).toFloat() / maxY(size)
+        AppPrefs.setPosition(this, normalizedX, normalizedY)
+    }
+
+    private fun applyEdgeHide(params: WindowManager.LayoutParams, size: Int) {
+        val hiddenAmount = (size - dp(10)).coerceAtLeast(0)
+        params.x = if (params.x + size / 2 < resources.displayMetrics.widthPixels / 2) {
+            -hiddenAmount
+        } else {
+            maxX(size) + hiddenAmount
+        }
+    }
+
     private fun roundedBackground(color: Int, radiusDp: Int): GradientDrawable =
         GradientDrawable().apply {
             setColor(color)
@@ -1354,6 +1385,7 @@ class FloatBallService : Service() {
     private fun selectedCellWidth(): Int =
         AppPrefs.panelPages(this, usesLandscapeLayout())
             .firstOrNull { it.id == AppPrefs.currentPanelId(this, usesLandscapeLayout()) }
+            ?.cellWidthDp ?: 64
 
 
     private fun showOverlayPanel(
@@ -1563,9 +1595,12 @@ class FloatBallService : Service() {
 
 
 
-    private fun overlayWindowType() =
+    private fun overlayWindowType(): Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
         }
 
     private class FloatBallIconView(context: Context) : View(context) {
