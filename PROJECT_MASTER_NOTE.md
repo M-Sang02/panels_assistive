@@ -351,3 +351,28 @@
 
 ### Verification and remaining work
 - Static review only; no local JDK/Android SDK, so Gradle compilation must run through GitHub Actions. On-device checks: menu navigation, quick switches, edge-hide slider per orientation with auto side switching, widget popup background independence, and each tab transition style.
+
+## 2026-11-20 — v28.15 In-panel blur fix, popup blur split, 8 expansion shortcuts, brightness bar, popup/preview inset
+
+### User-requested changes
+- "Mờ trong phạm vi nền bảng" did nothing: panel-scope blur now opts the window into the blur pipeline and actually blurs behind the panel (XGesture style).
+- The widget panel gets its own blur toggle + intensity inside "Bảng tiện ích → Nền bảng tiện ích", independent from the Effects screen.
+- Expansion panel shortcuts grew from 4 to 8 slots, laid out as two rows of four.
+- Standalone brightness slider is taller, sits in a wider panel, and has larger top/bottom insets so the icon and thumb never crowd each other.
+- The live widget popup and the in-settings preview now share the same layout: top-aligned grid, 2dp grid inset, no vertical re-centering, so row 0 sits close to the panel's top edge in both.
+
+### Changes in this source
+- `FloatBallService.applyPopupBlur(window, surface)`: `FLAG_BLUR_BEHIND` is added whenever blur is active (it was missing for panel scope, which is why only full-screen blur worked); background radius is used for panel scope, behind radius for screen scope; widget popup reads the new widget blur prefs and is always panel-scoped. Blur is re-applied after `dialog.show()`/`setLayout`, after background drawable swaps, and on cross-window blur changes.
+- `AppPrefs`: added `widgetPanelBlurEnabled`/`widgetPanelBlurRadius`; `EXPANSION_SHORTCUT_SLOTS = 8` with padded reads for saved lists and widened write bounds.
+- `WidgetPanelSettingsActivity`: new "Làm mờ nền bảng" block in the background card (toggle + 0..80 slider, SDK 31+ only), and the preview container now mirrors `showPopup()` exactly (top-aligned surface, 2dp grid padding, horizontal centering only).
+- `FloatBallService.showBrightnessSlider()`: panel 92x374dp, 24dp top/bottom padding, 26dp icon with 16dp clearance, 44x250dp track.
+- Effects screen copy clarifies that its blur applies to the expansion panel and brightness slider, while the widget panel has a separate setting.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetPanelSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt`
+- `app/src/main/res/values/strings.xml`
+
+### Verification and remaining work
+- Static review only; no local JDK/Android SDK, so Gradle compilation must run through GitHub Actions. On-device checks: panel-scope blur on Android 12+, independent widget blur, 8 expansion shortcuts (picker + long-press remove), brightness bar spacing, and matching top inset between preview and live popup.

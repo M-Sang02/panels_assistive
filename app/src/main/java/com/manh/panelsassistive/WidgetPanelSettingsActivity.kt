@@ -262,7 +262,7 @@ class WidgetPanelSettingsActivity : Activity() {
     }
 
     private fun backgroundCard(): LinearLayout = glassCard().apply {
-        addView(text("Nền bảng tiện ích", 16, foreground, true))
+        addView(text("Nền bảng tiện ích", 16, this@WidgetPanelSettingsActivity.foreground, true))
         addView(text(
             "Chỉ áp dụng cho bảng tiện ích. Thanh sáng dọc và bảng mở rộng dùng mục Nền bảng trong Hiệu ứng.",
             12,
@@ -357,7 +357,65 @@ class WidgetPanelSettingsActivity : Activity() {
                 override fun onStopTrackingTouch(bar: SeekBar?) = Unit
             })
         })
+        addView(widgetBlurSection())
     }
+
+    private fun widgetBlurSection(): LinearLayout =
+        LinearLayout(this@WidgetPanelSettingsActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(GlassUi.divider(this@WidgetPanelSettingsActivity))
+            addView(text("Làm mờ nền bảng", 13, secondary, true))
+            addView(text(
+                "Chỉ làm mờ phía sau bảng tiện ích, tách riêng với mục Hiệu ứng.",
+                12,
+                GlassUi.TEXT_MUTED
+            ).apply { setPadding(0, dp(4), 0, dp(2)) })
+            val supported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+            val enabled = AppPrefs.widgetPanelBlurEnabled(this@WidgetPanelSettingsActivity) && supported
+            val blurValue = text(
+                AppPrefs.widgetPanelBlurRadius(this@WidgetPanelSettingsActivity).toString(),
+                13,
+                GlassUi.ACCENT,
+                true
+            )
+            val blurSlider = GlassUi.slider(this@WidgetPanelSettingsActivity).apply {
+                max = 80
+                progress = AppPrefs.widgetPanelBlurRadius(this@WidgetPanelSettingsActivity)
+                isEnabled = enabled
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (!fromUser) return
+                        AppPrefs.setWidgetPanelBlurRadius(this@WidgetPanelSettingsActivity, progress)
+                        blurValue.text = progress.toString()
+                        refreshPopupSurface()
+                    }
+
+                    override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+                })
+            }
+            val controls = LinearLayout(this@WidgetPanelSettingsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = if (enabled) View.VISIBLE else View.GONE
+                addView(blurValue)
+                addView(blurSlider)
+            }
+            addView(GlassUi.switch(this@WidgetPanelSettingsActivity, enabled) { on ->
+                AppPrefs.setWidgetPanelBlurEnabled(this@WidgetPanelSettingsActivity, on)
+                controls.visibility = if (on) View.VISIBLE else View.GONE
+                blurSlider.isEnabled = on
+                refreshPopupSurface()
+            }.apply {
+                text = "Bật làm mờ"
+                setTextColor(this@WidgetPanelSettingsActivity.foreground)
+                setPadding(0, dp(6), 0, dp(6))
+                isEnabled = supported
+            })
+            addView(controls)
+            if (!supported) {
+                addView(text("Thiết bị chưa hỗ trợ làm mờ thời gian thực.", 12, GlassUi.TEXT_MUTED))
+            }
+        }
 
     private fun updatePreviewBackground() {
         if (!::previewGrid.isInitialized) return
@@ -617,7 +675,7 @@ class WidgetPanelSettingsActivity : Activity() {
         val grid = GridLayout(this).apply {
             columnCount = columns
             rowCount = rows
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setPadding(dp(2), dp(2), dp(2), dp(2))
             background = if (editingPreview) {
                 PanelEditDialogs.guideBackground(
                     this@WidgetPanelSettingsActivity,
@@ -675,21 +733,22 @@ class WidgetPanelSettingsActivity : Activity() {
             viewportWidthDp,
             PanelViewportMetrics.widthDp(columns, page.cellWidthDp)
         ))
-        val surfaceHeight = dp(maxOf(
-            viewportHeightDp,
-            PanelViewportMetrics.heightDp(rows, page.rowHeightDp)
-        ))
         val gridSurface = FrameLayout(this).apply {
             addView(grid, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
             ))
         }
+        // Mirrors FloatBallService.showPopup(): top-aligned grid so the preview and
+        // the live panel share the exact same top inset.
         val vertical = ScrollView(this).apply {
-            isFillViewport = true
+            isFillViewport = false
             isVerticalScrollBarEnabled = false
-            addView(gridSurface, FrameLayout.LayoutParams(surfaceWidth, surfaceHeight))
+            addView(gridSurface, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ))
         }
         val horizontal = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -725,12 +784,6 @@ class WidgetPanelSettingsActivity : Activity() {
                 ((vertical.width - horizontal.width) / 2).coerceAtLeast(0),
                 0
             )
-            vertical.post {
-                vertical.scrollTo(
-                    0,
-                    ((gridSurface.height - vertical.height) / 2).coerceAtLeast(0)
-                )
-            }
         }
         PanelEditDialogs.reattachUndoNotice(previewGrid)
     }
@@ -796,7 +849,7 @@ class WidgetPanelSettingsActivity : Activity() {
                 cell.addView(icon)
             }
             if (AppPrefs.showPanelLabels(this)) {
-                cell.addView(text(item.label, 11, foreground).apply {
+                cell.addView(text(item.label, 11, this@WidgetPanelSettingsActivity.foreground).apply {
                     maxLines = 1
                     ellipsize = android.text.TextUtils.TruncateAt.END
                     gravity = Gravity.CENTER

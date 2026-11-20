@@ -98,6 +98,8 @@ object AppPrefs {
     private const val KEY_POPUP_BLUR = "popup_blur"
     private const val KEY_POPUP_BLUR_RADIUS = "popup_blur_radius"
     private const val KEY_POPUP_BLUR_SCOPE = "popup_blur_scope"
+    private const val KEY_WIDGET_PANEL_BLUR = "widget_panel_blur"
+    private const val KEY_WIDGET_PANEL_BLUR_RADIUS = "widget_panel_blur_radius"
     private const val KEY_SHARED_PANEL_COLOR = "shared_panel_color"
     private const val KEY_SHARED_PANEL_OPACITY = "shared_panel_opacity"
     private const val KEY_SHARED_PANEL_CORNER = "shared_panel_corner"
@@ -179,11 +181,14 @@ object AppPrefs {
         store(context).edit().putBoolean(KEY_START_ON_BOOT, enabled).apply()
     }
 
+    const val EXPANSION_SHORTCUT_SLOTS = 8
+
     fun expansionShortcuts(context: Context): List<ExpansionShortcut?> {
-        val saved = store(context).getString(KEY_EXPANSION_SHORTCUTS, null) ?: return List(4) { null }
+        val slots = EXPANSION_SHORTCUT_SLOTS
+        val saved = store(context).getString(KEY_EXPANSION_SHORTCUTS, null) ?: return List(slots) { null }
         return try {
             val array = JSONArray(saved)
-            List(4) { index ->
+            List(slots) { index ->
                 if (index >= array.length() || array.isNull(index)) {
                     null
                 } else {
@@ -198,12 +203,12 @@ object AppPrefs {
             }
         } catch (error: JSONException) {
             Log.e("PanelsAssistive", "Unable to read expansion shortcuts", error)
-            List(4) { null }
+            List(slots) { null }
         }
     }
 
     fun setExpansionShortcut(context: Context, index: Int, shortcut: ExpansionShortcut?) {
-        require(index in 0..3)
+        require(index in 0 until EXPANSION_SHORTCUT_SLOTS)
         val items = expansionShortcuts(context).toMutableList()
         items[index] = shortcut
         val array = JSONArray()
@@ -644,6 +649,21 @@ object AppPrefs {
     fun setPopupBlurScope(context: Context, scope: String) {
         require(scope == BLUR_SCOPE_SCREEN || scope == BLUR_SCOPE_PANEL)
         store(context).edit().putString(KEY_POPUP_BLUR_SCOPE, scope).apply()
+    }
+
+    /** Widget popup has its own blur so it can be tuned independently of the shared panels. */
+    fun widgetPanelBlurEnabled(context: Context) =
+        store(context).getBoolean(KEY_WIDGET_PANEL_BLUR, false)
+
+    fun setWidgetPanelBlurEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_WIDGET_PANEL_BLUR, enabled).apply()
+    }
+
+    fun widgetPanelBlurRadius(context: Context) =
+        store(context).getInt(KEY_WIDGET_PANEL_BLUR_RADIUS, 24).coerceIn(0, 80)
+
+    fun setWidgetPanelBlurRadius(context: Context, radius: Int) {
+        store(context).edit().putInt(KEY_WIDGET_PANEL_BLUR_RADIUS, radius.coerceIn(0, 80)).apply()
     }
 
     fun sharedPanelColor(context: Context) = store(context).getInt(KEY_SHARED_PANEL_COLOR, android.graphics.Color.rgb(24, 41, 61))

@@ -310,11 +310,14 @@ class FloatBallService : Service() {
                 return START_STICKY
             }
             ACTION_UPDATE_POPUP_APPEARANCE -> {
-                popupDialog?.window?.let(::applyPopupBlur)
+                popupDialog?.window?.let { window -> applyPopupBlur(window, overlaySurface) }
                 if (popupDialog?.isShowing == true) {
                     when (overlaySurface) {
-                        OverlaySurface.WIDGETS ->
-                            popupDialog?.window?.setBackgroundDrawable(popupPanelBackground())
+                        OverlaySurface.WIDGETS -> popupDialog?.window?.let { window ->
+                            window.setBackgroundDrawable(popupPanelBackground())
+                            // Re-apply so the background blur survives the drawable swap.
+                            applyPopupBlur(window, OverlaySurface.WIDGETS)
+                        }
                         OverlaySurface.EXPANSION -> showExpansionPanel()
                         OverlaySurface.BRIGHTNESS -> showBrightnessSlider()
                         OverlaySurface.NONE -> Unit
@@ -800,10 +803,6 @@ class FloatBallService : Service() {
             viewportWidthDp,
             PanelViewportMetrics.widthDp(columns, page.cellWidthDp)
         ))
-        val surfaceHeight = dp(maxOf(
-            viewportHeightDp,
-            PanelViewportMetrics.heightDp(rows, page.rowHeightDp)
-        ))
         val grid = GridLayout(this).apply {
             columnCount = columns
             rowCount = rows
@@ -816,13 +815,18 @@ class FloatBallService : Service() {
             addView(grid, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
             ))
         }
+        // Content is pinned to the top so row 0 hugs the panel edge; extra space
+        // stays below the grid instead of pushing it down, exactly like the preview.
         val vertical = ScrollView(this).apply {
-            isFillViewport = true
+            isFillViewport = false
             isVerticalScrollBarEnabled = false
-            addView(surface, FrameLayout.LayoutParams(surfaceWidth, surfaceHeight))
+            addView(surface, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ))
         }
         val horizontal = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -851,12 +855,6 @@ class FloatBallService : Service() {
                 ((vertical.width - horizontal.width) / 2).coerceAtLeast(0),
                 0
             )
-            vertical.post {
-                vertical.scrollTo(
-                    0,
-                    ((surface.height - vertical.height) / 2).coerceAtLeast(0)
-                )
-            }
         }
     }
 
@@ -1040,50 +1038,58 @@ class FloatBallService : Service() {
         }
         panel.addView(volumeRows)
 
-        val shortcutRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+        val shortcutArea = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(0, dp(5), 0, 0)
         }
-        AppPrefs.expansionShortcuts(this).forEachIndexed { index, shortcut ->
-            val cell: View = if (shortcut == null) {
-                FrameLayout(this).apply {
-                    background = sliderTileBackground()
-                    contentDescription = getString(R.string.add_shortcut)
-                    isClickable = true
-                    isFocusable = true
-                    addView(PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
-                        setIconColor(Color.WHITE)
-                    }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
-                    setOnClickListener {
-                        startActivity(Intent(this@FloatBallService, WidgetPickerActivity::class.java).apply {
-                            putExtra(WidgetPickerActivity.EXTRA_EXPANSION_SLOT, index)
-                            putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, PanelItemType.ACTION)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        })
-                    }
-                }
-            } else {
-                FrameLayout(this).apply {
-                    background = sliderTileBackground()
-                    val shortcutView = createPanelShortcut(
-                        PanelItem(shortcut.type, shortcut.value, shortcut.label), showLabel = false
-                    )
-                    addView(shortcutView, FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
-                    ))
-                    contentDescription = shortcut.label
-                    shortcutView.setOnLongClickListener {
-                        AppPrefs.setExpansionShortcut(this@FloatBallService, index, null)
-                        Toast.makeText(this@FloatBallService, R.string.panel_item_removed, Toast.LENGTH_SHORT).show()
-                        showExpansionPanel()
-                        true
-                    }
-                }
+        AppPrefs.expansionShortcuts(this).chunked(4).forEachIndexed { rowIndex, rowShortcuts ->
+            val shortcutRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                if (rowIndex > 0) setPadding(0, dp(4), 0, 0)
             }
-            shortcutRow.addView(cell, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
-                setMargins(dp(3), 0, dp(3), 0)
-            })
+            rowShortcuts.forEachIndexed { columnIndex, shortcut ->
+                val index = rowIndex * 4 + columnIndex
+                val cell: View = if (shortcut == null) {
+                    FrameLayout(this).apply {
+                        background = sliderTileBackground()
+                        contentDescription = getString(R.string.add_shortcut)
+                        isClickable = true
+                        isFocusable = true
+                        addView(PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
+                            setIconColor(Color.WHITE)
+                        }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+                        setOnClickListener {
+                            startActivity(Intent(this@FloatBallService, WidgetPickerActivity::class.java).apply {
+                                putExtra(WidgetPickerActivity.EXTRA_EXPANSION_SLOT, index)
+                                putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, PanelItemType.ACTION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            })
+                        }
+                    }
+                } else {
+                    FrameLayout(this).apply {
+                        background = sliderTileBackground()
+                        val shortcutView = createPanelShortcut(
+                            PanelItem(shortcut.type, shortcut.value, shortcut.label), showLabel = false
+                        )
+                        addView(shortcutView, FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+                        ))
+                        contentDescription = shortcut.label
+                        shortcutView.setOnLongClickListener {
+                            AppPrefs.setExpansionShortcut(this@FloatBallService, index, null)
+                            Toast.makeText(this@FloatBallService, R.string.panel_item_removed, Toast.LENGTH_SHORT).show()
+                            showExpansionPanel()
+                            true
+                        }
+                    }
+                }
+                shortcutRow.addView(cell, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+                    setMargins(dp(3), 0, dp(3), 0)
+                })
+            }
+            shortcutArea.addView(shortcutRow)
         }
 
         // The centered chevron controls only the shortcut area; volume rows stay visible.
@@ -1097,14 +1103,14 @@ class FloatBallService : Service() {
             }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
             setOnClickListener {
                 shortcutsExpanded = !shortcutsExpanded
-                shortcutRow.visibility = if (shortcutsExpanded) View.VISIBLE else View.GONE
+                shortcutArea.visibility = if (shortcutsExpanded) View.VISIBLE else View.GONE
                 (getChildAt(0) as? PopupIconView)?.setIcon(shortcutsExpanded)
             }
         }
         panel.addView(shortcutToggle, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, dp(30)
         ).apply { topMargin = dp(3) })
-        panel.addView(shortcutRow)
+        panel.addView(shortcutArea)
 
         val scroll = android.widget.ScrollView(this).apply {
             isFillViewport = true
@@ -1129,15 +1135,17 @@ class FloatBallService : Service() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            // Generous top/bottom insets keep the icon and the thumb clear of the
+            // panel rim while making the track taller.
+            setPadding(dp(10), dp(24), dp(10), dp(24))
             background = sharedPanelBackground()
             addView(PopupIconView(this@FloatBallService, PopupIcon.BRIGHTNESS).apply {
                 setIconColor(Color.WHITE)
-            }, LinearLayout.LayoutParams(dp(28), dp(28)).apply { bottomMargin = dp(8) })
+            }, LinearLayout.LayoutParams(dp(26), dp(26)).apply { bottomMargin = dp(16) })
             addView(VerticalBrightnessTrackView(this@FloatBallService, 255, current) { updateBrightness(it) },
-                LinearLayout.LayoutParams(dp(48), dp(220)))
+                LinearLayout.LayoutParams(dp(44), dp(250)))
         }
-        showOverlayPanel(panel, dp(84), dp(300), surface = OverlaySurface.BRIGHTNESS)
+        showOverlayPanel(panel, dp(92), dp(374), surface = OverlaySurface.BRIGHTNESS)
     }
 
     private inner class VerticalBrightnessTrackView(
@@ -2038,7 +2046,7 @@ class FloatBallService : Service() {
             window.attributes = window.attributes.apply { dimAmount = 0.18f }
             window.setLayout(panelWidth, panelHeight)
             window.attributes = window.attributes.apply { gravity = Gravity.CENTER }
-            applyPopupBlur(window)
+            applyPopupBlur(window, surface)
             var panelDownRawX = 0f
             var panelDownRawY = 0f
             var panelStartX = 0
@@ -2086,12 +2094,16 @@ class FloatBallService : Service() {
                 }
             }
             dialog.show()
-            dialog.window?.setLayout(panelWidth, panelHeight)
+            dialog.window?.let { shown ->
+                shown.setLayout(panelWidth, panelHeight)
+                // Radius/layout only stick reliably once the window is attached.
+                applyPopupBlur(shown, surface)
+            }
             popupDialog = dialog
             popup = view
             overlaySurface = surface
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val listener = Consumer<Boolean> { applyPopupBlur(window) }
+                val listener = Consumer<Boolean> { applyPopupBlur(window, surface) }
                 windowManager.addCrossWindowBlurEnabledListener(listener)
                 crossWindowBlurListener = listener
             }
@@ -2108,18 +2120,23 @@ class FloatBallService : Service() {
 
 
 
-    private fun applyPopupBlur(window: android.view.Window) {
+    private fun applyPopupBlur(window: android.view.Window, surface: OverlaySurface = overlaySurface) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val blurRequested = AppPrefs.popupBlurEnabled(this)
-        val requestedRadius = if (blurRequested) {
-            AppPrefs.popupBlurRadius(this).coerceIn(0, 80)
-        } else {
-            0
+        val widgetSurface = surface == OverlaySurface.WIDGETS
+        val requestedRadius = when {
+            widgetSurface && AppPrefs.widgetPanelBlurEnabled(this) ->
+                AppPrefs.widgetPanelBlurRadius(this).coerceIn(0, 80)
+            !widgetSurface && AppPrefs.popupBlurEnabled(this) ->
+                AppPrefs.popupBlurRadius(this).coerceIn(0, 80)
+            else -> 0
         }
         val blurAvailable = windowManager.isCrossWindowBlurEnabled
         val blurEnabled = requestedRadius > 0 && blurAvailable
-        val panelOnly = AppPrefs.popupBlurScope(this) == AppPrefs.BLUR_SCOPE_PANEL
-        if (blurEnabled && !panelOnly) {
+        // Panel-scope blur still needs FLAG_BLUR_BEHIND; the flag alone opts the
+        // window into the blur pipeline, the radii decide what actually blurs.
+        val panelOnly = widgetSurface ||
+            AppPrefs.popupBlurScope(this) == AppPrefs.BLUR_SCOPE_PANEL
+        if (blurEnabled) {
             window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)

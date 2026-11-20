@@ -166,7 +166,7 @@
     <string name="widget_bind_failed">Could not add this widget.</string>
     <string name="widget_host_unavailable">Widget hosting could not start.</string>
     <string name="popup_blur">Blur background</string>
-    <string name="popup_blur_description">Blur the background when the utility panel is open.</string>
+    <string name="popup_blur_description">Blur the background when the expansion panel or brightness slider is open. The widget panel has its own blur setting in the widget panel editor.</string>
     <string name="popup_blur_scope">Choose blur area</string>
     <string name="popup_blur_scope_screen">Blur the entire background</string>
     <string name="popup_blur_scope_panel">Blur only behind the panel</string>
