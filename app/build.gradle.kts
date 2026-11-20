@@ -29,6 +29,7 @@ dependencies {
     // Required by LucideGlyphView for ResourcesCompat.getFont().
     implementation("androidx.core:core-ktx:1.15.0")
     // Optional shell bridge for freeform windows; inactive when Shizuku is missing.
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
+    // 13.0.0 is the newest release whose manifest still allows minSdk 23.
+    implementation("dev.rikka.shizuku:api:13.0.0")
+    implementation("dev.rikka.shizuku:provider:13.0.0")
 }
