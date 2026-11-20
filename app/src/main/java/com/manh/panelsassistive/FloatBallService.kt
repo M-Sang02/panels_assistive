@@ -943,129 +943,255 @@ class FloatBallService : Service() {
     }
 
 
+
+    /**
+     * Compact icon-first control surface. The visual language follows the
+     * volume-widget reference: one rounded pill, a real slider, and no +/- buttons.
+     */
     private fun showExpansionPanel() {
-        val root = LinearLayout(this).apply {
+        if (popup != null) removePopup(stopIfEmpty = false)
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(16))
-            background = roundedBackground(Color.rgb(12, 27, 45), dp(24))
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = roundedBackground(Color.argb(238, 24, 41, 61), 26)
         }
-        root.addView(TextView(this).apply {
-            text = getString(R.string.action_expansion_panel)
-            textSize = 19f
-            setTextColor(Color.WHITE)
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding(0, 0, 0, dp(12))
-        })
-        val shortcuts = AppPrefs.expansionShortcuts(this)
-        shortcuts.forEachIndexed { index, shortcut ->
-            val label = shortcut?.label ?: getString(R.string.add_shortcut)
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(12), dp(12), dp(12))
-                background = roundedBackground(Color.argb(42, 220, 235, 250), dp(16))
-                isClickable = true
-                isFocusable = true
-                addView(TextView(this@FloatBallService).apply {
-                    text = label
-                    textSize = 15f
-                    setTextColor(Color.WHITE)
-                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-                })
-                addView(TextView(this@FloatBallService).apply {
-                    text = if (shortcut == null) "+" else "⋯"
-                    textSize = 22f
-                    setTextColor(Color.rgb(150, 200, 255))
-                })
-                setOnClickListener {
-                    if (shortcut == null) {
+
+        addBrightnessSliderRow(panel, compact = false)
+        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_MUSIC, PopupIcon.MEDIA)
+        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_RING, PopupIcon.RING)
+        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_NOTIFICATION, PopupIcon.NOTIFICATION)
+        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_ALARM, PopupIcon.ALARM)
+
+        val shortcutRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, 0)
+        }
+        AppPrefs.expansionShortcuts(this).forEachIndexed { index, shortcut ->
+            val cell: View = if (shortcut == null) {
+                FrameLayout(this).apply {
+                    background = sliderTileBackground()
+                    contentDescription = getString(R.string.add_shortcut)
+                    isClickable = true
+                    isFocusable = true
+                    addView(PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
+                        setIconColor(Color.WHITE)
+                    }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+                    setOnClickListener {
                         startActivity(Intent(this@FloatBallService, WidgetPickerActivity::class.java).apply {
                             putExtra(WidgetPickerActivity.EXTRA_EXPANSION_SLOT, index)
                             putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, PanelItemType.ACTION)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         })
-                    } else {
-                        val action = when (shortcut.type) {
-                            PanelItemType.APP -> ActionDispatcher.encodeSelectedAction(
-                                ActionDispatcher.OPEN_SELECTED_APP, shortcut.value, shortcut.label
-                            )
-                            PanelItemType.SHORTCUT -> ActionDispatcher.encodeSelectedAction(
-                                ActionDispatcher.OPEN_SELECTED_SHORTCUT, shortcut.value, shortcut.label
-                            )
-                            else -> shortcut.value
-                        }
-                        ActionDispatcher.dispatch(this@FloatBallService, action)
                     }
                 }
-                setOnLongClickListener {
-                    if (shortcut != null) {
+            } else {
+                FrameLayout(this).apply {
+                    background = sliderTileBackground()
+                    val shortcutView = createPanelShortcut(
+                        PanelItem(shortcut.type, shortcut.value, shortcut.label),
+                        showLabel = false
+                    )
+                    addView(shortcutView, FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    ))
+                    contentDescription = shortcut.label
+                    shortcutView.setOnLongClickListener {
                         AppPrefs.setExpansionShortcut(this@FloatBallService, index, null)
                         Toast.makeText(this@FloatBallService, R.string.panel_item_removed, Toast.LENGTH_SHORT).show()
                         showExpansionPanel()
+                        true
                     }
-                    true
                 }
             }
-            root.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            shortcutRow.addView(cell, LinearLayout.LayoutParams(0, dp(58), 1f).apply {
+                setMargins(dp(3), 0, dp(3), 0)
+            })
         }
-        showOverlayDialog(AlertDialog.Builder(this).setView(root).setNegativeButton(android.R.string.cancel, null))
+        panel.addView(shortcutRow)
+        showOverlayPanel(panel, dp(360), dp(390))
     }
 
     private fun showBrightnessSlider() {
-        if (!Settings.System.canWrite(this)) {
-            if (brightnessPermissionPrompted) return
-            brightnessPermissionPrompted = true
-            showOverlayDialog(AlertDialog.Builder(this)
-                .setMessage(R.string.brightness_permission_required)
-                .setPositiveButton(R.string.grant_brightness_permission) { _, _ ->
-                    try {
-                        startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                            .setData(Uri.parse("package:$packageName"))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    } catch (error: Exception) {
-                        Log.e(TAG, "Unable to open brightness permission settings", error)
-                    }
-                }
-                .setNegativeButton(android.R.string.cancel, null))
-            return
-        }
-        val current = try {
-            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS).coerceIn(1, 255)
-        } catch (_: Settings.SettingNotFoundException) { 128 }
-        val container = LinearLayout(this).apply {
+        if (popup != null) removePopup(stopIfEmpty = false)
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(12))
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = roundedBackground(Color.argb(238, 35, 53, 75), 28)
         }
-        val valueLabel = TextView(this).apply {
-            text = "${(current * 100 / 255)}%"
-            textSize = 15f
+        addBrightnessSliderRow(panel, compact = true)
+        showOverlayPanel(panel, dp(330), dp(76))
+    }
+
+    private fun addBrightnessSliderRow(parent: LinearLayout, compact: Boolean) {
+        val current = try {
+            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+                .coerceIn(1, 255)
+        } catch (_: Exception) {
+            128
+        }
+        parent.addView(createSliderPill(
+            icon = PopupIcon.BRIGHTNESS,
+            description = getString(R.string.brightness_slider),
+            max = 255,
+            progress = current,
+            compact = compact
+        ) { value -> updateBrightness(value) }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(if (compact) 54 else 48)
+        ).apply {
+            bottomMargin = if (compact) 0 else dp(7)
+        })
+    }
+
+    private fun addVolumeSliderRow(parent: LinearLayout, stream: Int, icon: PopupIcon) {
+        val audio = getSystemService(android.media.AudioManager::class.java) ?: return
+        val maximum = audio.getStreamMaxVolume(stream).coerceAtLeast(1)
+        val current = audio.getStreamVolume(stream).coerceIn(0, maximum)
+        val description = when (stream) {
+            android.media.AudioManager.STREAM_MUSIC -> getString(R.string.media_volume)
+            android.media.AudioManager.STREAM_RING -> getString(R.string.ring_volume)
+            android.media.AudioManager.STREAM_NOTIFICATION -> getString(R.string.notification_volume)
+            else -> getString(R.string.alarm_volume)
+        }
+        parent.addView(createSliderPill(
+            icon = icon,
+            description = description,
+            max = maximum,
+            progress = current,
+            compact = false
+        ) { value -> setStreamVolume(audio, stream, value) }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(48)
+        ).apply {
+            bottomMargin = dp(7)
+        })
+    }
+
+    private fun createSliderPill(
+        icon: PopupIcon,
+        description: String,
+        max: Int,
+        progress: Int,
+        compact: Boolean,
+        onChanged: (Int) -> Unit
+    ): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(5), dp(12), dp(5))
+            background = sliderPillBackground()
+            contentDescription = description
+        }
+        row.addView(PopupIconView(this, icon).apply {
+            setIconColor(Color.WHITE)
+            contentDescription = description
+        }, LinearLayout.LayoutParams(dp(22), dp(22)))
+
+        val seekBar = SeekBar(this).apply {
+            this.max = max.coerceAtLeast(1)
+            this.progress = progress.coerceIn(0, this.max)
+            if (android.os.Build.VERSION.SDK_INT >= 21) {
+                progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(119, 190, 255))
+                thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.argb(100, 225, 235, 248))
+            }
+        }
+        row.addView(seekBar, LinearLayout.LayoutParams(0, dp(34), 1f).apply {
+            leftMargin = dp(10)
+            rightMargin = dp(8)
+        })
+
+        val percent = TextView(this).apply {
+            text = "${(progress.coerceAtLeast(0) * 100 / max.coerceAtLeast(1))}%"
+            textSize = 11f
             setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            minWidth = dp(34)
+            maxLines = 1
         }
-        container.addView(valueLabel)
-        container.addView(SeekBar(this).apply {
-            max = 255
-            progress = current
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    val value = progress.coerceAtLeast(1)
-                    valueLabel.text = "${value * 100 / 255}%"
-                    if (fromUser) {
+        row.addView(percent)
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
+                percent.text = "${(value * 100 / max.coerceAtLeast(1))}%"
+                if (fromUser) onChanged(value)
+            }
+            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+        })
+        return row
+    }
+
+    private fun sliderPillBackground() = GradientDrawable(
+        GradientDrawable.Orientation.LEFT_RIGHT,
+        intArrayOf(Color.argb(218, 86, 107, 132), Color.argb(205, 48, 69, 94))
+    ).apply {
+        cornerRadius = dp(26).toFloat()
+        setStroke(dp(1), Color.argb(95, 220, 235, 250))
+    }
+
+    private fun sliderTileBackground() = GradientDrawable().apply {
+        setColor(Color.argb(58, 220, 235, 250))
+        cornerRadius = dp(18).toFloat()
+        setStroke(dp(1), Color.argb(55, 220, 235, 250))
+    }
+
+    private fun updateBrightness(progress: Int) {
+        if (!Settings.System.canWrite(this)) {
+            if (!brightnessPermissionPrompted) {
+                brightnessPermissionPrompted = true
+                showOverlayDialog(AlertDialog.Builder(this)
+                    .setMessage(R.string.brightness_permission_required)
+                    .setPositiveButton(R.string.grant_brightness_permission) { _, _ ->
                         try {
-                            Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, value)
-                        } catch (error: SecurityException) {
-                            Log.e(TAG, "Unable to update screen brightness", error)
-                            Toast.makeText(this@FloatBallService, R.string.brightness_update_failed, Toast.LENGTH_SHORT).show()
+                            startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                                .setData(Uri.parse("package:$packageName"))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } catch (error: Exception) {
+                            Log.e(TAG, "Unable to open brightness permission settings", error)
                         }
                     }
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-            })
-        })
-        showOverlayDialog(AlertDialog.Builder(this)
-            .setTitle(R.string.brightness_slider)
-            .setView(container)
-            .setNegativeButton(android.R.string.cancel, null))
+                    .setNegativeButton(android.R.string.cancel, null))
+            }
+            return
+        }
+        brightnessPermissionPrompted = false
+        try {
+            Settings.System.putInt(
+                contentResolver,
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+            )
+            val saved = Settings.System.putInt(
+                contentResolver,
+                Settings.System.SCREEN_BRIGHTNESS,
+                progress.coerceIn(1, 255)
+            )
+            if (!saved) {
+                Toast.makeText(this, R.string.brightness_update_failed, Toast.LENGTH_SHORT).show()
+            }
+        } catch (error: SecurityException) {
+            Log.e(TAG, "Unable to update screen brightness", error)
+            Toast.makeText(this, R.string.brightness_update_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setStreamVolume(
+        audio: android.media.AudioManager,
+        stream: Int,
+        requested: Int
+    ) {
+        try {
+            audio.setStreamVolume(
+                stream,
+                requested.coerceIn(0, audio.getStreamMaxVolume(stream).coerceAtLeast(1)),
+                android.media.AudioManager.FLAG_SHOW_UI
+            )
+        } catch (error: SecurityException) {
+            Log.e(TAG, "Unable to update volume stream $stream", error)
+            Toast.makeText(this, R.string.volume_update_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun dp(value: Int): Int =

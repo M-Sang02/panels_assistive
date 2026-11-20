@@ -113,3 +113,37 @@
 1. Upload all files from the v28.4 source ZIP over the current repository.
 2. Run GitHub Actions `assembleDebug`.
 3. If compilation succeeds, test expansion shortcut add/launch/clear, brightness permission flow and brightness adjustment, flashlight action, and crop-corner persistence on a device.
+
+
+## 2026-11-20 — v28.5 restore/redesign of brightness and expansion controls
+
+### User reference and design direction
+- Reviewed the supplied `Panels-Assistive-v26-thin-border-source.zip` and the supplied `80283.mp4`.
+- The video shows a compact rounded volume-widget capsule with a central level indicator and +/- controls. The requested adaptation is a true draggable slider instead of +/- buttons, with an icon instead of the word label.
+- The previous v28.4 brightness popup and expansion panel had drifted from the earlier control design. They are replaced with a consistent icon-first slider treatment.
+
+### Changes
+- `showBrightnessSlider()` now opens a compact horizontal pill: brightness icon, real SeekBar, and numeric percentage. No +/- buttons and no text label.
+- `showExpansionPanel()` now uses the same rounded pill style for brightness, media, ringtone, notification, and alarm levels.
+- Each slider row uses its matching icon, an actual SeekBar, and a percentage readout; labels are omitted from the visual UI.
+- Existing system volume streams are updated through `AudioManager.setStreamVolume`.
+- Brightness updates retain the Android `WRITE_SETTINGS` permission flow and manual brightness-mode handling.
+- Existing expansion shortcut slots are retained as icon-only tiles; tap an empty tile to add a shortcut and long-press an occupied tile to remove it.
+- Default panels use a static translucent gradient/background and do not require Android cross-window blur support. The existing optional blur preference remains responsible for applying blur when enabled.
+- The crop editor, image/GIF metadata, battery-saving behavior, and other v28.4 project files are preserved.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `PROJECT_MASTER_NOTE.md`
+
+### Build and test status
+- ZIP structure and CRC integrity checked after packaging.
+- Attempted `./gradlew --offline --no-daemon assembleDebug`; wrapper still attempted to download Gradle 8.9 and failed with `UnknownHostException: services.gradle.org`.
+- Therefore, **no successful local compilation is claimed**. GitHub Actions remains the authoritative compile/build check.
+
+### Device verification checklist
+1. Open Brightness Slider and verify the icon + slider + percentage capsule.
+2. Drag the slider and verify brightness changes after granting WRITE_SETTINGS.
+3. Open Expansion Panel and verify five icon-only slider rows update their corresponding system levels.
+4. Verify the shortcut tiles can launch, add, and remove shortcuts.
+5. Test with blur disabled on a device without cross-window blur support; the panel should still open using the static background.
