@@ -34,3 +34,15 @@
 ## Next
 - Add per-image crop editing for each image in a multi-image slideshow if desired.
 - Continue Widget Engine: Music, Volume, Brightness and shared widget theme/color system.
+
+
+## Build correction (2026-11-20)
+- Fixed missing helper methods referenced by popup editing controls in `FloatBallService.kt`:
+  - service-level `dp(Int)` conversion;
+  - `roundedBackground(color, radiusDp)`;
+  - `usesLandscapeLayout()` using the saved landscape-layout preference and current orientation;
+  - `showOverlayDialog(AlertDialog.Builder)` for overlay dialogs;
+  - `openWidgetPicker(type, position)` with the picker activity extras.
+- Added the missing `android.net.Uri` import in `MainActivity.kt`.
+- These changes address the reported unresolved references (`dp`, `roundedBackground`, `usesLandscapeLayout`, `showOverlayDialog`, `openWidgetPicker`, and `Uri`) and the cascading `FrameLayout.LayoutParams` type-inference errors.
+- Build status: attempted `./gradlew :app:compileDebugKotlin --no-daemon`; Gradle 8.9 could not be downloaded because this environment has no DNS/network access to `services.gradle.org`. Therefore compilation remains unverified here. Run GitHub Actions to confirm.

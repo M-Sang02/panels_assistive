@@ -942,6 +942,43 @@ class FloatBallService : Service() {
         }
     }
 
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
+    private fun roundedBackground(color: Int, radiusDp: Int): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radiusDp).toFloat()
+        }
+
+    private fun usesLandscapeLayout(): Boolean =
+        AppPrefs.landscapeWidgetLayoutEnabled(this) &&
+            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+    private fun showOverlayDialog(builder: AlertDialog.Builder) {
+        val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val dialog = builder.create()
+        dialog.window?.setType(overlayType)
+        dialog.show()
+    }
+
+    private fun openWidgetPicker(type: String, position: Int) {
+        val page = selectedPopupPage()
+        startActivity(Intent(this, WidgetPickerActivity::class.java).apply {
+            putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, type)
+            putExtra(WidgetPickerActivity.EXTRA_LANDSCAPE_LAYOUT, usesLandscapeLayout())
+            putExtra(WidgetPickerActivity.EXTRA_PANEL_ID, page.id)
+            putExtra(WidgetPickerActivity.EXTRA_POSITION, position)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
     private fun showPopupItemControls(itemView: FrameLayout, item: PanelItem) {
         itemView.findViewWithTag<View>("popup_remove")?.let { itemView.removeView(it) }
         itemView.findViewWithTag<View>("popup_resize")?.let { itemView.removeView(it) }
