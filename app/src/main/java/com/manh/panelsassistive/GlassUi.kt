@@ -107,6 +107,57 @@ object GlassUi {
         ).apply { bottomMargin = dp(context, 12) }
     }
 
+    fun pageHeader(context: Context, title: CharSequence, subtitle: CharSequence? = null): LinearLayout =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(TextView(context).apply {
+                text = context.getString(R.string.brand_name)
+                textSize = 11f
+                setTextColor(ACCENT)
+                setTypeface(typeface, Typeface.BOLD)
+                letterSpacing = 0.18f
+                includeFontPadding = false
+            })
+            addView(TextView(context).apply {
+                text = title
+                textSize = 24f
+                setTextColor(TEXT_PRIMARY)
+                setTypeface(typeface, Typeface.BOLD)
+                includeFontPadding = false
+                setPadding(0, dp(context, 6), 0, if (subtitle == null) dp(context, 7) else dp(context, 4))
+            })
+            if (subtitle != null) {
+                addView(TextView(context).apply {
+                    text = subtitle
+                    textSize = 13f
+                    setTextColor(TEXT_SECONDARY)
+                    includeFontPadding = false
+                    setPadding(0, 0, 0, dp(context, 7))
+                })
+            }
+        }
+
+    fun backBar(context: Context, onBack: () -> Unit): LinearLayout =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Quay lại"
+            setPadding(0, dp(context, 2), 0, dp(context, 10))
+            addView(LucideGlyphView(context, "chevron-left", TEXT_SECONDARY), LinearLayout.LayoutParams(
+                dp(context, 18), dp(context, 18)
+            ))
+            addView(TextView(context).apply {
+                text = "Quay lại"
+                textSize = 13f
+                setTextColor(TEXT_SECONDARY)
+                includeFontPadding = false
+                setPadding(dp(context, 4), 0, 0, 0)
+            })
+            setOnClickListener { onBack() }
+        }
+
     fun sectionHeader(context: Context, text: CharSequence): TextView =
         TextView(context).apply {
             this.text = text
@@ -164,6 +215,22 @@ object GlassUi {
         progressTintList = ColorStateList.valueOf(ACCENT)
         progressBackgroundTintList = ColorStateList.valueOf(Color.argb(40, 255, 255, 255))
         thumbTintList = ColorStateList.valueOf(ACCENT)
+    }
+
+    /** Slider with a centre notch marking the neutral position. */
+    fun notchedSlider(context: Context): Pair<FrameLayout, SeekBar> {
+        val bar = slider(context)
+        val container = FrameLayout(context)
+        container.addView(bar, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            dp(context, 48)
+        ))
+        container.addView(View(context).apply {
+            setBackgroundColor(ACCENT)
+            alpha = 0.75f
+            isClickable = false
+        }, FrameLayout.LayoutParams(dp(context, 2), dp(context, 12), Gravity.CENTER))
+        return container to bar
     }
 
     fun actionButton(

@@ -314,7 +314,7 @@ class FloatBallService : Service() {
                 if (popupDialog?.isShowing == true) {
                     when (overlaySurface) {
                         OverlaySurface.WIDGETS ->
-                            popupDialog?.window?.setBackgroundDrawable(sharedPanelBackground())
+                            popupDialog?.window?.setBackgroundDrawable(popupPanelBackground())
                         OverlaySurface.EXPANSION -> showExpansionPanel()
                         OverlaySurface.BRIGHTNESS -> showBrightnessSlider()
                         OverlaySurface.NONE -> Unit
@@ -783,7 +783,7 @@ class FloatBallService : Service() {
         val landscape = usesLandscapeLayout()
         val pages = AppPrefs.panelPages(this, landscape)
         val page = pages.firstOrNull { it.id == AppPrefs.currentPanelId(this, landscape) } ?: pages.first()
-        val popupBackground = sharedPanelBackground()
+        val popupBackground = popupPanelBackground()
         val root = FrameLayout(this).apply {
             elevation = dp(18).toFloat()
         }
@@ -1216,11 +1216,22 @@ class FloatBallService : Service() {
         parent.addView(column, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
     }
 
-    private fun sharedPanelBackground() = GradientDrawable().apply {
-        val base = AppPrefs.sharedPanelColor(this@FloatBallService)
-        val alpha = AppPrefs.sharedPanelOpacity(this@FloatBallService).coerceIn(0, 100) * 255 / 100
-        setColor(Color.argb(alpha, Color.red(base), Color.green(base), Color.blue(base)))
-        cornerRadius = dp(AppPrefs.sharedPanelCorner(this@FloatBallService)).toFloat()
+    private fun sharedPanelBackground() = panelBackground(
+        AppPrefs.sharedPanelColor(this),
+        AppPrefs.sharedPanelOpacity(this),
+        AppPrefs.sharedPanelCorner(this)
+    )
+
+    private fun popupPanelBackground() = panelBackground(
+        AppPrefs.popupPanelColor(this),
+        AppPrefs.popupPanelOpacity(this),
+        AppPrefs.popupPanelCorner(this)
+    )
+
+    private fun panelBackground(color: Int, opacity: Int, corner: Int) = GradientDrawable().apply {
+        val alpha = opacity.coerceIn(0, 100) * 255 / 100
+        setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
+        cornerRadius = dp(corner).toFloat()
         setStroke(dp(1), Color.argb(65, 225, 238, 250))
     }
 
@@ -1539,14 +1550,20 @@ class FloatBallService : Service() {
     }
 
     private fun applyEdgeHide(params: WindowManager.LayoutParams, size: Int) {
-        // Keep half of the bubble outside the edge: the visible half remains
-        // a practical touch target, matching the requested 50% edge position.
-        val hiddenAmount = (size / 2).coerceAtLeast(0)
-        params.x = if (params.x + size / 2 < resources.displayMetrics.widthPixels / 2) {
-            -hiddenAmount
+        val landscape = resources.configuration.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        if (!AppPrefs.floatBallEdgeHideForOrientation(this, landscape)) return
+        val value = AppPrefs.floatBallEdgeValue(this, landscape)
+        if (value == 0) return
+        val hideLeft = if (AppPrefs.floatBallAutoMirror(this)) {
+            params.x + size / 2 < resources.displayMetrics.widthPixels / 2
         } else {
-            maxX(size) + hiddenAmount
+            value < 0
         }
+        val hiddenAmount = (size * kotlin.math.abs(value) / 100f)
+            .toInt()
+            .coerceAtMost((size - dp(10)).coerceAtLeast(1))
+        params.x = if (hideLeft) -hiddenAmount else maxX(size) + hiddenAmount
     }
 
     private fun roundedBackground(color: Int, radiusDp: Int): GradientDrawable =
@@ -1888,6 +1905,29 @@ class FloatBallService : Service() {
         val next = (current + direction + pages.size) % pages.size
         AppPrefs.setCurrentPanel(this, landscape, pages[next].id)
         populateWidgetList()
+        animatePanelChange(direction)
+    }
+
+    private fun animatePanelChange(direction: Int) {
+        val target = popupList ?: return
+        when (AppPrefs.tabTransition(this)) {
+            "none" -> return
+            "fade" -> {
+                target.alpha = 0f
+                target.animate().alpha(1f).setDuration(180L).start()
+            }
+            "slide" -> {
+                target.translationX = dp(26) * direction.toFloat()
+                target.alpha = 0.35f
+                target.animate().translationX(0f).alpha(1f).setDuration(220L).start()
+            }
+            "flip" -> {
+                target.cameraDistance = dp(8000).toFloat()
+                target.rotationY = 65f * direction
+                target.alpha = 0.4f
+                target.animate().rotationY(0f).alpha(1f).setDuration(240L).start()
+            }
+        }
     }
 
 

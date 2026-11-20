@@ -325,3 +325,29 @@
 
 ### Verification and remaining work
 - Static review only; Gradle compilation and on-device visual tests are not possible in this environment. Run GitHub Actions `assembleDebug` and check the main settings, "Bảng tiện ích", "Nền bảng", widget picker, and crop screens; verify blur remains optional and panels are unaffected in their default faux-glass state.
+
+## 2026-11-20 — v28.14 Compact settings menu, per-panel background, edge hide v2, effects screen
+
+### User-requested changes
+- The widget popup background is edited only inside "Bảng tiện ích"; brightness slider and expansion panel keep the shared "Nền bảng".
+- Main settings became a compact menu: Float Ball (with an inline quick on/off switch), Widget panels, Quick recording, Actions & gestures, Effects, Advanced settings.
+- Edge hide reworked: per-orientation switches (portrait/landscape) with a centre-notched -100..100 slider (0 = no hide), plus auto side switching so whichever side is dragged is the side hidden.
+- Effects screen: blur toggle + blur area + intensity, haptics toggle + strength, tab transition style (none/fade/slide/flip), entry to shared panel background.
+
+### Changes in this source
+- `AppPrefs`: added popup panel color/opacity/corner (defaults follow the shared values), `tabTransition`, and per-orientation edge-hide flags/values; `FloatBallService` uses `popupPanelBackground()` for the widget popup while expansion/brightness use `sharedPanelBackground()`. Edge hide is applied on show, drag end, and reposition with auto-mirror side detection. `changePanel()` animates the widget list using the selected tab transition.
+- New screens: `FloatBallSettingsActivity` (icon, size, opacity, corner, boot start, snap, idle dim, edge hide), `GestureSettingsActivity` (all gesture actions + assistant replacement), `RecordingSettingsActivity` (input sources, control labels, mic permission), `EffectsSettingsActivity` (blur, haptics, transitions, background entry), `AdvancedSettingsActivity` (permissions, battery, QS tiles, backup, status). `SettingsScreen` is now a short menu with Lucide icons, quick switches, and chevrons; the landscape-layout toggle moved into the widget panel editor.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/SettingsScreen.kt`
+- `app/src/main/java/com/manh/panelsassistive/FloatBallSettingsActivity.kt` (new)
+- `app/src/main/java/com/manh/panelsassistive/GestureSettingsActivity.kt` (new)
+- `app/src/main/java/com/manh/panelsassistive/RecordingSettingsActivity.kt` (new)
+- `app/src/main/java/com/manh/panelsassistive/EffectsSettingsActivity.kt` (new)
+- `app/src/main/java/com/manh/panelsassistive/AdvancedSettingsActivity.kt` (new)
+- `app/src/main/java/com/manh/panelsassistive/WidgetPanelSettingsActivity.kt`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/res/values/strings.xml`
+
+### Verification and remaining work
+- Static review only; no local JDK/Android SDK, so Gradle compilation must run through GitHub Actions. On-device checks: menu navigation, quick switches, edge-hide slider per orientation with auto side switching, widget popup background independence, and each tab transition style.

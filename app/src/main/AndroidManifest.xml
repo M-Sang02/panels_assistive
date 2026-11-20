@@ -58,6 +58,21 @@
             android:name=".BackgroundSettingsActivity"
             android:exported="false" />
         <activity
+            android:name=".FloatBallSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".GestureSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".RecordingSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".EffectsSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AdvancedSettingsActivity"
+            android:exported="false" />
+        <activity
             android:name=".WidgetPanelSettingsActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false" />

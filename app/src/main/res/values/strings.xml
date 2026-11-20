@@ -329,4 +329,8 @@
 <string name="gif_choose_from_gif_tab">GIF files belong in the GIF tab.</string>
     <string name="background_panel_settings">Cài đặt Nền bảng</string>
     <string name="panel_appearance_shared_note">Màu nền, độ trong suốt, bo góc và làm mờ được quản lý chung trong Cài đặt Nền bảng.</string>
+    <string name="advanced_settings_title">Cài đặt nâng cao</string>
+    <string name="float_ball_settings_title">Bóng nổi</string>
+    <string name="effects_settings_title">Hiệu ứng</string>
+    <string name="widget_panels_settings_title">Bảng tiện ích</string>
 </resources>

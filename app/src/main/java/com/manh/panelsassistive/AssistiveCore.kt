@@ -101,6 +101,10 @@ object AppPrefs {
     private const val KEY_SHARED_PANEL_COLOR = "shared_panel_color"
     private const val KEY_SHARED_PANEL_OPACITY = "shared_panel_opacity"
     private const val KEY_SHARED_PANEL_CORNER = "shared_panel_corner"
+    private const val KEY_POPUP_PANEL_COLOR = "popup_panel_color"
+    private const val KEY_POPUP_PANEL_OPACITY = "popup_panel_opacity"
+    private const val KEY_POPUP_PANEL_CORNER = "popup_panel_corner"
+    private const val KEY_TAB_TRANSITION = "tab_transition"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
     private const val KEY_FLOAT_BALL_ICON_URI = "float_ball_icon_uri"
@@ -124,6 +128,10 @@ object AppPrefs {
     private const val KEY_FLOAT_BALL_OPACITY = "float_ball_opacity"
     private const val KEY_FLOAT_BALL_CORNER = "float_ball_corner"
     private const val KEY_FLOAT_BALL_EDGE_HIDE_ENABLED = "float_ball_edge_hide_enabled"
+    private const val KEY_FLOAT_BALL_EDGE_HIDE_PORTRAIT = "float_ball_edge_hide_portrait"
+    private const val KEY_FLOAT_BALL_EDGE_HIDE_LANDSCAPE = "float_ball_edge_hide_landscape"
+    private const val KEY_FLOAT_BALL_EDGE_VALUE_PORTRAIT = "float_ball_edge_value_portrait"
+    private const val KEY_FLOAT_BALL_EDGE_VALUE_LANDSCAPE = "float_ball_edge_value_landscape"
     private const val KEY_FLOAT_BALL_AUTO_MIRROR = "float_ball_auto_mirror"
     private const val KEY_FLOAT_BALL_EDIT_ORIENTATION = "float_ball_edit_orientation"
     private const val KEY_FLOAT_BALL_FIXED_SIDE = "float_ball_fixed_side"
@@ -645,6 +653,33 @@ object AppPrefs {
     fun sharedPanelCorner(context: Context) = store(context).getInt(KEY_SHARED_PANEL_CORNER, 26).coerceIn(0, 48)
     fun setSharedPanelCorner(context: Context, value: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_CORNER, value.coerceIn(0, 48)).apply() }
 
+    // Widget popup keeps its own surface so it can differ from the shared panels;
+    // until customized it inherits the shared values.
+    fun popupPanelColor(context: Context) =
+        store(context).getInt(KEY_POPUP_PANEL_COLOR, sharedPanelColor(context))
+    fun setPopupPanelColor(context: Context, color: Int) {
+        store(context).edit().putInt(KEY_POPUP_PANEL_COLOR, color).apply()
+    }
+    fun popupPanelOpacity(context: Context) =
+        store(context).getInt(KEY_POPUP_PANEL_OPACITY, sharedPanelOpacity(context)).coerceIn(5, 100)
+    fun setPopupPanelOpacity(context: Context, value: Int) {
+        store(context).edit().putInt(KEY_POPUP_PANEL_OPACITY, value.coerceIn(5, 100)).apply()
+    }
+    fun popupPanelCorner(context: Context) =
+        store(context).getInt(KEY_POPUP_PANEL_CORNER, sharedPanelCorner(context)).coerceIn(0, 48)
+    fun setPopupPanelCorner(context: Context, value: Int) {
+        store(context).edit().putInt(KEY_POPUP_PANEL_CORNER, value.coerceIn(0, 48)).apply()
+    }
+
+    fun tabTransition(context: Context): String {
+        val value = store(context).getString(KEY_TAB_TRANSITION, "slide") ?: "slide"
+        return if (value in setOf("none", "fade", "slide", "flip")) value else "slide"
+    }
+    fun setTabTransition(context: Context, value: String) {
+        require(value in setOf("none", "fade", "slide", "flip"))
+        store(context).edit().putString(KEY_TAB_TRANSITION, value).apply()
+    }
+
     fun showPanelLabels(context: Context) =
         store(context).getBoolean(KEY_PANEL_LABELS, false)
 
@@ -828,6 +863,29 @@ object AppPrefs {
 
     fun setFloatBallEdgeHideEnabled(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_FLOAT_BALL_EDGE_HIDE_ENABLED, enabled).apply()
+    }
+
+    // Edge hiding is applied per screen orientation; until toggled individually
+    // it follows the master switch so existing users keep their behaviour.
+    fun floatBallEdgeHideForOrientation(context: Context, landscape: Boolean): Boolean {
+        val key = if (landscape) KEY_FLOAT_BALL_EDGE_HIDE_LANDSCAPE else KEY_FLOAT_BALL_EDGE_HIDE_PORTRAIT
+        return store(context).getBoolean(key, floatBallEdgeHideEnabled(context))
+    }
+
+    fun setFloatBallEdgeHideForOrientation(context: Context, landscape: Boolean, enabled: Boolean) {
+        val key = if (landscape) KEY_FLOAT_BALL_EDGE_HIDE_LANDSCAPE else KEY_FLOAT_BALL_EDGE_HIDE_PORTRAIT
+        store(context).edit().putBoolean(key, enabled).apply()
+    }
+
+    /** -100 = hide on the left, +100 = hide on the right, 0 = stay centred. */
+    fun floatBallEdgeValue(context: Context, landscape: Boolean): Int {
+        val key = if (landscape) KEY_FLOAT_BALL_EDGE_VALUE_LANDSCAPE else KEY_FLOAT_BALL_EDGE_VALUE_PORTRAIT
+        return store(context).getInt(key, 50).coerceIn(-100, 100)
+    }
+
+    fun setFloatBallEdgeValue(context: Context, landscape: Boolean, value: Int) {
+        val key = if (landscape) KEY_FLOAT_BALL_EDGE_VALUE_LANDSCAPE else KEY_FLOAT_BALL_EDGE_VALUE_PORTRAIT
+        store(context).edit().putInt(key, value.coerceIn(-100, 100)).apply()
     }
 
     fun floatBallAutoMirror(context: Context) =

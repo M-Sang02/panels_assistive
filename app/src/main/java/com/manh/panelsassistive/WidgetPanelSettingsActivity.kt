@@ -49,6 +49,7 @@ class WidgetPanelSettingsActivity : Activity() {
     private lateinit var previewScroll: HorizontalScrollView
     private var selectingPanel = false
     private var editingPreview = false
+    private val popupChips = mutableListOf<Pair<Int, View>>()
     private val panelRefreshHandler = Handler(Looper.getMainLooper())
     private val panelRefreshRunnable = Runnable {
         FloatBallService.refreshPanelLayout(this)
@@ -134,6 +135,7 @@ class WidgetPanelSettingsActivity : Activity() {
         }
         if (AppPrefs.landscapeWidgetLayoutEnabled(this)) content.addView(orientationTabs())
         content.addView(panelManagement())
+        content.addView(backgroundCard())
         content.addView(settingsCard())
         content.addView(text(getString(R.string.panel_preview), 15, foreground, true).apply {
             setPadding(0, dp(18), 0, dp(8))
@@ -259,6 +261,129 @@ class WidgetPanelSettingsActivity : Activity() {
         })
     }
 
+    private fun backgroundCard(): LinearLayout = glassCard().apply {
+        addView(text("Nền bảng tiện ích", 16, foreground, true))
+        addView(text(
+            "Chỉ áp dụng cho bảng tiện ích. Thanh sáng dọc và bảng mở rộng dùng mục Nền bảng trong Hiệu ứng.",
+            12,
+            secondary
+        ).apply { setPadding(0, dp(6), 0, dp(2)) })
+        popupChips.clear()
+        addView(LinearLayout(this@WidgetPanelSettingsActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, 0)
+            AppPrefs.panelPalette.forEach { swatch ->
+                val chip = View(this@WidgetPanelSettingsActivity).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(swatch)
+                    }
+                    isClickable = true
+                    contentDescription = "Màu nền bảng tiện ích"
+                    setOnClickListener {
+                        AppPrefs.setPopupPanelColor(this@WidgetPanelSettingsActivity, swatch)
+                        updatePreviewBackground()
+                        refreshPopupSurface()
+                    }
+                }
+                popupChips.add(swatch to chip)
+                addView(chip, LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(6) })
+            }
+            addView(ImageButton(this@WidgetPanelSettingsActivity).apply {
+                setImageResource(android.R.drawable.ic_menu_edit)
+                setColorFilter(this@WidgetPanelSettingsActivity.foreground)
+                background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 12)
+                contentDescription = "Màu nền tùy chỉnh"
+                setPadding(dp(6), dp(6), dp(6), dp(6))
+                setOnClickListener {
+                    PanelColorPicker.show(
+                        this@WidgetPanelSettingsActivity,
+                        AppPrefs.popupPanelColor(this@WidgetPanelSettingsActivity)
+                    ) { color ->
+                        AppPrefs.setPopupPanelColor(this@WidgetPanelSettingsActivity, color)
+                        updatePreviewBackground()
+                        refreshPopupSurface()
+                    }
+                }
+            }, LinearLayout.LayoutParams(dp(36), dp(36)))
+        })
+        val opacityValue = text(
+            "${AppPrefs.popupPanelOpacity(this@WidgetPanelSettingsActivity)}%",
+            13,
+            GlassUi.ACCENT,
+            true
+        )
+        addView(text("Độ trong suốt", 13, secondary, true).apply { setPadding(0, dp(12), 0, 0) })
+        addView(opacityValue)
+        addView(GlassUi.slider(this@WidgetPanelSettingsActivity).apply {
+            max = 95
+            progress = AppPrefs.popupPanelOpacity(this@WidgetPanelSettingsActivity) - 5
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    val opacity = progress + 5
+                    AppPrefs.setPopupPanelOpacity(this@WidgetPanelSettingsActivity, opacity)
+                    opacityValue.text = "$opacity%"
+                    updatePreviewBackground()
+                    refreshPopupSurface()
+                }
+
+                override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+            })
+        })
+        val cornerValue = text(
+            "${AppPrefs.popupPanelCorner(this@WidgetPanelSettingsActivity)}dp",
+            13,
+            GlassUi.ACCENT,
+            true
+        )
+        addView(text("Bo góc", 13, secondary, true).apply { setPadding(0, dp(12), 0, 0) })
+        addView(cornerValue)
+        addView(GlassUi.slider(this@WidgetPanelSettingsActivity).apply {
+            max = 48
+            progress = AppPrefs.popupPanelCorner(this@WidgetPanelSettingsActivity)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    AppPrefs.setPopupPanelCorner(this@WidgetPanelSettingsActivity, progress)
+                    cornerValue.text = "${progress}dp"
+                    updatePreviewBackground()
+                    refreshPopupSurface()
+                }
+
+                override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+            })
+        })
+    }
+
+    private fun updatePreviewBackground() {
+        if (!::previewGrid.isInitialized) return
+        val color = AppPrefs.popupPanelColor(this)
+        val alpha = (AppPrefs.popupPanelOpacity(this) * 255 / 100).coerceIn(0, 255)
+        previewGrid.background = GradientDrawable().apply {
+            setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
+            cornerRadius = dp(AppPrefs.popupPanelCorner(this@WidgetPanelSettingsActivity)).toFloat()
+            setStroke(dp(1), Color.argb(65, 225, 238, 250))
+        }
+        updatePopupChips(color)
+    }
+
+    private fun updatePopupChips(color: Int) {
+        popupChips.forEach { (swatch, chip) ->
+            (chip.background as? GradientDrawable)?.setStroke(
+                dp(2),
+                if (swatch == color) GlassUi.TEXT_PRIMARY else Color.argb(80, 255, 255, 255)
+            )
+        }
+    }
+
+    private fun refreshPopupSurface() {
+        FloatBallService.refreshPopupAppearance(this)
+    }
+
     private fun settingsCard(): LinearLayout = glassCard().apply {
         addView(styledSwitch(R.string.show_panel_labels, AppPrefs.showPanelLabels(this@WidgetPanelSettingsActivity)) { checked ->
             AppPrefs.setShowPanelLabels(this@WidgetPanelSettingsActivity, checked)
@@ -267,17 +392,6 @@ class WidgetPanelSettingsActivity : Activity() {
         })
         addView(styledSwitch(R.string.close_panel_after_tap, AppPrefs.closePanelAfterTap(this@WidgetPanelSettingsActivity)) { checked ->
             AppPrefs.setClosePanelAfterTap(this@WidgetPanelSettingsActivity, checked)
-        })
-        addView(text(getString(R.string.panel_appearance_shared_note), 13, secondary).apply {
-            setPadding(0, dp(12), 0, dp(8))
-        })
-        addView(button(R.string.background_panel_settings) {
-            startActivity(
-                Intent(
-                    this@WidgetPanelSettingsActivity,
-                    BackgroundSettingsActivity::class.java
-                )
-            )
         })
         addView(valueControl(
             getString(R.string.grid_cell_width),
@@ -307,6 +421,15 @@ class WidgetPanelSettingsActivity : Activity() {
             setPadding(0, dp(14), 0, dp(6))
         })
         addView(panelAreaControl())
+        if (!landscape) {
+            addView(styledSwitch(
+                R.string.separate_landscape_layout,
+                AppPrefs.landscapeWidgetLayoutEnabled(this@WidgetPanelSettingsActivity)
+            ) { checked ->
+                AppPrefs.setLandscapeWidgetLayoutEnabled(this@WidgetPanelSettingsActivity, checked)
+                render()
+            })
+        }
     }
 
     private fun panelAreaControl(): View {
@@ -486,13 +609,7 @@ class WidgetPanelSettingsActivity : Activity() {
         if (!::previewGrid.isInitialized) return
         previewGrid.removeAllViews()
         val page = selectedPage()
-        val color = AppPrefs.sharedPanelColor(this)
-        val alpha = (AppPrefs.sharedPanelOpacity(this) * 255 / 100).coerceIn(0, 255)
-        previewGrid.background = GradientDrawable().apply {
-            setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
-            cornerRadius = dp(AppPrefs.sharedPanelCorner(this@WidgetPanelSettingsActivity)).toFloat()
-            setStroke(dp(1), Color.argb(65, 225, 238, 250))
-        }
+        updatePreviewBackground()
         val columns = page.columns.coerceIn(2, 20)
         val rows = maxOf(page.rows, page.items.maxOfOrNull {
             (it.position.coerceAtLeast(0) / columns) + it.spanY
