@@ -956,7 +956,7 @@ class FloatBallService : Service() {
         if (popup != null) removePopup(stopIfEmpty = false)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(14), dp(14), dp(14))
+            setPadding(dp(14), dp(14), dp(14), dp(12))
             background = GradientDrawable().apply {
                 val base = AppPrefs.sharedPanelColor(this@FloatBallService)
                 val alpha = AppPrefs.sharedPanelOpacity(this@FloatBallService) * 255 / 100
@@ -966,37 +966,18 @@ class FloatBallService : Service() {
             }
         }
 
-        addBrightnessSliderRow(panel, compact = false)
-
+        // Brightness is intentionally a separate floating control, not part of this panel.
         val volumeRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_MUSIC, PopupIcon.MEDIA)
         addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_RING, PopupIcon.RING)
         addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_NOTIFICATION, PopupIcon.NOTIFICATION)
         addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_ALARM, PopupIcon.ALARM)
-        val volumeHeader = TextView(this).apply {
-            text = "Âm lượng / Media  ▾"
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            isClickable = true
-            isFocusable = true
-        }
-        var volumeExpanded = true
-        volumeHeader.setOnClickListener {
-            volumeExpanded = !volumeExpanded
-            volumeRows.visibility = if (volumeExpanded) View.VISIBLE else View.GONE
-            volumeHeader.text = if (volumeExpanded) "Âm lượng / Media  ▾" else "Âm lượng / Media  ▸"
-        }
-        panel.addView(volumeHeader, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(36)
-        ))
         panel.addView(volumeRows)
 
         val shortcutRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, 0)
+            setPadding(0, dp(5), 0, 0)
         }
         AppPrefs.expansionShortcuts(this).forEachIndexed { index, shortcut ->
             val cell: View = if (shortcut == null) {
@@ -1007,7 +988,7 @@ class FloatBallService : Service() {
                     isFocusable = true
                     addView(PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
                         setIconColor(Color.WHITE)
-                    }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+                    }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
                     setOnClickListener {
                         startActivity(Intent(this@FloatBallService, WidgetPickerActivity::class.java).apply {
                             putExtra(WidgetPickerActivity.EXTRA_EXPANSION_SLOT, index)
@@ -1020,12 +1001,10 @@ class FloatBallService : Service() {
                 FrameLayout(this).apply {
                     background = sliderTileBackground()
                     val shortcutView = createPanelShortcut(
-                        PanelItem(shortcut.type, shortcut.value, shortcut.label),
-                        showLabel = false
+                        PanelItem(shortcut.type, shortcut.value, shortcut.label), showLabel = false
                     )
                     addView(shortcutView, FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
+                        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
                     ))
                     contentDescription = shortcut.label
                     shortcutView.setOnLongClickListener {
@@ -1036,54 +1015,105 @@ class FloatBallService : Service() {
                     }
                 }
             }
-            shortcutRow.addView(cell, LinearLayout.LayoutParams(0, dp(58), 1f).apply {
+            shortcutRow.addView(cell, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
                 setMargins(dp(3), 0, dp(3), 0)
             })
         }
+
+        // The centered chevron controls only the shortcut area; volume rows stay visible.
+        var shortcutsExpanded = true
+        val shortcutToggle = FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Thu gọn hoặc mở rộng lối tắt"
+            addView(PopupIconView(this@FloatBallService, PopupIcon.CHEVRON_UP).apply {
+                setIconColor(Color.WHITE)
+            }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+            setOnClickListener {
+                shortcutsExpanded = !shortcutsExpanded
+                shortcutRow.visibility = if (shortcutsExpanded) View.VISIBLE else View.GONE
+                (getChildAt(0) as? PopupIconView)?.setIcon(shortcutsExpanded)
+            }
+        }
+        panel.addView(shortcutToggle, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(30)
+        ).apply { topMargin = dp(3) })
         panel.addView(shortcutRow)
-        // The shortcut row is part of the measured content; reserve enough room
-        // and let the panel scroll on short displays instead of clipping its bottom.
+
         val scroll = android.widget.ScrollView(this).apply {
             isFillViewport = true
             clipToPadding = false
             addView(panel, ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        showOverlayPanel(scroll, dp(360), minOf(dp(520), resources.displayMetrics.heightPixels - dp(80)))
+        showOverlayPanel(scroll, dp(360), minOf(dp(470), resources.displayMetrics.heightPixels - dp(80)))
     }
 
     private fun showBrightnessSlider() {
         if (popup != null) removePopup(stopIfEmpty = false)
+        val current = try {
+            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
+        } catch (_: Exception) { 128 }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-            background = roundedBackground(Color.argb(238, 35, 53, 75), 28)
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(14), dp(12), dp(14))
+            background = GradientDrawable().apply {
+                setColor(Color.argb(242, 27, 43, 62))
+                cornerRadius = dp(28).toFloat()
+                setStroke(dp(1), Color.argb(70, 225, 238, 250))
+            }
+            addView(PopupIconView(this@FloatBallService, PopupIcon.BRIGHTNESS).apply {
+                setIconColor(Color.WHITE)
+            }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { bottomMargin = dp(12) })
+            addView(VerticalBrightnessTrackView(this@FloatBallService, 255, current) { updateBrightness(it) },
+                LinearLayout.LayoutParams(dp(48), dp(220)))
         }
-        addBrightnessSliderRow(panel, compact = true)
-        showOverlayPanel(panel, dp(330), dp(76))
+        showOverlayPanel(panel, dp(76), dp(292))
     }
 
-    private fun addBrightnessSliderRow(parent: LinearLayout, compact: Boolean) {
-        val current = try {
-            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
-                .coerceIn(1, 255)
-        } catch (_: Exception) {
-            128
+    private inner class VerticalBrightnessTrackView(
+        context: Context,
+        private val maximum: Int,
+        initialProgress: Int,
+        private val onValueChanged: (Int) -> Unit
+    ) : View(context) {
+        private val density = resources.displayMetrics.density
+        private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(95, 230, 240, 250) }
+        private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(132, 198, 255) }
+        private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        private var value = initialProgress.coerceIn(0, maximum)
+        private var tracking = false
+        init { isClickable = true; isFocusable = true; contentDescription = getString(R.string.brightness_slider) }
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val cx = width / 2f
+            val top = 10f * density
+            val bottom = height - 10f * density
+            val fraction = value.toFloat() / maximum
+            val y = bottom - (bottom - top) * fraction
+            val radius = 4f * density
+            canvas.drawRoundRect(cx - radius, top, cx + radius, bottom, radius, radius, trackPaint)
+            canvas.drawRoundRect(cx - radius, y, cx + radius, bottom, radius, radius, activePaint)
+            canvas.drawCircle(cx, y, 9f * density, activePaint)
+            canvas.drawCircle(cx, y, 6.5f * density, thumbPaint)
         }
-        parent.addView(createSliderPill(
-            icon = PopupIcon.BRIGHTNESS,
-            description = getString(R.string.brightness_slider),
-            max = 255,
-            progress = current,
-            compact = compact
-        ) { value -> updateBrightness(value) }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(if (compact) 54 else 48)
-        ).apply {
-            bottomMargin = if (compact) 0 else dp(7)
-        })
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { tracking = true; parent?.requestDisallowInterceptTouchEvent(true); updateValue(event.y); return true }
+                MotionEvent.ACTION_MOVE -> { if (tracking) updateValue(event.y); return tracking }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { if (tracking) updateValue(event.y); tracking = false; parent?.requestDisallowInterceptTouchEvent(false); performClick(); return true }
+            }
+            return tracking
+        }
+        override fun performClick(): Boolean { super.performClick(); return true }
+        private fun updateValue(y: Float) {
+            val top = 10f * density
+            val bottom = (height - 10f * density).coerceAtLeast(top + 1f)
+            val next = (((bottom - y) / (bottom - top)).coerceIn(0f, 1f) * maximum).toInt()
+            if (next != value) { value = next; invalidate(); onValueChanged(value) }
+        }
     }
 
     private fun addVolumeSliderRow(parent: LinearLayout, stream: Int, icon: PopupIcon) {
@@ -2469,22 +2499,30 @@ class FloatBallService : Service() {
             RING,
             MEDIA,
             RESIZE,
-            MOVE
+            MOVE,
+            CHEVRON_UP
         }
 
         private class PopupIconView(
             context: Context,
             private val icon: PopupIcon
         ) : View(context) {
+            private var chevronExpanded = true
             private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeJoin = Paint.Join.ROUND
-                strokeWidth = 2f
+                strokeWidth = 1.7f
             }
 
             fun setIconColor(color: Int) {
                 paint.color = color
+                invalidate()
+            }
+
+            fun setIcon(expanded: Boolean) {
+                // A minimal chevron communicates the shortcut area's current state.
+                chevronExpanded = expanded
                 invalidate()
             }
 
@@ -2582,6 +2620,15 @@ class FloatBallService : Service() {
                             close()
                         }
                         canvas.drawPath(path, paint)
+                    }
+                    PopupIcon.CHEVRON_UP -> {
+                        if (chevronExpanded) {
+                            canvas.drawLine(6f, 15f, 12f, 9f, paint)
+                            canvas.drawLine(12f, 9f, 18f, 15f, paint)
+                        } else {
+                            canvas.drawLine(6f, 9f, 12f, 15f, paint)
+                            canvas.drawLine(12f, 15f, 18f, 9f, paint)
+                        }
                     }
                     PopupIcon.RESIZE -> {
                         canvas.drawLine(7f, 17f, 17f, 7f, paint)

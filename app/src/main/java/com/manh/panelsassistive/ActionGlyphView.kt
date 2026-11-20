@@ -15,7 +15,7 @@ class ActionGlyphView(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.color = color
         style = Paint.Style.STROKE
-        strokeWidth = 2f
+        strokeWidth = 1.65f
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
@@ -29,23 +29,13 @@ class ActionGlyphView(
         canvas.scale(size / 24f, size / 24f)
         when (action) {
             ActionDispatcher.FLASHLIGHT -> {
-                val flashlight = Path().apply {
-                    moveTo(8f, 4f)
-                    lineTo(16f, 4f)
-                    lineTo(15f, 9f)
-                    lineTo(14f, 10f)
-                    lineTo(14f, 18f)
-                    lineTo(10f, 18f)
-                    lineTo(10f, 10f)
-                    lineTo(9f, 9f)
-                    close()
+                val body = Path().apply {
+                    moveTo(8f, 4f); lineTo(16f, 4f); lineTo(15f, 9f)
+                    lineTo(14f, 10f); lineTo(14f, 20f); lineTo(10f, 20f)
+                    lineTo(10f, 10f); lineTo(9f, 9f); close()
                 }
-                canvas.drawPath(flashlight, paint)
-                canvas.drawLine(12f, 18f, 12f, 21f, paint)
-                canvas.drawLine(7f, 7f, 4f, 6f, paint)
-                canvas.drawLine(17f, 7f, 20f, 6f, paint)
-                canvas.drawLine(7f, 10f, 4f, 11f, paint)
-                canvas.drawLine(17f, 10f, 20f, 11f, paint)
+                canvas.drawPath(body, paint)
+                canvas.drawLine(9f, 7f, 15f, 7f, paint)
             }
             ActionDispatcher.BACKGROUND_RECORDING -> {
                 canvas.drawRoundRect(9f, 3f, 15f, 15f, 3f, 3f, paint)
@@ -129,23 +119,17 @@ class ActionGlyphView(
                 canvas.drawLine(5f, 12f, 11f, 18f, paint)
             }
             ActionDispatcher.NAV_HOME -> {
-                val house = Path().apply {
-                    moveTo(3f, 11f)
-                    lineTo(12f, 4f)
-                    lineTo(21f, 11f)
-                    lineTo(19f, 11f)
-                    lineTo(19f, 20f)
-                    lineTo(5f, 20f)
-                    lineTo(5f, 11f)
-                    close()
+                val home = Path().apply {
+                    moveTo(3.5f, 11f); lineTo(12f, 4f); lineTo(20.5f, 11f)
+                    moveTo(6.5f, 10f); lineTo(6.5f, 20f); lineTo(17.5f, 20f); lineTo(17.5f, 10f)
+                    moveTo(10f, 20f); lineTo(10f, 14f); lineTo(14f, 14f); lineTo(14f, 20f)
                 }
-                canvas.drawPath(house, paint)
-                canvas.drawRect(10f, 14f, 14f, 20f, paint)
+                canvas.drawPath(home, paint)
             }
             ActionDispatcher.NAV_RECENTS -> {
-                canvas.drawRoundRect(7f, 4f, 20f, 17f, 2f, 2f, paint)
-                canvas.drawLine(4f, 8f, 4f, 19f, paint)
-                canvas.drawLine(4f, 19f, 16f, 19f, paint)
+                canvas.drawRoundRect(6f, 4f, 18f, 18f, 2f, 2f, paint)
+                canvas.drawLine(9f, 21f, 21f, 21f, paint)
+                canvas.drawLine(21f, 9f, 21f, 21f, paint)
             }
             ActionDispatcher.CALL_ASSISTANT -> {
                 canvas.drawRoundRect(8f, 4f, 16f, 16f, 4f, 4f, paint)

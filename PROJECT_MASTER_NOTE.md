@@ -219,3 +219,27 @@
 - Run the GitHub Actions Android build and share any new compiler output if it fails.
 - Test thumb positioning, drag responsiveness, volume update timing, brightness permission flow, and shortcut visibility on-device.
 - Confirm whether the redesigned slider appearance matches the requested reference; further visual tuning may be needed after a device screenshot.
+
+## v28.10 — Modern action glyphs, shortcut-only collapse, standalone vertical brightness
+
+### Changes
+- Replaced the Expansion Panel's collapsible “Âm lượng / Media” header. All four volume rows (media, ring, notification, alarm) now remain visible; there is no media-collapse control.
+- Added a centered minimal chevron toggle that collapses/expands only the shortcut tile row. The chevron direction changes with the state.
+- Removed the brightness row from the Expansion Panel. The dedicated Brightness Slider action now opens its own narrow vertical control with only a brightness icon and a draggable vertical track; it does not include volume controls or shortcuts.
+- Refined the action glyph drawing style toward consistent, thin, rounded, minimal line icons. Updated flashlight, Home, and Recents glyph geometry and reduced stroke weight across the action glyph set and popup icons.
+- Kept existing brightness permission handling and system brightness writes, plus existing volume stream debounce behavior.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/java/com/manh/panelsassistive/ActionGlyphView.kt`
+
+### Verification
+- Source checks: confirmed the Expansion Panel no longer contains a brightness row or a media-collapse header; shortcut visibility is controlled by the centered chevron; the standalone brightness action uses a dedicated vertical slider view.
+- ZIP integrity: checked after packaging.
+- Gradle compilation is **not verified**. `./gradlew --offline --no-daemon :app:compileDebugKotlin` still attempted to download Gradle 8.9 and failed because `services.gradle.org` could not be resolved (`UnknownHostException`). Run GitHub Actions to verify Kotlin compilation and APK packaging.
+
+### Device checks
+1. Open Expansion Panel: confirm all volume rows stay visible.
+2. Tap the centered chevron: confirm only shortcut tiles hide/show.
+3. Open the Brightness Slider action: confirm it opens a separate vertical brightness-only control and dragging changes system brightness (after granting WRITE_SETTINGS if requested).
+4. Review action icon appearance and report any specific glyphs that still look outdated.
