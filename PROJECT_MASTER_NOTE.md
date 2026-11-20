@@ -88,3 +88,28 @@
 ### Build/test status
 - ZIP integrity is checked after packaging.
 - Compilation is still not confirmed in this environment unless the Gradle wrapper can run with a locally available Gradle distribution. GitHub Actions remains the authoritative compile check.
+
+
+## v28.4 Kotlin compile-error repair — 2026-11-20
+
+### GitHub Actions errors addressed
+- `FloatBallIconCropActivity.kt`: replaced the nonexistent `AppPrefs.floatBallCropCorner(...)` call with the existing `AppPrefs.floatBallCrop(...).corner` value.
+- `FloatBallService.kt`: restored the missing Expansion Panel UI using the four persisted `AppPrefs.expansionShortcuts` slots. Empty slots open `WidgetPickerActivity` with `EXTRA_EXPANSION_SLOT`; assigned actions, apps, and shortcuts dispatch through `ActionDispatcher`; long-press clears an assigned slot.
+- `FloatBallService.kt`: restored the missing brightness slider dialog. It reads/writes `Settings.System.SCREEN_BRIGHTNESS`; if WRITE_SETTINGS permission is absent, it presents the existing localized permission explanation and opens Android's per-app write-settings screen.
+- `FloatBallService.kt`: fixed flashlight dispatch to call `FloatBallService.toggleFlashlight(context)` with its required context.
+- `FloatBallService.kt`: replaced unresolved `refreshTile()` calls with the existing `QuickSettingsTiles.updateListeningServices(context)` helper.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/FloatBallIconCropActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `PROJECT_MASTER_NOTE.md`
+
+### Verification status
+- Source-level checks: confirmed the crop preference API, expansion shortcut data model, WidgetPicker extras, ActionDispatcher encoding/dispatch, brightness permission strings, and QuickSettingsTiles helper exist in this project.
+- ZIP integrity: to be checked after packaging.
+- Gradle build: **not verified**. `./gradlew --no-daemon assembleDebug` was attempted, but Gradle 8.9 could not be downloaded because this environment cannot resolve `services.gradle.org` (`UnknownHostException`). GitHub Actions must run the actual compile.
+
+### Next steps
+1. Upload all files from the v28.4 source ZIP over the current repository.
+2. Run GitHub Actions `assembleDebug`.
+3. If compilation succeeds, test expansion shortcut add/launch/clear, brightness permission flow and brightness adjustment, flashlight action, and crop-corner persistence on a device.

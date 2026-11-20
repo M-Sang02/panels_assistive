@@ -88,7 +88,7 @@ class FloatBallIconCropActivity : Activity() {
         root.addView(cornerValue)
         root.addView(SeekBar(this).apply {
             max = 100
-            progress = AppPrefs.floatBallCropCorner(this@FloatBallIconCropActivity, mode)
+            progress = AppPrefs.floatBallCrop(this@FloatBallIconCropActivity, mode).corner
             setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) {
                     preview.corner = p

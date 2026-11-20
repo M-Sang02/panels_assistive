@@ -232,7 +232,7 @@ class FloatBallService : Service() {
             }
             ACTION_TOGGLE_FLASHLIGHT -> {
                 if (AppPrefs.floatBallEnabled(this)) showFloatBall()
-                toggleFlashlight()
+                FloatBallService.toggleFlashlight(this@FloatBallService)
                 if (floatBall == null && popup == null) {
                     stopSelf(startId)
                     return START_NOT_STICKY
@@ -286,7 +286,7 @@ class FloatBallService : Service() {
         }
         AppPrefs.setFloatBallEnabled(this, true)
         showFloatBall()
-        refreshTile()
+        QuickSettingsTiles.updateListeningServices(this)
         return START_STICKY
     }
 
@@ -313,7 +313,7 @@ class FloatBallService : Service() {
         } catch (error: Exception) {
             Log.e(TAG, "Unable to stop widget host", error)
         }
-        refreshTile()
+        QuickSettingsTiles.updateListeningServices(this)
         super.onDestroy()
     }
 
@@ -942,6 +942,131 @@ class FloatBallService : Service() {
         }
     }
 
+
+    private fun showExpansionPanel() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = roundedBackground(Color.rgb(12, 27, 45), dp(24))
+        }
+        root.addView(TextView(this).apply {
+            text = getString(R.string.action_expansion_panel)
+            textSize = 19f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, dp(12))
+        })
+        val shortcuts = AppPrefs.expansionShortcuts(this)
+        shortcuts.forEachIndexed { index, shortcut ->
+            val label = shortcut?.label ?: getString(R.string.add_shortcut)
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                background = roundedBackground(Color.argb(42, 220, 235, 250), dp(16))
+                isClickable = true
+                isFocusable = true
+                addView(TextView(this@FloatBallService).apply {
+                    text = label
+                    textSize = 15f
+                    setTextColor(Color.WHITE)
+                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                })
+                addView(TextView(this@FloatBallService).apply {
+                    text = if (shortcut == null) "+" else "⋯"
+                    textSize = 22f
+                    setTextColor(Color.rgb(150, 200, 255))
+                })
+                setOnClickListener {
+                    if (shortcut == null) {
+                        startActivity(Intent(this@FloatBallService, WidgetPickerActivity::class.java).apply {
+                            putExtra(WidgetPickerActivity.EXTRA_EXPANSION_SLOT, index)
+                            putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, PanelItemType.ACTION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                    } else {
+                        val action = when (shortcut.type) {
+                            PanelItemType.APP -> ActionDispatcher.encodeSelectedAction(
+                                ActionDispatcher.OPEN_SELECTED_APP, shortcut.value, shortcut.label
+                            )
+                            PanelItemType.SHORTCUT -> ActionDispatcher.encodeSelectedAction(
+                                ActionDispatcher.OPEN_SELECTED_SHORTCUT, shortcut.value, shortcut.label
+                            )
+                            else -> shortcut.value
+                        }
+                        ActionDispatcher.dispatch(this@FloatBallService, action)
+                    }
+                }
+                setOnLongClickListener {
+                    if (shortcut != null) {
+                        AppPrefs.setExpansionShortcut(this@FloatBallService, index, null)
+                        Toast.makeText(this@FloatBallService, R.string.panel_item_removed, Toast.LENGTH_SHORT).show()
+                        showExpansionPanel()
+                    }
+                    true
+                }
+            }
+            root.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        }
+        showOverlayDialog(AlertDialog.Builder(this).setView(root).setNegativeButton(android.R.string.cancel, null))
+    }
+
+    private fun showBrightnessSlider() {
+        if (!Settings.System.canWrite(this)) {
+            if (brightnessPermissionPrompted) return
+            brightnessPermissionPrompted = true
+            showOverlayDialog(AlertDialog.Builder(this)
+                .setMessage(R.string.brightness_permission_required)
+                .setPositiveButton(R.string.grant_brightness_permission) { _, _ ->
+                    try {
+                        startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                            .setData(Uri.parse("package:$packageName"))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (error: Exception) {
+                        Log.e(TAG, "Unable to open brightness permission settings", error)
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null))
+            return
+        }
+        val current = try {
+            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS).coerceIn(1, 255)
+        } catch (_: Settings.SettingNotFoundException) { 128 }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(12))
+        }
+        val valueLabel = TextView(this).apply {
+            text = "${(current * 100 / 255)}%"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+        }
+        container.addView(valueLabel)
+        container.addView(SeekBar(this).apply {
+            max = 255
+            progress = current
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val value = progress.coerceAtLeast(1)
+                    valueLabel.text = "${value * 100 / 255}%"
+                    if (fromUser) {
+                        try {
+                            Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, value)
+                        } catch (error: SecurityException) {
+                            Log.e(TAG, "Unable to update screen brightness", error)
+                            Toast.makeText(this@FloatBallService, R.string.brightness_update_failed, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        })
+        showOverlayDialog(AlertDialog.Builder(this)
+            .setTitle(R.string.brightness_slider)
+            .setView(container)
+            .setNegativeButton(android.R.string.cancel, null))
+    }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
