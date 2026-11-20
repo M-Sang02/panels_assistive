@@ -103,6 +103,7 @@ object AppPrefs {
     private const val KEY_WIDGET_PANEL_BLUR_SCOPE = "widget_panel_blur_scope"
     private const val KEY_QUICK_TILE_PRIMARY = "quick_tile_primary"
     private const val KEY_QUICK_TILE_SECONDARY = "quick_tile_secondary"
+    private const val KEY_THEME = "app_theme"
     private const val KEY_SHARED_PANEL_COLOR = "shared_panel_color"
     private const val KEY_SHARED_PANEL_OPACITY = "shared_panel_opacity"
     private const val KEY_SHARED_PANEL_CORNER = "shared_panel_corner"
@@ -693,6 +694,13 @@ object AppPrefs {
 
     fun setQuickTileSecondaryAction(context: Context, action: String) {
         store(context).edit().putString(KEY_QUICK_TILE_SECONDARY, action).apply()
+    }
+
+    fun themeKey(context: Context) =
+        store(context).getString(KEY_THEME, AppThemes.DEFAULT_KEY) ?: AppThemes.DEFAULT_KEY
+
+    fun setThemeKey(context: Context, key: String) {
+        store(context).edit().putString(KEY_THEME, key).apply()
     }
 
     fun sharedPanelColor(context: Context) = store(context).getInt(KEY_SHARED_PANEL_COLOR, android.graphics.Color.rgb(24, 41, 61))

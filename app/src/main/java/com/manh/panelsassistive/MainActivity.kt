@@ -43,6 +43,8 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        window.statusBarColor = GlassUi.PAGE_COLOR
+        window.navigationBarColor = GlassUi.PAGE_COLOR
         if (AppPrefs.floatBallEnabled(this) && !Settings.canDrawOverlays(this)) {
             FloatBallService.stop(this)
         }

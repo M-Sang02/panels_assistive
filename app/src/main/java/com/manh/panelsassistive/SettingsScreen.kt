@@ -134,6 +134,22 @@ class SettingsScreen(private val activity: Activity) {
         }
 
         addRow(
+            icon = "layout-grid",
+            title = "Widget",
+            subtitle = "Pin, âm lượng, đồng hồ, nhạc cho màn hình chính"
+        ) {
+            activity.startActivity(Intent(activity, WidgetSettingsActivity::class.java))
+        }
+
+        addRow(
+            icon = "palette",
+            title = "Giao diện",
+            subtitle = "Bảng màu cho widget, bảng nổi và toàn ứng dụng"
+        ) {
+            activity.startActivity(Intent(activity, ThemeSettingsActivity::class.java))
+        }
+
+        addRow(
             icon = "settings-2",
             title = activity.getString(R.string.advanced_settings_title),
             subtitle = "Quyền hệ thống, ô cài đặt nhanh, sao lưu"

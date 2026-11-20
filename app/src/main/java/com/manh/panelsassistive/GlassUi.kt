@@ -22,22 +22,38 @@ import android.widget.TextView
  * drawing (no runtime blur), so it stays cheap and predictable.
  */
 object GlassUi {
-    val ACCENT = 0xFF7CBEFF.toInt()
-    val ACCENT_STRONG = 0xFF4E96E8.toInt()
-    val ACCENT_SOFT = Color.argb(58, 124, 190, 255)
+    var ACCENT = 0xFF7CBEFF.toInt()
+        private set
+    var ACCENT_STRONG = 0xFF4E96E8.toInt()
+        private set
+    var ACCENT_SOFT = Color.argb(58, 124, 190, 255)
+        private set
     val TEXT_PRIMARY = 0xFFF4F6FA.toInt()
     val TEXT_SECONDARY = 0xFFA6ADB9.toInt()
     val TEXT_MUTED = 0xFF7E8896.toInt()
-    val PAGE_COLOR = 0xFF091422.toInt()
+    var PAGE_COLOR = 0xFF091422.toInt()
+        private set
 
-    private val PAGE_TOP = 0xFF091422.toInt()
-    private val PAGE_MID = 0xFF0D1E30.toInt()
-    private val PAGE_BOTTOM = 0xFF07101D.toInt()
+    private var PAGE_TOP = 0xFF091422.toInt()
+    private var PAGE_MID = 0xFF0D1E30.toInt()
+    private var PAGE_BOTTOM = 0xFF07101D.toInt()
     private val CARD_FILL_TOP = Color.argb(32, 224, 236, 255)
     private val CARD_FILL_BOTTOM = Color.argb(13, 224, 236, 255)
     private val CARD_RIM = Color.argb(36, 255, 255, 255)
     private val FIELD_FILL = Color.argb(24, 224, 236, 255)
     private val DIVIDER_COLOR = Color.argb(26, 255, 255, 255)
+
+    /** Re-syncs the shared palette. Called on app start and after a theme change. */
+    fun applyTheme(context: Context) {
+        val theme = AppThemes.current(context)
+        ACCENT = theme.accent
+        ACCENT_STRONG = theme.accentStrong
+        ACCENT_SOFT = (theme.accent and 0x00FFFFFF) or 0x3A000000
+        PAGE_COLOR = theme.pageTop
+        PAGE_TOP = theme.pageTop
+        PAGE_MID = theme.pageMid
+        PAGE_BOTTOM = theme.pageBottom
+    }
 
     fun dp(context: Context, value: Int): Int =
         (value * context.resources.displayMetrics.density).toInt()

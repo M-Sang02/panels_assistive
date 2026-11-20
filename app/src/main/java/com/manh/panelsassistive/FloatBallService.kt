@@ -351,6 +351,7 @@ class FloatBallService : Service() {
                     when (overlaySurface) {
                         OverlaySurface.WIDGETS -> popupDialog?.window?.let { window ->
                             window.setBackgroundDrawable(popupPanelBackground())
+                            window.decorView.setPadding(0, 0, 0, 0)
                             // Re-apply so the background blur survives the drawable swap.
                             applyPopupBlur(window, OverlaySurface.WIDGETS)
                         }
@@ -1036,7 +1037,6 @@ class FloatBallService : Service() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(12))
-            background = sharedPanelBackground()
         }
 
         // Brightness is intentionally a separate floating control, not part of this panel.
@@ -1152,6 +1152,7 @@ class FloatBallService : Service() {
             scroll,
             dp(360),
             minOf(dp(470), resources.displayMetrics.heightPixels - dp(80)),
+            windowBackground = sharedPanelBackground(),
             surface = OverlaySurface.EXPANSION
         )
     }
@@ -1167,14 +1168,19 @@ class FloatBallService : Service() {
             // Generous top/bottom insets keep the icon and the thumb clear of the
             // panel rim while making the track taller.
             setPadding(dp(10), dp(24), dp(10), dp(24))
-            background = sharedPanelBackground()
             addView(PopupIconView(this@FloatBallService, PopupIcon.BRIGHTNESS).apply {
                 setIconColor(Color.WHITE)
             }, LinearLayout.LayoutParams(dp(26), dp(26)).apply { bottomMargin = dp(16) })
             addView(VerticalBrightnessTrackView(this@FloatBallService, 255, current) { updateBrightness(it) },
                 LinearLayout.LayoutParams(dp(44), dp(250)))
         }
-        showOverlayPanel(panel, dp(92), dp(374), surface = OverlaySurface.BRIGHTNESS)
+        showOverlayPanel(
+            panel,
+            dp(92),
+            dp(374),
+            windowBackground = sharedPanelBackground(),
+            surface = OverlaySurface.BRIGHTNESS
+        )
     }
 
     private inner class VerticalBrightnessTrackView(
@@ -2047,7 +2053,10 @@ class FloatBallService : Service() {
     ) {
         val panelWidth = minOf(width, (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(1)))
         val panelHeight = minOf(height, (resources.displayMetrics.heightPixels - dp(64)).coerceAtLeast(dp(1)))
-        val dialog = Dialog(this)
+        // GlassOverlayDialog is translucent: DecorView only enables background
+        // blur when Window.isTranslucent(), so a normal dialog theme silently
+        // clamps the panel-scope blur radius to 0.
+        val dialog = Dialog(this, R.style.GlassOverlayDialog)
         val freeformContainer = FrameLayout(this)
         freeformContainer.addView(view, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -2056,7 +2065,7 @@ class FloatBallService : Service() {
         // Fade the panel in so RemoteViews/widget inflation does not read as jank.
         val animateIn = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
             android.animation.ValueAnimator.areAnimatorsEnabled()
-        val scalePanel = windowBackground == null
+        val scalePanel = surface != OverlaySurface.WIDGETS
         if (animateIn) {
             freeformContainer.alpha = 0f
             if (scalePanel) {
@@ -2073,9 +2082,14 @@ class FloatBallService : Service() {
                 return
             }
             window.setType(overlayWindowType())
+            window.setFormat(PixelFormat.TRANSLUCENT)
             window.setBackgroundDrawable(windowBackground ?: GradientDrawable().apply {
                 setColor(Color.TRANSPARENT)
             })
+            // DecorView.drawableChanged() turns the window background's padding
+            // into decor padding, which pushed the panel content down and made
+            // the live top rim thicker than the in-settings preview.
+            window.decorView.setPadding(0, 0, 0, 0)
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -2086,13 +2100,18 @@ class FloatBallService : Service() {
             window.attributes = window.attributes.apply { dimAmount = 0.18f }
             window.setLayout(panelWidth, panelHeight)
             window.attributes = window.attributes.apply { gravity = Gravity.CENTER }
-            // Dialog windows can inherit status-bar/nav-bar insets as decor
-            // padding; that padding made the live widget panel's top gap thicker
-            // than the pinned preview. Consume the insets so the panel content
-            // starts exactly at the panel edge on every device.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                }
+            }
+            // The dialog decor may inherit status-bar/nav-bar insets as padding;
+            // consume them in every API level so the content starts flush with
+            // the panel edge (Android 12+ otherwise still dispatches them).
             window.decorView.setOnApplyWindowInsetsListener { _, insets ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    insets
+                    android.view.WindowInsets.CONSUMED
                 } else {
                     @Suppress("DEPRECATION")
                     insets.consumeSystemWindowInsets()
@@ -2159,6 +2178,7 @@ class FloatBallService : Service() {
             dialog.show()
             dialog.window?.let { shown ->
                 shown.setLayout(panelWidth, panelHeight)
+                shown.decorView.setPadding(0, 0, 0, 0)
                 // Radius/layout only stick reliably once the window is attached.
                 applyPopupBlur(shown, surface)
             }
@@ -2225,6 +2245,14 @@ class FloatBallService : Service() {
         )
         attributes.dimAmount = if (blurEnabled) 0.14f else 0.18f
         window.attributes = attributes
+        // Cross-window blur is composited below the window surface, so the
+        // window background (our glass) has to stay translucent for the blur to
+        // be visible; AOSP's window-blur guide lowers this alpha when blur is on
+        // and restores it when blur is off. DecorView.getBackground() returns
+        // the original drawable, not the internal blur layer.
+        window.decorView.background?.let { glass ->
+            glass.alpha = if (blurEnabled && panelOnly) 168 else 255
+        }
     }
 
 

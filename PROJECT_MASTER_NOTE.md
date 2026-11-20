@@ -429,3 +429,46 @@
 
 ### Verification and remaining work
 - Static review only; no local JDK/Android SDK, so Gradle compilation must run through GitHub Actions. On-device checks: widget blur scope both ways on Android 12+, live-vs-preview top gap, settings search with/without Vietnamese diacritics, quick-action tile add/tap/long-press (ROM dependent), recording overlay, playback dialog and library, and share/delete glass dialogs.
+
+## 2026-11-20 — v28.18 Theme + widget sections, panel-scope blur actually working, thinner live top rim
+
+### User-requested changes
+- New "Giao diện" section with 5 palettes (Aurora, San hô, Bạc hà, Tím mây, Hổ phách) that recolours the whole app: accents, page gradients, status/navigation bars, floating panels and every home-screen widget.
+- New "Widget" section listing only the widgets from the reference mockup: Pin, Âm lượng (horizontal + vertical), Đồng hồ, Nhạc. Widgets are `AppWidgetProvider`s, so third-party launchers can host them; each card offers "Thêm …" via `requestPinAppWidget` when supported.
+- Widget and Giao diện rows sit directly below Hiệu ứng in the main settings list.
+- Live widget panel still had a thick top rim versus the preview, and "Chỉ làm mờ trong phạm vi bảng" had no visible effect; find open-source references to consult.
+
+### Changes in this source
+- `styles.xml`: new `GlassOverlayDialog` (`windowIsTranslucent`, `windowFloating`, transparent window background, no dim/min-width) used by every overlay panel dialog.
+- `FloatBallService`:
+  - `showOverlayPanel()` creates the dialog with `GlassOverlayDialog`, sets `PixelFormat.TRANSLUCENT`, assigns the glass drawable as the *window* background, zeroes decor padding before and after `show()`, consumes window insets (`WindowInsets.CONSUMED` on R+), and uses `LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS`.
+  - `applyPopupBlur()` now sets `setBackgroundBlurRadius` only when a real blur is available and the scope is panel-only; lowers the glass background alpha to 168 while panel-scope blur is on (blur draws under the window surface, so a ~80 % opaque glass hid it) and restores 255 when off.
+  - `ACTION_UPDATE_POPUP_APPEARANCE` for the widget panel refreshes the window background, re-zeroes decor padding and re-applies blur after theme changes.
+  - Expansion panel and brightness slider moved their glass to `windowBackground` instead of the content view, so they follow the same chamfered, un-padded path.
+- `Themes.kt` (`AppTheme`, `AppThemes.ALL/current/apply`, `PanelsApp`): palette application writes theme key + shared/popup panel colour/opacity/corner, refreshes GlassUi, the popup window and all widgets.
+- `GlassUi`: palette is no longer constant — `applyTheme()` re-syncs accents and page colours from the active theme.
+- `ThemeSettingsActivity`, `WidgetSettingsActivity`: glass settings screens (palette rows with preview + check, widget cards with pin action, cross-links).
+- `GlassWidgets.kt` + `widget_*` layouts/provider XMLs + 4 receivers in `AndroidManifest.xml`: battery, volume (portrait/landscape), clock, music widgets with bitmap-drawn glass, theme accent glow and rim; `GlassWidgets.refreshAll()` on theme change.
+- `SettingsScreen`: "Widget" (`layout-grid`) and "Giao diện" (`palette`) rows below "Hiệu ứng".
+
+### Root causes behind the two bugs (references consulted)
+- Blur never applied: AOSP `DecorView.updateBackgroundBlurRadius()` forces the radius to 0 unless `Window.isTranslucent()`; the service's default dialog theme was opaque. Fixed with the translucent dialog theme.
+- Blur invisible even when enabled: the glass background alpha (~204/255) sat above the blurred content. AOSP's window-blur guide lowers the window background alpha while blur is on; we follow that (168 vs 255).
+- Thick live top rim: `DecorView.setWindowBackground()` reads the drawable's `getPadding()` into decor padding, and prior inset handling left status-bar padding in place — both pushed content down. Zeroing decor padding and consuming insets removes it.
+
+### Files changed
+- `app/src/main/res/values/styles.xml`
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/java/com/manh/panelsassistive/Themes.kt`
+- `app/src/main/java/com/manh/panelsassistive/GlassUi.kt`
+- `app/src/main/java/com/manh/panelsassistive/ThemeSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/GlassWidgets.kt`
+- `app/src/main/java/com/manh/panelsassistive/SettingsScreen.kt`
+- `app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt`
+- `app/src/main/AndroidManifest.xml`
+- new widget layouts in `app/src/main/res/layout/widget_*.xml`, `app/src/main/res/xml/glass_widget_*.xml`
+
+### Verification and remaining work
+- Static review only; compile through GitHub Actions "Android build". On-device: Android 12+ with "Allow window-level blurs" enabled — panel-scope blur inside the panel bounds only, live vs preview top rim, brightness/expansion glass intact, theme switch recolouring widgets, widget pin on a third-party launcher.
+- Known limit: a Dialog window cannot draw behind the status bar; if the rim still looks off with a translucent bar, the next step is switching the overlay from Dialog to a `WindowManager` view.
