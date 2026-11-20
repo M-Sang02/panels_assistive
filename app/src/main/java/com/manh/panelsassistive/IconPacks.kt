@@ -147,9 +147,9 @@ object IconPacks {
                 appFilter = appFilter,
                 packageIcons = packageIcons,
                 drawables = drawables,
-                back = findFirst(resources, "iconback"),
-                mask = findFirst(resources, "iconmask"),
-                upon = findFirst(resources, "iconupon")
+                back = findFirst(resources, packageName, "iconback"),
+                mask = findFirst(resources, packageName, "iconmask"),
+                upon = findFirst(resources, packageName, "iconupon")
             )
         } catch (_: Exception) {
             null
@@ -190,17 +190,17 @@ object IconPacks {
             .removeSuffix("}")
             .trim()
 
-    private fun findFirst(resources: Resources, base: String): String? {
+    private fun findFirst(resources: Resources, packageName: String, base: String): String? {
         for (index in 1..6) {
             val name = if (index == 1) base else base + index
-            if (resolveId(resources, name) != 0) return name
+            if (resolveId(resources, packageName, name) != 0) return name
         }
         return null
     }
 
-    private fun resolveId(resources: Resources, name: String): Int {
-        var id = resources.getIdentifier(name, "drawable", resources.packageName)
-        if (id == 0) id = resources.getIdentifier(name, "mipmap", resources.packageName)
+    private fun resolveId(resources: Resources, packageName: String, name: String): Int {
+        var id = resources.getIdentifier(name, "drawable", packageName)
+        if (id == 0) id = resources.getIdentifier(name, "mipmap", packageName)
         return id
     }
 
@@ -209,7 +209,7 @@ object IconPacks {
         val key = pack.packageName + "/" + name + "/" + sizePx
         bitmapCache.get(key)?.let { return it }
         val result = try {
-            val id = resolveId(pack.resources, name)
+            val id = resolveId(pack.resources, pack.packageName, name)
             if (id == 0) null else drawableBitmap(pack.resources.getDrawable(id, null), sizePx)
         } catch (_: Exception) {
             null

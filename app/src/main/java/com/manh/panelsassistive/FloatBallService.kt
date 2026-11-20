@@ -1045,9 +1045,10 @@ class FloatBallService : Service() {
         val sliderKeys = AppPrefs.expansionSliders(this)
         sliderKeys.forEach { key ->
             if (key == "brightness") {
-                addVerticalLevelSlider(volumeRows, PopupIcon.BRIGHTNESS, "Sáng", 255, brightnessValue) {
-                    updateBrightness(it)
-                }
+                addVerticalLevelSlider(
+                    volumeRows, PopupIcon.BRIGHTNESS, "Sáng", 255, brightnessValue,
+                    onChanged = { updateBrightness(it) }
+                )
                 return@forEach
             }
             if (audio == null) return@forEach
@@ -1180,8 +1181,9 @@ class FloatBallService : Service() {
             addView(PopupIconView(this@FloatBallService, PopupIcon.BRIGHTNESS).apply {
                 setIconColor(Color.WHITE)
             }, LinearLayout.LayoutParams(dp(26), dp(26)).apply { bottomMargin = dp(16) })
-            addView(VerticalBrightnessTrackView(this@FloatBallService, 255, current) { updateBrightness(it) },
-                LinearLayout.LayoutParams(dp(44), dp(250)))
+            addView(VerticalBrightnessTrackView(
+                this@FloatBallService, 255, current, onValueChanged = { updateBrightness(it) }
+            ), LinearLayout.LayoutParams(dp(44), dp(250)))
         }
         showOverlayPanel(
             panel,

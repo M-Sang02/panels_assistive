@@ -507,7 +507,7 @@
 ### Cửa sổ tự do (`Cài đặt nâng cao`)
 - `FloatingApps`: app mở từ bảng tiện ích / action "mở app" đi qua `FloatingApps.open()`. Khi bật, thử theo thứ tự: Shizuku (`am start-activity --windowingMode 5 <pkg>/<cls>`, cần quyền Shizuku) → `ActivityOptions.setLaunchWindowingMode(5)` + `setLaunchBounds` (reflection, không cần quyền) → mở bình thường.
 - Shizuku chỉ được nhắc quyền khi người dùng mở màn Cài đặt nâng cao và bấm "Cấp quyền Shizuku"; nếu chưa cài, nút dẫn tới Play Store. `enableFreeformSupport()` bật `enable_freeform_support` + `development_force_resizable_activities` một lần khi bật công tắc.
-- Thêm dependency `dev.rikka.shizuku:api/provider:13.1.5`, khai báo `rikka.shizuku.ShizukuProvider` với authority `${applicationId}.shizuku`.
+- Thêm dependency `dev.rikka.shizuku:api/provider:13.0.0`, khai báo `rikka.shizuku.ShizukuProvider` với authority `${applicationId}.shizuku`.
 
 ### Icon pack (`Giao diện`)
 - `IconPacks`: phát hiện gói icon ADW/Nova (6 theme actions), đọc `assets/appfilter.xml`, `assets/drawable.xml`, chuỗi `iconback/iconmask/iconupon` từ resources của gói mà không cần thư viện zip.
@@ -517,3 +517,11 @@
 
 ### Verification
 - Static review only. Gate: GitHub Actions "Android build". On device: bật cửa sổ tự do với/không có Shizuku trên ROM hỗ trợ freeform; cài 1 icon pack, bật/tắt mặt nạ; thay icon 1 app bằng ảnh và bằng icon gói rồi xem trong bảng tiện ích.
+
+### Follow-up CI fix (v28.20)
+- GitHub Actions báo manifest merger: `dev.rikka.shizuku:api:13.1.5` khai báo minSdk 24 > 23 của dự án. Đã hạ cả `api` và `provider` về **13.0.0** (minSdk 23, vẫn có `newProcess`, `checkSelfPermission`, `isPreV11`, listener Shizuku) thay vì nâng minSdk và mất hỗ trợ Android 6.
+
+### Follow-up CI fix (v28.20 #2)
+- `FloatBallService`: hai lời gọi `addVerticalLevelSlider` / `VerticalBrightnessTrackView` truyền trailing lambda nên rơi vào tham số `onFinished` (optional) thay vì `onChanged`/`onValueChanged`; đổi sang named argument.
+- `IconPacks`: `android.content.res.Resources` không có `packageName`; truyền package của gói icon xuyên suốt `findFirst`/`resolveId`.
+- `OverlayActivities`: `AudioPlaybackConfiguration.isActive()` và `getClientUid()` là API ẩn (không có trong SDK công khai); đọc bằng reflection trong try/catch, lỗi thì rơi về `CATEGORY_APP_MUSIC` như trước.

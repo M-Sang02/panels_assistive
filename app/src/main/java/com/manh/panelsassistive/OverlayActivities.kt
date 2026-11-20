@@ -46,16 +46,20 @@ class WidgetLaunchActivity : Activity() {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
             return try {
                 val audio = context.getSystemService(AudioManager::class.java) ?: return null
-                audio.getActivePlaybackConfigurations()
-                    .firstOrNull { config ->
-                        config.isActive && config.audioAttributes.usage in setOf(
-                            AudioAttributes.USAGE_MEDIA,
-                            AudioAttributes.USAGE_GAME
-                        )
-                    }
-                    ?.let { context.packageManager.getNameForUid(it.clientUid) }
-                    ?.substringBefore(":")
-                    ?.takeIf { it != context.packageName }
+                // isActive()/getClientUid() are hidden framework methods, so read
+                // them reflectively and fall back to CATEGORY_APP_MUSIC when blocked.
+                for (config in audio.activePlaybackConfigurations) {
+                    val active = config.javaClass.getMethod("isActive").invoke(config) as? Boolean
+                    if (active != true) continue
+                    val usage = config.audioAttributes.usage
+                    if (usage != AudioAttributes.USAGE_MEDIA && usage != AudioAttributes.USAGE_GAME) continue
+                    val uid = config.javaClass.getMethod("getClientUid").invoke(config) as? Int
+                        ?: continue
+                    return context.packageManager.getNameForUid(uid)
+                        ?.substringBefore(":")
+                        ?.takeIf { it != context.packageName }
+                }
+                null
             } catch (error: Exception) {
                 Log.w("WidgetLaunch", "Unable to resolve the playing app", error)
                 null
