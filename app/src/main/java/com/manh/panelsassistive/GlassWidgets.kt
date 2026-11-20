@@ -218,7 +218,8 @@ object GlassWidgets {
             val top = height * (1f - fraction)
             paint.shader = LinearGradient(
                 0f, top, 0f, height.toFloat(),
-                intArrayOf(Color.argb(236, 255, 255, 255), Color.argb(206, 255, 255, 255)),
+                Color.argb(236, 255, 255, 255),
+                Color.argb(206, 255, 255, 255),
                 Shader.TileMode.CLAMP
             )
             canvas.drawRect(0f, top, width.toFloat(), height.toFloat(), paint)
@@ -226,7 +227,8 @@ object GlassWidgets {
             val right = width * fraction
             paint.shader = LinearGradient(
                 (right - soft).coerceAtLeast(0f), 0f, right, 0f,
-                intArrayOf(Color.argb(200, 255, 255, 255), Color.argb(236, 255, 255, 255)),
+                Color.argb(200, 255, 255, 255),
+                Color.argb(236, 255, 255, 255),
                 Shader.TileMode.CLAMP
             )
             canvas.drawRect(0f, 0f, right, height.toFloat(), paint)
