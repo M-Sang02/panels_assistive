@@ -121,8 +121,8 @@ object GlassWidgets {
             addRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, Path.Direction.CW)
         }
         canvas.clipPath(path)
-        val solid = (panel and 0x00FFFFFF) or 0xE4000000
-        val deep = (darken(panel, 0.55f) and 0x00FFFFFF) or 0xE4000000
+        val solid = (panel and 0x00FFFFFF) or 0xE4000000.toInt()
+        val deep = (darken(panel, 0.55f) and 0x00FFFFFF) or 0xE4000000.toInt()
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, width.toFloat(), height.toFloat(),

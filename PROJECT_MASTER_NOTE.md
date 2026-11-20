@@ -472,3 +472,6 @@
 ### Verification and remaining work
 - Static review only; compile through GitHub Actions "Android build". On-device: Android 12+ with "Allow window-level blurs" enabled — panel-scope blur inside the panel bounds only, live vs preview top rim, brightness/expansion glass intact, theme switch recolouring widgets, widget pin on a third-party launcher.
 - Known limit: a Dialog window cannot draw behind the status bar; if the rim still looks off with a translucent bar, the next step is switching the overlay from Dialog to a `WindowManager` view.
+
+### Follow-up CI fix (v28.18)
+- GitHub Actions đầu tiên báo `GlassWidgets.kt:124/125 Argument type mismatch: Long but Int expected` — hằng `0xE4000000` vượt `Int.MAX_VALUE` nên Kotlin suy ra `Long`. Đã thêm `.toInt()` cho cả hai biểu thức trong `cardBitmap()`; đã rà toàn bộ hằng hex 8 chữ số khác (đều đã có `.toInt()` hoặc nằm trong giới hạn Int).
