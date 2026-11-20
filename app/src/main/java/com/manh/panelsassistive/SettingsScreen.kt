@@ -3,9 +3,7 @@ package com.manh.panelsassistive
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -13,7 +11,6 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.ScrollView
@@ -21,34 +18,31 @@ import android.widget.Switch
 import android.widget.TextView
 
 class SettingsScreen(private val activity: Activity) {
-    private val pageBackground = Color.rgb(7, 18, 33)
-    private val cardBackground = Color.argb(38, 210, 230, 250)
-    private val accent = Color.rgb(124, 190, 255)
-    private val primaryText = Color.rgb(244, 246, 250)
-    private val secondaryText = Color.rgb(166, 173, 185)
-    private val mutedText = Color.rgb(126, 134, 148)
+    private val accent = GlassUi.ACCENT
+    private val primaryText = GlassUi.TEXT_PRIMARY
+    private val secondaryText = GlassUi.TEXT_SECONDARY
+    private val mutedText = GlassUi.TEXT_MUTED
 
     fun createView(): ScrollView {
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(18), dp(22), dp(30))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.rgb(8, 24, 43), Color.rgb(14, 33, 54), pageBackground)
-            )
+            setPadding(dp(18), dp(16), dp(18), dp(28))
+            background = GlassUi.pageBackground()
         }
 
-        content.addView(label(activity.getString(R.string.brand_name), 12, accent, true))
-        content.addView(label(activity.getString(R.string.settings_title), 30, primaryText, true).apply {
-            setPadding(0, dp(8), 0, dp(5))
+        content.addView(label(activity.getString(R.string.brand_name), 11, accent, true).apply {
+            letterSpacing = 0.18f
         })
-        content.addView(label(activity.getString(R.string.settings_subtitle), 15, secondaryText))
+        content.addView(label(activity.getString(R.string.settings_title), 28, primaryText, true).apply {
+            setPadding(0, dp(6), 0, dp(4))
+        })
+        content.addView(label(activity.getString(R.string.settings_subtitle), 14, secondaryText))
 
         content.addView(sectionTitle(R.string.assistive_tools_section))
         content.addView(card().apply {
-            addView(label(activity.getString(R.string.float_ball_title), 18, primaryText, true))
+            addView(cardHeader("circle-dot", activity.getString(R.string.float_ball_title)))
             addView(label(activity.getString(R.string.float_ball_description), 14, secondaryText).apply {
-                setPadding(0, dp(6), 0, dp(12))
+                setPadding(0, dp(8), 0, dp(12))
             })
             addView(actionButton(R.string.float_ball_static_image) {
                 (activity as? MainActivity)?.openFloatBallStaticPicker()
@@ -166,9 +160,9 @@ class SettingsScreen(private val activity: Activity) {
         })
 
         content.addView(card().apply {
-            addView(label("Nền bảng", 18, primaryText, true))
+            addView(cardHeader("palette", "Nền bảng"))
             addView(label("Tùy chỉnh màu nền, độ trong suốt, làm mờ và bo góc cho các bảng dùng chung.", 14, secondaryText).apply {
-                setPadding(0, dp(6), 0, dp(12))
+                setPadding(0, dp(8), 0, dp(12))
             })
             addView(actionButton(R.string.background_panel_settings) {
                 activity.startActivity(Intent(activity, BackgroundSettingsActivity::class.java))
@@ -176,9 +170,9 @@ class SettingsScreen(private val activity: Activity) {
         })
 
         content.addView(card().apply {
-            addView(label(activity.getString(R.string.widget_popup_title), 18, primaryText, true))
+            addView(cardHeader("square-stack", activity.getString(R.string.widget_popup_title)))
             addView(label(activity.getString(R.string.widget_popup_description), 14, secondaryText).apply {
-                setPadding(0, dp(6), 0, dp(12))
+                setPadding(0, dp(8), 0, dp(12))
             })
             addView(actionButton(R.string.edit_widget_panels) {
                 activity.startActivity(
@@ -434,10 +428,7 @@ class SettingsScreen(private val activity: Activity) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = GradientDrawable().apply {
-                setColor(cardBackground)
-                cornerRadius = dp(14).toFloat()
-            }
+            background = GlassUi.glassSurface(activity, 14)
             isClickable = true
             isFocusable = true
             addView(ActionGlyphView(activity, selected.id, accent), LinearLayout.LayoutParams(dp(24), dp(24)))
@@ -547,23 +538,20 @@ class SettingsScreen(private val activity: Activity) {
     ): LinearLayout = LinearLayout(activity).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        setPadding(0, dp(10), 0, dp(10))
         addView(LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             addView(label(activity.getString(title), 14, primaryText, true))
             addView(label(activity.getString(description), 12, mutedText).apply {
-                setPadding(0, dp(4), 0, 0)
+                setPadding(0, dp(3), dp(12), 0)
             })
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        addView(Switch(activity).apply {
-            isChecked = checked
-            setOnCheckedChangeListener { _, enabled -> onChanged(enabled) }
-        })
+        addView(GlassUi.switch(activity, checked) { enabled -> onChanged(enabled) })
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            topMargin = dp(8)
-            bottomMargin = dp(4)
+            topMargin = dp(4)
         }
     }
 
@@ -578,11 +566,14 @@ class SettingsScreen(private val activity: Activity) {
             setTextColor(primaryText)
             setSingleLine(true)
             setEms(3)
+            gravity = Gravity.CENTER
+            background = GlassUi.fieldBackground(activity, 12)
+            setHintTextColor(mutedText)
             setText(AppPrefs.floatBallSize(activity).toString())
             setSelectAllOnFocus(true)
             hint = "20-80"
         }
-        val slider = SeekBar(activity).apply {
+        val slider = GlassUi.slider(activity).apply {
             max = 60
             progress = AppPrefs.floatBallSize(activity) - 20
             layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
@@ -622,7 +613,7 @@ class SettingsScreen(private val activity: Activity) {
         return row
     }
 
-    private fun opacityControl(): SeekBar = SeekBar(activity).apply {
+    private fun opacityControl(): SeekBar = GlassUi.slider(activity).apply {
         max = 85
         progress = AppPrefs.floatBallOpacity(activity) - 15
         setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -636,7 +627,7 @@ class SettingsScreen(private val activity: Activity) {
         })
     }
 
-    private fun cornerControl(): SeekBar = SeekBar(activity).apply {
+    private fun cornerControl(): SeekBar = GlassUi.slider(activity).apply {
         max = 100
         progress = AppPrefs.floatBallCorner(activity)
         setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -667,11 +658,11 @@ class SettingsScreen(private val activity: Activity) {
                 textSize = 13f
                 gravity = Gravity.CENTER
                 setPadding(dp(10), dp(9), dp(10), dp(9))
-                setTextColor(if (selected()) primaryText else mutedText)
+                setTextColor(if (selected()) accent else mutedText)
                 background = if (selected()) {
-                    roundedBackground(Color.argb(150, 44, 104, 161), dp(16))
+                    GlassUi.tabSurface(activity, true)
                 } else {
-                    roundedBackground(Color.argb(36, 210, 230, 250), dp(16))
+                    GlassUi.tabSurface(activity, false)
                 }
                 setOnClickListener { onClick() }
             }
@@ -687,17 +678,17 @@ class SettingsScreen(private val activity: Activity) {
             val portraitSelected = editOrientation == "portrait"
             val landscapeSelected = editOrientation == "landscape"
             val bothSelected = editOrientation == "both"
-            portraitTab.setTextColor(if (portraitSelected) primaryText else mutedText)
-            portraitTab.background = if (portraitSelected) roundedBackground(Color.argb(150, 44, 104, 161), dp(16)) else roundedBackground(Color.argb(36, 210, 230, 250), dp(16))
-            landscapeTab.setTextColor(if (landscapeSelected) primaryText else mutedText)
-            landscapeTab.background = if (landscapeSelected) roundedBackground(Color.argb(150, 44, 104, 161), dp(16)) else roundedBackground(Color.argb(36, 210, 230, 250), dp(16))
-            bothTab.setTextColor(if (bothSelected) primaryText else mutedText)
-            bothTab.background = if (bothSelected) roundedBackground(Color.argb(150, 44, 104, 161), dp(16)) else roundedBackground(Color.argb(36, 210, 230, 250), dp(16))
+            portraitTab.setTextColor(if (portraitSelected) accent else mutedText)
+            portraitTab.background = if (portraitSelected) GlassUi.tabSurface(activity, true) else GlassUi.tabSurface(activity, false)
+            landscapeTab.setTextColor(if (landscapeSelected) accent else mutedText)
+            landscapeTab.background = if (landscapeSelected) GlassUi.tabSurface(activity, true) else GlassUi.tabSurface(activity, false)
+            bothTab.setTextColor(if (bothSelected) accent else mutedText)
+            bothTab.background = if (bothSelected) GlassUi.tabSurface(activity, true) else GlassUi.tabSurface(activity, false)
             val landscape = landscapeSelected
-            rightTab.setTextColor(if (!leftSide) primaryText else mutedText)
-            rightTab.background = if (!leftSide) roundedBackground(Color.argb(150, 44, 104, 161), dp(16)) else roundedBackground(Color.argb(36, 210, 230, 250), dp(16))
-            leftTab.setTextColor(if (leftSide) primaryText else mutedText)
-            leftTab.background = if (leftSide) roundedBackground(Color.argb(150, 44, 104, 161), dp(16)) else roundedBackground(Color.argb(36, 210, 230, 250), dp(16))
+            rightTab.setTextColor(if (!leftSide) accent else mutedText)
+            rightTab.background = if (!leftSide) GlassUi.tabSurface(activity, true) else GlassUi.tabSurface(activity, false)
+            leftTab.setTextColor(if (leftSide) accent else mutedText)
+            leftTab.background = if (leftSide) GlassUi.tabSurface(activity, true) else GlassUi.tabSurface(activity, false)
             val value = if (bothSelected) {
                 AppPrefs.floatBallEdgeOffset(activity, false, leftSide)
             } else {
@@ -744,7 +735,7 @@ class SettingsScreen(private val activity: Activity) {
 
         offsetValue = label("", 13, secondaryText)
         controls.addView(offsetValue)
-        offsetSlider = SeekBar(activity).apply {
+        offsetSlider = GlassUi.slider(activity).apply {
             max = 80
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -789,7 +780,7 @@ class SettingsScreen(private val activity: Activity) {
         )
         controls.addView(label(activity.getString(R.string.idle_opacity), 14, secondaryText))
         controls.addView(opacityValue)
-        controls.addView(SeekBar(activity).apply {
+        controls.addView(GlassUi.slider(activity).apply {
             max = 75
             progress = AppPrefs.idleOpacity(activity) - 5
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -811,7 +802,7 @@ class SettingsScreen(private val activity: Activity) {
         )
         controls.addView(label(activity.getString(R.string.idle_delay), 14, secondaryText))
         controls.addView(delayValue)
-        controls.addView(SeekBar(activity).apply {
+        controls.addView(GlassUi.slider(activity).apply {
             max = 59
             progress = AppPrefs.idleDelaySeconds(activity) - 1
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -873,7 +864,7 @@ class SettingsScreen(private val activity: Activity) {
             secondaryText
         )
         idleOptions.addView(idleValue)
-        idleOptions.addView(SeekBar(activity).apply {
+        idleOptions.addView(GlassUi.slider(activity).apply {
             max = 25
             progress = AppPrefs.floatBallGifIdleSeconds(activity) - 5
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -916,7 +907,7 @@ class SettingsScreen(private val activity: Activity) {
             secondaryText
         )
         controls.addView(intervalValue)
-        controls.addView(SeekBar(activity).apply {
+        controls.addView(GlassUi.slider(activity).apply {
             max = 295
             progress = AppPrefs.floatBallSlideshowIntervalSeconds(activity) - 5
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -952,7 +943,7 @@ class SettingsScreen(private val activity: Activity) {
         )
         controls.addView(label(activity.getString(R.string.haptic_strength), 14, secondaryText))
         controls.addView(strengthValue)
-        controls.addView(SeekBar(activity).apply {
+        controls.addView(GlassUi.slider(activity).apply {
             max = 99
             progress = AppPrefs.hapticStrength(activity) - 1
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -969,7 +960,7 @@ class SettingsScreen(private val activity: Activity) {
         return controls
     }
 
-    private fun blurControl(): SeekBar = SeekBar(activity).apply {
+    private fun blurControl(): SeekBar = GlassUi.slider(activity).apply {
         max = 80
         progress = AppPrefs.popupBlurRadius(activity)
         isEnabled = AppPrefs.popupBlurEnabled(activity) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -1003,30 +994,23 @@ class SettingsScreen(private val activity: Activity) {
         activity.startActivity(intent)
     }
 
-    private fun actionButton(title: Int, action: () -> Unit): Button =
-        Button(activity).apply {
-            text = activity.getString(title)
-            isAllCaps = false
-            textSize = 14f
-            setTextColor(primaryText)
-            background = GradientDrawable().apply {
-                setColor(Color.argb(52, 210, 232, 252))
-                cornerRadius = dp(18).toFloat()
-                setStroke(dp(1), Color.argb(42, 230, 242, 255))
-            }
+    private fun actionButton(title: Int, action: () -> Unit): TextView =
+        GlassUi.actionButton(activity, activity.getString(title), onAction = action).apply {
             minHeight = dp(46)
-            elevation = dp(1).toFloat()
-            setOnClickListener { action() }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(8) }
         }
 
     private fun sectionTitle(title: Int): TextView =
-        label(activity.getString(title), 11, mutedText, true).apply {
-            setPadding(0, dp(26), 0, dp(10))
-            letterSpacing = 0.12f
+        GlassUi.sectionHeader(activity, activity.getString(title))
+
+    private fun cardHeader(icon: String, title: String): LinearLayout =
+        LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(GlassUi.iconTile(activity, icon, sizeDp = 36, glyphDp = 20))
+            addView(
+                GlassUi.cardTitle(activity, title).apply { setPadding(dp(12), 0, 0, 0) },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
         }
 
     private fun infoCard(title: Int, description: Int): LinearLayout =
@@ -1037,21 +1021,7 @@ class SettingsScreen(private val activity: Activity) {
             })
         }
 
-    private fun card(): LinearLayout = LinearLayout(activity).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(16), dp(16), dp(16))
-        background = GradientDrawable().apply {
-            setColor(cardBackground)
-            cornerRadius = dp(22).toFloat()
-            setStroke(dp(1), Color.argb(42, 230, 242, 255))
-        }
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            bottomMargin = dp(10)
-        }
-    }
+    private fun card(): LinearLayout = GlassUi.glassCard(activity)
 
     private fun label(
         text: String,
@@ -1067,13 +1037,6 @@ class SettingsScreen(private val activity: Activity) {
         if (bold) setTypeface(typeface, Typeface.BOLD)
     }
 
-    private fun dp(value: Int): Int =
-        (value * activity.resources.displayMetrics.density).toInt()
-
-    private fun roundedBackground(color: Int, radiusDp: Int): GradientDrawable =
-        GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = dp(radiusDp).toFloat()
-        }
-
+    private fun dp(value: Int): Int = GlassUi.dp(activity, value)
 }
+

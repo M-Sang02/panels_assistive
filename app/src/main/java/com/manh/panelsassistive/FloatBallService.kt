@@ -90,6 +90,26 @@ class FloatBallService : Service() {
     // Coalesce rapid slider movements so the system volume is committed only
     // after the user has stopped dragging for 500 ms.
     private val pendingVolumeUpdates = mutableMapOf<Int, Runnable>()
+    private var torchCameraId: String? = null
+    private var torchOn = false
+    private var torchCallbackRegistered = false
+    private var overlaySurface = OverlaySurface.NONE
+
+    private enum class OverlaySurface { NONE, WIDGETS, EXPANSION, BRIGHTNESS }
+
+    private val torchCallback = object : CameraManager.TorchCallback() {
+        override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
+            if (cameraId != torchCameraId) return
+            torchOn = enabled
+            AppPrefs.setFlashlightEnabled(this@FloatBallService, enabled)
+        }
+
+        override fun onTorchModeUnavailable(cameraId: String) {
+            if (cameraId != torchCameraId) return
+            torchOn = false
+            AppPrefs.setFlashlightEnabled(this@FloatBallService, false)
+        }
+    }
 
     private val configurationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -158,6 +178,20 @@ class FloatBallService : Service() {
         super.onCreate()
         running = true
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        torchOn = AppPrefs.flashlightEnabled(this)
+        getSystemService(CameraManager::class.java)?.let { cameraManager ->
+            if (checkSelfPermission(Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                torchCameraId = findTorchCameraId(cameraManager)
+            }
+            try {
+                cameraManager.registerTorchCallback(torchCallback, handler)
+                torchCallbackRegistered = true
+            } catch (error: Exception) {
+                Log.w(TAG, "Unable to observe flashlight state", error)
+            }
+        }
         widgetHost = AppWidgetHost(applicationContext, WIDGET_HOST_ID)
         try {
             widgetHost.startListening()
@@ -234,7 +268,7 @@ class FloatBallService : Service() {
             }
             ACTION_TOGGLE_FLASHLIGHT -> {
                 if (AppPrefs.floatBallEnabled(this)) showFloatBall()
-                FloatBallService.toggleFlashlight(this@FloatBallService)
+                performFlashlightToggle()
                 if (floatBall == null && popup == null) {
                     stopSelf(startId)
                     return START_NOT_STICKY
@@ -277,6 +311,15 @@ class FloatBallService : Service() {
             }
             ACTION_UPDATE_POPUP_APPEARANCE -> {
                 popupDialog?.window?.let(::applyPopupBlur)
+                if (popupDialog?.isShowing == true) {
+                    when (overlaySurface) {
+                        OverlaySurface.WIDGETS ->
+                            popupDialog?.window?.setBackgroundDrawable(sharedPanelBackground())
+                        OverlaySurface.EXPANSION -> showExpansionPanel()
+                        OverlaySurface.BRIGHTNESS -> showBrightnessSlider()
+                        OverlaySurface.NONE -> Unit
+                    }
+                }
                 return START_STICKY
             }
         }
@@ -296,6 +339,15 @@ class FloatBallService : Service() {
 
     override fun onDestroy() {
         running = false
+        if (torchCallbackRegistered) {
+            torchCallbackRegistered = false
+            try {
+                getSystemService(CameraManager::class.java)
+                    ?.unregisterTorchCallback(torchCallback)
+            } catch (error: Exception) {
+                Log.w(TAG, "Unable to stop observing flashlight state", error)
+            }
+        }
         handler.removeCallbacksAndMessages(null)
         crossWindowBlurListener?.let { listener ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -731,7 +783,7 @@ class FloatBallService : Service() {
         val landscape = usesLandscapeLayout()
         val pages = AppPrefs.panelPages(this, landscape)
         val page = pages.firstOrNull { it.id == AppPrefs.currentPanelId(this, landscape) } ?: pages.first()
-        val popupBackground = frostedPanelBackground(28, page.backgroundColor, page.backgroundOpacity)
+        val popupBackground = sharedPanelBackground()
         val root = FrameLayout(this).apply {
             elevation = dp(18).toFloat()
         }
@@ -792,7 +844,7 @@ class FloatBallService : Service() {
             dp(PanelViewportMetrics.panelWidthDp(page)),
             dp(PanelViewportMetrics.panelHeightDp(page)),
             windowBackground = popupBackground,
-            backgroundOpacity = page.backgroundOpacity
+            surface = OverlaySurface.WIDGETS
         )
         root.post {
             horizontal.scrollTo(
@@ -1061,7 +1113,12 @@ class FloatBallService : Service() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        showOverlayPanel(scroll, dp(360), minOf(dp(470), resources.displayMetrics.heightPixels - dp(80)))
+        showOverlayPanel(
+            scroll,
+            dp(360),
+            minOf(dp(470), resources.displayMetrics.heightPixels - dp(80)),
+            surface = OverlaySurface.EXPANSION
+        )
     }
 
     private fun showBrightnessSlider() {
@@ -1080,7 +1137,7 @@ class FloatBallService : Service() {
             addView(VerticalBrightnessTrackView(this@FloatBallService, 255, current) { updateBrightness(it) },
                 LinearLayout.LayoutParams(dp(48), dp(220)))
         }
-        showOverlayPanel(panel, dp(84), dp(300))
+        showOverlayPanel(panel, dp(84), dp(300), surface = OverlaySurface.BRIGHTNESS)
     }
 
     private inner class VerticalBrightnessTrackView(
@@ -1368,6 +1425,61 @@ class FloatBallService : Service() {
             Log.e(TAG, "Unable to update screen brightness", error)
             Toast.makeText(this, R.string.brightness_update_failed, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun performFlashlightToggle() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra(MainActivity.EXTRA_REQUEST_CAMERA_PERMISSION, true)
+                putExtra(MainActivity.EXTRA_RUN_TORCH_AFTER_PERMISSION, true)
+            })
+            return
+        }
+        val cameraManager = getSystemService(CameraManager::class.java)
+        if (cameraManager == null) {
+            Toast.makeText(this, R.string.flashlight_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val cameraId = torchCameraId ?: findTorchCameraId(cameraManager)?.also {
+                torchCameraId = it
+            }
+            if (cameraId == null) {
+                Toast.makeText(this, R.string.flashlight_unavailable, Toast.LENGTH_SHORT).show()
+                return
+            }
+            val enabled = !torchOn
+            cameraManager.setTorchMode(cameraId, enabled)
+            torchOn = enabled
+            AppPrefs.setFlashlightEnabled(this, enabled)
+        } catch (error: CameraAccessException) {
+            Log.e(TAG, "Flashlight is unavailable", error)
+            Toast.makeText(this, R.string.flashlight_unavailable, Toast.LENGTH_SHORT).show()
+        } catch (error: Exception) {
+            Log.e(TAG, "Unable to toggle the flashlight", error)
+            Toast.makeText(this, R.string.flashlight_unavailable, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun findTorchCameraId(cameraManager: CameraManager): String? {
+        var fallback: String? = null
+        for (cameraId in cameraManager.cameraIdList) {
+            val characteristics = try {
+                cameraManager.getCameraCharacteristics(cameraId)
+            } catch (error: Exception) {
+                Log.w(TAG, "Unable to read camera $cameraId", error)
+                continue
+            }
+            if (characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) != true) continue
+            if (characteristics.get(CameraCharacteristics.LENS_FACING) ==
+                CameraCharacteristics.LENS_FACING_BACK
+            ) {
+                return cameraId
+            }
+            if (fallback == null) fallback = cameraId
+        }
+        return fallback
     }
 
     private fun scheduleStreamVolume(
@@ -1854,7 +1966,7 @@ class FloatBallService : Service() {
         height: Int,
         dragHandle: View? = null,
         windowBackground: Drawable? = null,
-        backgroundOpacity: Int? = null
+        surface: OverlaySurface = OverlaySurface.NONE
     ) {
         val panelWidth = minOf(width, (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(1)))
         val panelHeight = minOf(height, (resources.displayMetrics.heightPixels - dp(64)).coerceAtLeast(dp(1)))
@@ -1929,6 +2041,7 @@ class FloatBallService : Service() {
                     popupList = null
                     popupAddButton = null
                     popupEditMode = false
+                    overlaySurface = OverlaySurface.NONE
                     keepFloatBallAvailable()
                 }
             }
@@ -1936,6 +2049,7 @@ class FloatBallService : Service() {
             dialog.window?.setLayout(panelWidth, panelHeight)
             popupDialog = dialog
             popup = view
+            overlaySurface = surface
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val listener = Consumer<Boolean> { applyPopupBlur(window) }
                 windowManager.addCrossWindowBlurEnabledListener(listener)
@@ -2001,6 +2115,7 @@ class FloatBallService : Service() {
         }
         popup = null
         popupList = null
+        overlaySurface = OverlaySurface.NONE
         if (stopIfEmpty && floatBall == null) keepFloatBallAvailable()
     }
 

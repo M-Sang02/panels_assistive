@@ -151,6 +151,12 @@ object AppPrefs {
     const val BLUR_SCOPE_SCREEN = "screen"
     const val BLUR_SCOPE_PANEL = "panel"
 
+    val panelPalette = intArrayOf(
+        0xFF152438.toInt(), 0xFF182A3A.toInt(), 0xFF1E3042.toInt(),
+        0xFF202735.toInt(), 0xFF172E36.toInt(), 0xFF292238.toInt(),
+        0xFF26313B.toInt()
+    )
+
     fun floatBallEnabled(context: Context) =
         store(context).getBoolean(KEY_FLOAT_BALL_ENABLED, false)
 

@@ -38,10 +38,9 @@ import android.widget.TextView
 import android.widget.Toast
 
 class WidgetPanelSettingsActivity : Activity() {
-    private val foreground = Color.rgb(244, 247, 252)
-    private val secondary = Color.rgb(170, 187, 205)
-    private val pageColor = Color.rgb(7, 18, 33)
-    private val cardColor = Color.argb(38, 210, 230, 250)
+    private val foreground = GlassUi.TEXT_PRIMARY
+    private val secondary = GlassUi.TEXT_SECONDARY
+    private val pageColor = GlassUi.PAGE_COLOR
     private var landscape = false
     private lateinit var host: AppWidgetHost
     private lateinit var panelPicker: Spinner
@@ -108,14 +107,17 @@ class WidgetPanelSettingsActivity : Activity() {
             resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(18), dp(18), dp(28))
+            setPadding(dp(18), dp(16), dp(18), dp(28))
         }
+        content.addView(text(getString(R.string.brand_name), 11, GlassUi.ACCENT, true).apply {
+            letterSpacing = 0.18f
+        })
         content.addView(text(
             getString(if (landscape) R.string.landscape_panel_editor else R.string.widget_panel_editor),
-            25,
+            24,
             foreground,
             true
-        ).apply { setPadding(0, 0, 0, dp(8)) })
+        ).apply { setPadding(0, dp(6), 0, dp(12)) })
         if (waitingForRotation) {
             content.addView(text(getString(R.string.rotate_to_edit_landscape), 15, secondary))
             content.addView(button(R.string.back_to_portrait_panels) {
@@ -133,7 +135,7 @@ class WidgetPanelSettingsActivity : Activity() {
         if (AppPrefs.landscapeWidgetLayoutEnabled(this)) content.addView(orientationTabs())
         content.addView(panelManagement())
         content.addView(settingsCard())
-        content.addView(text(getString(R.string.panel_preview), 18, foreground, true).apply {
+        content.addView(text(getString(R.string.panel_preview), 15, foreground, true).apply {
             setPadding(0, dp(18), 0, dp(8))
         })
         previewGrid = FrameLayout(this).apply {
@@ -157,7 +159,7 @@ class WidgetPanelSettingsActivity : Activity() {
                 setImageResource(android.R.drawable.ic_menu_view)
                 setColorFilter(this@WidgetPanelSettingsActivity.foreground)
                 contentDescription = getString(R.string.preview_panel_outside_app)
-                background = roundedBackground(cardColor, dp(14))
+                background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 14)
                 setOnClickListener { previewPopup() }
             }, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
                 marginEnd = dp(6)
@@ -166,7 +168,7 @@ class WidgetPanelSettingsActivity : Activity() {
                 setImageResource(android.R.drawable.ic_input_add)
                 setColorFilter(this@WidgetPanelSettingsActivity.foreground)
                 contentDescription = getString(R.string.add_panel_item)
-                background = roundedBackground(cardColor, dp(14))
+                background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 14)
                 setOnClickListener { showAddItemDialog(nextAvailablePosition()) }
             }, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
                 setMargins(dp(6), 0, dp(6), 0)
@@ -178,20 +180,14 @@ class WidgetPanelSettingsActivity : Activity() {
                     if (editingPreview) R.string.finish_editing_panel else R.string.edit_panel_items
                 )
                 isSelected = editingPreview
-                background = roundedBackground(
-                    if (editingPreview) Color.argb(150, 44, 104, 161) else cardColor,
-                    dp(14)
-                )
+                background = GlassUi.tabSurface(this@WidgetPanelSettingsActivity, editingPreview)
                 setOnClickListener {
                     editingPreview = !editingPreview
                     contentDescription = getString(
                         if (editingPreview) R.string.finish_editing_panel else R.string.edit_panel_items
                     )
                     isSelected = editingPreview
-                    background = roundedBackground(
-                        if (editingPreview) Color.argb(150, 44, 104, 161) else cardColor,
-                        dp(14)
-                    )
+                    background = GlassUi.tabSurface(this@WidgetPanelSettingsActivity, editingPreview)
                     renderPreview()
                 }
             }, LinearLayout.LayoutParams(0, dp(44), 1f).apply {
@@ -211,10 +207,7 @@ class WidgetPanelSettingsActivity : Activity() {
     }
 
     private fun glassPage(content: View): View = FrameLayout(this).apply {
-        background = GradientDrawable(
-            GradientDrawable.Orientation.TL_BR,
-            intArrayOf(Color.rgb(8, 24, 43), Color.rgb(14, 33, 54), Color.rgb(7, 18, 33))
-        )
+        background = GlassUi.pageBackground()
         addView(content, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -223,18 +216,35 @@ class WidgetPanelSettingsActivity : Activity() {
 
     private fun orientationTabs(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
-        addView(button(R.string.portrait_panels) {
+        addView(orientationTab(getString(R.string.portrait_panels), !landscape) {
             finish()
             startActivity(Intent(this@WidgetPanelSettingsActivity, WidgetPanelSettingsActivity::class.java))
-        }, LinearLayout.LayoutParams(0, dp(48), 1f))
-        addView(button(R.string.landscape_panels) {
+        }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
+        addView(orientationTab(getString(R.string.landscape_panels), landscape) {
             finish()
             startActivity(
                 Intent(this@WidgetPanelSettingsActivity, WidgetPanelSettingsActivity::class.java)
                     .putExtra(EXTRA_LANDSCAPE_LAYOUT, true)
             )
-        }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        }, LinearLayout.LayoutParams(0, dp(44), 1f))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(10) }
     }
+
+    private fun orientationTab(label: String, selected: Boolean, action: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            textSize = 13f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(if (selected) GlassUi.ACCENT else secondary)
+            background = GlassUi.tabSurface(this@WidgetPanelSettingsActivity, selected)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { action() }
+        }
 
     private fun panelManagement(): LinearLayout = glassCard().apply {
         panelPicker = Spinner(this@WidgetPanelSettingsActivity).apply {
@@ -250,105 +260,25 @@ class WidgetPanelSettingsActivity : Activity() {
     }
 
     private fun settingsCard(): LinearLayout = glassCard().apply {
-        addView(Switch(this@WidgetPanelSettingsActivity).apply {
-            text = getString(R.string.show_panel_labels)
-            setTextColor(this@WidgetPanelSettingsActivity.foreground)
-            isChecked = AppPrefs.showPanelLabels(this@WidgetPanelSettingsActivity)
-            setOnCheckedChangeListener { _, checked ->
-                AppPrefs.setShowPanelLabels(this@WidgetPanelSettingsActivity, checked)
-                renderPreview()
-                schedulePanelRefresh()
-            }
+        addView(styledSwitch(R.string.show_panel_labels, AppPrefs.showPanelLabels(this@WidgetPanelSettingsActivity)) { checked ->
+            AppPrefs.setShowPanelLabels(this@WidgetPanelSettingsActivity, checked)
+            renderPreview()
+            schedulePanelRefresh()
         })
-        addView(Switch(this@WidgetPanelSettingsActivity).apply {
-            text = getString(R.string.close_panel_after_tap)
-            setTextColor(this@WidgetPanelSettingsActivity.foreground)
-            isChecked = AppPrefs.closePanelAfterTap(this@WidgetPanelSettingsActivity)
-            setOnCheckedChangeListener { _, checked ->
-                AppPrefs.setClosePanelAfterTap(this@WidgetPanelSettingsActivity, checked)
-            }
+        addView(styledSwitch(R.string.close_panel_after_tap, AppPrefs.closePanelAfterTap(this@WidgetPanelSettingsActivity)) { checked ->
+            AppPrefs.setClosePanelAfterTap(this@WidgetPanelSettingsActivity, checked)
         })
-        val blur = Switch(this@WidgetPanelSettingsActivity).apply {
-            text = getString(R.string.popup_blur)
-            setTextColor(this@WidgetPanelSettingsActivity.foreground)
-            isChecked = AppPrefs.popupBlurEnabled(this@WidgetPanelSettingsActivity)
-        }
-        addView(blur)
-        lateinit var blurScope: TextView
-        blurScope = button(R.string.popup_blur_scope) {
-            val screenScope = AppPrefs.popupBlurScope(this@WidgetPanelSettingsActivity) ==
-                AppPrefs.BLUR_SCOPE_SCREEN
-            AlertDialog.Builder(this@WidgetPanelSettingsActivity)
-                .setTitle(R.string.popup_blur_scope)
-                .setSingleChoiceItems(
-                    arrayOf(
-                        getString(R.string.popup_blur_scope_screen),
-                        getString(R.string.popup_blur_scope_panel)
-                    ),
-                    if (screenScope) 0 else 1
-                ) { dialog, which ->
-                    AppPrefs.setPopupBlurScope(
-                        this@WidgetPanelSettingsActivity,
-                        if (which == 0) AppPrefs.BLUR_SCOPE_SCREEN else AppPrefs.BLUR_SCOPE_PANEL
-                    )
-                    blurScope.text = getString(
-                        if (which == 0) R.string.popup_blur_scope_screen
-                        else R.string.popup_blur_scope_panel
-                    )
-                    FloatBallService.refreshPopupAppearance(this@WidgetPanelSettingsActivity)
-                    dialog.dismiss()
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
-        }.apply {
-            text = getString(
-                if (AppPrefs.popupBlurScope(this@WidgetPanelSettingsActivity) ==
-                    AppPrefs.BLUR_SCOPE_SCREEN
-                ) R.string.popup_blur_scope_screen else R.string.popup_blur_scope_panel
+        addView(text(getString(R.string.panel_appearance_shared_note), 13, secondary).apply {
+            setPadding(0, dp(12), 0, dp(8))
+        })
+        addView(button(R.string.background_panel_settings) {
+            startActivity(
+                Intent(
+                    this@WidgetPanelSettingsActivity,
+                    BackgroundSettingsActivity::class.java
+                )
             )
-            visibility = if (AppPrefs.popupBlurEnabled(this@WidgetPanelSettingsActivity)) {
-                View.VISIBLE
-            } else {
-                View.GONE
-            }
-        }
-        addView(blurScope)
-        val blurRadius = valueControl(
-            getString(R.string.blur_intensity),
-            AppPrefs.popupBlurRadius(this@WidgetPanelSettingsActivity),
-            0,
-            80,
-            enabled = AppPrefs.popupBlurEnabled(this@WidgetPanelSettingsActivity)
-        ) { value ->
-            AppPrefs.setPopupBlurRadius(this@WidgetPanelSettingsActivity, value)
-            FloatBallService.refreshPopupAppearance(this@WidgetPanelSettingsActivity)
-        }.apply {
-            visibility = if (AppPrefs.popupBlurEnabled(this@WidgetPanelSettingsActivity)) {
-                View.VISIBLE
-            } else {
-                View.GONE
-            }
-        }
-        blur.setOnCheckedChangeListener { _, checked ->
-            AppPrefs.setPopupBlurEnabled(this@WidgetPanelSettingsActivity, checked)
-            FloatBallService.refreshPopupAppearance(this@WidgetPanelSettingsActivity)
-            blurRadius.isEnabled = checked
-            blurScope.visibility = if (checked) View.VISIBLE else View.GONE
-            blurRadius.visibility = if (checked) View.VISIBLE else View.GONE
-        }
-        addView(blurRadius)
-
-        addView(valueControl(
-            getString(R.string.panel_opacity),
-            selectedPage().backgroundOpacity,
-            0,
-            100
-        ) { value -> updatePage { it.copy(backgroundOpacity = value) } })
-
-        addView(text(getString(R.string.panel_color), 14, secondary).apply {
-            setPadding(0, dp(12), 0, dp(4))
         })
-        addView(colorPalette())
         addView(valueControl(
             getString(R.string.grid_cell_width),
             selectedPage().cellWidthDp,
@@ -389,7 +319,7 @@ class WidgetPanelSettingsActivity : Activity() {
             setHintTextColor(secondary)
             setTextColor(this@WidgetPanelSettingsActivity.foreground)
             gravity = Gravity.CENTER
-            background = roundedBackground(cardColor, dp(14))
+            background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 14)
             setPadding(dp(4), dp(4), dp(4), dp(4))
         }
         val columns = input(page.areaColumns, R.string.panel_area_columns_hint)
@@ -478,14 +408,14 @@ class WidgetPanelSettingsActivity : Activity() {
             textSize = 14f
             gravity = Gravity.CENTER
             inputType = InputType.TYPE_CLASS_NUMBER
-            background = roundedBackground(Color.argb(52, 220, 236, 250), dp(10))
+            background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 10)
             setPadding(dp(8), 0, dp(8), 0)
             layoutParams = LinearLayout.LayoutParams(dp(72), dp(38))
             isEnabled = enabled
         }
         header.addView(input)
         container.addView(header)
-        val seek = SeekBar(this).apply {
+        val seek = GlassUi.slider(this).apply {
             max = maximum - minimum
             progress = current - minimum
             isEnabled = enabled
@@ -504,9 +434,7 @@ class WidgetPanelSettingsActivity : Activity() {
                 onValue(current)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                if (title == getString(R.string.panel_opacity)) renderPreview()
-            }
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
         input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -535,88 +463,6 @@ class WidgetPanelSettingsActivity : Activity() {
         return container
     }
 
-    private fun colorPalette(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        val colors = intArrayOf(
-            0xFF152438.toInt(), 0xFF182A3A.toInt(), 0xFF1E3042.toInt(),
-            0xFF202735.toInt(), 0xFF172E36.toInt(), 0xFF292238.toInt(),
-            0xFF26313B.toInt()
-        )
-        colors.forEach { color ->
-            addView(View(this@WidgetPanelSettingsActivity).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(color)
-                    setStroke(
-                        dp(2),
-                        if (selectedPage().backgroundColor == color) {
-                            this@WidgetPanelSettingsActivity.foreground
-                        } else {
-                            Color.argb(80, 255, 255, 255)
-                        }
-                    )
-                }
-                isClickable = true
-                contentDescription = getString(R.string.panel_color)
-                setOnClickListener {
-                    updatePage { it.copy(backgroundColor = color) }
-                    render()
-                }
-            }, LinearLayout.LayoutParams(dp(32), dp(32)).apply {
-                setMargins(0, dp(4), dp(8), dp(8))
-            })
-        }
-        addView(ImageButton(this@WidgetPanelSettingsActivity).apply {
-            setImageResource(android.R.drawable.ic_menu_edit)
-            setColorFilter(this@WidgetPanelSettingsActivity.foreground)
-            background = roundedBackground(cardColor, dp(12))
-            contentDescription = getString(R.string.custom_panel_color)
-            setPadding(dp(2), dp(2), dp(2), dp(2))
-            setOnClickListener { showCustomColorPicker() }
-        }, LinearLayout.LayoutParams(dp(40), dp(40)).apply {
-            setMargins(dp(2), dp(2), 0, dp(2))
-        })
-    }
-
-    private fun showCustomColorPicker() {
-        val initial = selectedPage().backgroundColor
-        val hsv = FloatArray(3)
-        android.graphics.Color.colorToHSV(initial, hsv)
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(12), dp(18), dp(12))
-        }
-        val plane = CustomColorPlane(this, hsv[0], hsv[1], hsv[2]) { color ->
-            updatePage { it.copy(backgroundColor = color) }
-        }
-        container.addView(plane, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(220)
-        ))
-        val hue = SeekBar(this).apply {
-            max = 359
-            progress = hsv[0].toInt().coerceIn(0, 359)
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    if (fromUser) plane.setHue(progress.toFloat())
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-            })
-        }
-        container.addView(hue, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(44)
-        ).apply { topMargin = dp(8) })
-        AlertDialog.Builder(this)
-            .setTitle(R.string.custom_panel_color)
-            .setView(container)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
-    }
-
     private fun renderPanelPicker() {
         val pages = AppPrefs.panelPages(this, landscape)
         val selectedId = AppPrefs.currentPanelId(this, landscape)
@@ -640,11 +486,12 @@ class WidgetPanelSettingsActivity : Activity() {
         if (!::previewGrid.isInitialized) return
         previewGrid.removeAllViews()
         val page = selectedPage()
-        val opacity = (page.backgroundOpacity * 255 / 100).coerceIn(0, 255)
+        val color = AppPrefs.sharedPanelColor(this)
+        val alpha = (AppPrefs.sharedPanelOpacity(this) * 255 / 100).coerceIn(0, 255)
         previewGrid.background = GradientDrawable().apply {
-            setColor((page.backgroundColor and 0x00FFFFFF) or (opacity shl 24))
-            cornerRadius = dp(26).toFloat()
-            setStroke(1, Color.argb(opacity.coerceAtMost(110), 230, 240, 250))
+            setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
+            cornerRadius = dp(AppPrefs.sharedPanelCorner(this@WidgetPanelSettingsActivity)).toFloat()
+            setStroke(dp(1), Color.argb(65, 225, 238, 250))
         }
         val columns = page.columns.coerceIn(2, 20)
         val rows = maxOf(page.rows, page.items.maxOfOrNull {
@@ -913,74 +760,6 @@ class WidgetPanelSettingsActivity : Activity() {
             setOnClickListener { action() }
         }
 
-    private class CustomColorPlane(
-        context: Context,
-        private var hue: Float,
-        private var saturation: Float,
-        private var value: Float,
-        private val onColor: (Int) -> Unit
-    ) : View(context) {
-        private val paint = Paint()
-        private val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.STROKE
-            strokeWidth = 3f
-        }
-
-        fun setHue(value: Float) {
-            hue = value
-            invalidate()
-            emitColor()
-        }
-
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            val step = dp(6).coerceAtLeast(4)
-            var y = 0
-            while (y < height) {
-                val yFraction = if (height > 0) y.toFloat() / height else 0f
-                var x = 0
-                while (x < width) {
-                    val xFraction = if (width > 0) x.toFloat() / width else 0f
-                    val valueFraction = 1f - yFraction
-                    paint.color = Color.HSVToColor(floatArrayOf(hue, xFraction, valueFraction))
-                    canvas.drawRect(
-                        x.toFloat(),
-                        y.toFloat(),
-                        (x + step).toFloat().coerceAtMost(width.toFloat()),
-                        (y + step).toFloat().coerceAtMost(height.toFloat()),
-                        paint
-                    )
-                    x += step
-                }
-                y += step
-            }
-            val markerX = saturation * width
-            val markerY = (1f - value) * height
-            canvas.drawCircle(markerX, markerY, dp(7).toFloat(), marker)
-        }
-
-        override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
-            if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN ||
-                event.actionMasked == android.view.MotionEvent.ACTION_MOVE
-            ) {
-                saturation = (event.x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                value = (1f - event.y / height.coerceAtLeast(1)).coerceIn(0f, 1f)
-                invalidate()
-                emitColor()
-                return true
-            }
-            return super.onTouchEvent(event)
-        }
-
-        private fun emitColor() {
-            onColor(Color.HSVToColor(floatArrayOf(hue, saturation, value)))
-        }
-
-        private fun dp(value: Int): Int =
-            (value * resources.displayMetrics.density).toInt().coerceAtLeast(1)
-    }
-
     private class ActionGlyphView(
         context: Context,
         private val resize: Boolean,
@@ -1210,30 +989,18 @@ class WidgetPanelSettingsActivity : Activity() {
         return pages.firstOrNull { it.id == id } ?: pages.first()
     }
 
-    private fun glassCard() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(14), dp(12), dp(14), dp(14))
-        background = GradientDrawable().apply {
-            setColor(cardColor)
-            cornerRadius = dp(22).toFloat()
-            setStroke(dp(1), Color.argb(42, 230, 242, 255))
+    private fun glassCard() = GlassUi.glassCard(this)
+
+    private fun styledSwitch(title: Int, checked: Boolean, onChanged: (Boolean) -> Unit): Switch =
+        GlassUi.switch(this, checked, onChanged).apply {
+            text = getString(title)
+            setTextColor(foreground)
+            setPadding(0, dp(6), 0, dp(6))
         }
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = dp(12) }
-    }
 
     private fun button(title: Int, action: () -> Unit): TextView =
-        TextView(this).apply {
-            text = getString(title)
+        GlassUi.actionButton(this, getString(title), onAction = action).apply {
             textSize = 13f
-            gravity = Gravity.CENTER
-            setTextColor(this@WidgetPanelSettingsActivity.foreground)
-            background = roundedBackground(Color.argb(52, 210, 232, 252), dp(16))
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { action() }
         }
 
     private fun text(value: String, size: Int, color: Int, bold: Boolean = false) =
@@ -1241,6 +1008,7 @@ class WidgetPanelSettingsActivity : Activity() {
             text = value
             textSize = size.toFloat()
             setTextColor(color)
+            includeFontPadding = false
             if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
 

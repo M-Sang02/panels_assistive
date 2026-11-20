@@ -274,3 +274,54 @@
 - Source ZIP integrity is checked after packaging.
 - Gradle compilation and on-device visual/interaction tests are not verified in this environment. Run GitHub Actions `assembleDebug` and test both panels on-device.
 - The Expansion Panel now uses the five-column vertical slider layout based on XGesture's `ExpandPanelSlidersSection` structure. This is a UI reimplementation in the existing Android View project, not a direct copy of XGesture's Compose application code.
+
+## 2026-11-20 — v28.12 Unified panel appearance and working flashlight toggle
+
+### User-requested changes
+- The “Nền bảng” page and the widget panel (“Bảng tiện ích”) appearance settings diverged; synchronize them.
+- The flashlight quick action did not turn the torch on.
+
+### Changes in this source
+- Made `AppPrefs.sharedPanelColor/Opacity/Corner` the single source of truth for every overlay panel: the widget popup now uses `sharedPanelBackground()` exactly like the Expansion Panel and standalone brightness panel (previously the popup used per-page color/opacity with a different corner radius).
+- Moved the appearance controls to one place. `BackgroundSettingsActivity` (“Nền bảng”) owns the palette (`AppPrefs.panelPalette`), a custom HSV color picker, opacity, corner radius, and blur (scope + intensity), with a live preview that mirrors the service styling (1 dp stroke `argb(65,225,238,250)`).
+- Removed the duplicated blur switch/scope/intensity, opacity slider, and color palette from `WidgetPanelSettingsActivity`; its card now shows a note plus a “Cài đặt Nền bảng” button, and its preview renders with the shared color/opacity/corner.
+- Added `OverlaySurface` tracking (widgets/expansion/brightness) in `FloatBallService` so `ACTION_UPDATE_POPUP_APPEARANCE` rebuilds the currently open surface and re-applies its window background immediately.
+- Flashlight: `ACTION_TOGGLE_FLASHLIGHT` previously re-sent its own intent (infinite loop, torch never toggled). It now calls `performFlashlightToggle()`, which uses `CameraManager.setTorchMode` on the back camera with a flash unit, persists state in `AppPrefs.flashlightEnabled`, and observes real torch state via a `CameraManager.TorchCallback` registered in `onCreate` / unregistered in `onDestroy`. When the CAMERA permission is missing it opens `MainActivity` with `EXTRA_REQUEST_CAMERA_PERMISSION` + `EXTRA_RUN_TORCH_AFTER_PERMISSION`, and the existing permission flow toggles the torch after the grant.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/java/com/manh/panelsassistive/BackgroundSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetPanelSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/main/res/values-vi/strings.xml`
+
+### Verification and remaining work
+- Gradle compilation and on-device tests are not verified in this environment. Run GitHub Actions `assembleDebug`, then on-device: change color/opacity/corner/blur in “Nền bảng” and confirm the widget popup, Expansion Panel, and brightness panel all update; invoke the flashlight action (first time should prompt for camera permission) and confirm the torch turns on and off.
+
+## 2026-11-20 — v28.13 XGesture-style faux-glass settings UI
+
+### User-requested changes
+- Make the interface more professional, modelled on XGesture (the project follows XGesture).
+- Stability first: the default visual is faux glass; blur remains an optional enhancement.
+
+### Changes in this source
+- Added `GlassUi.kt`, a shared design kit adapted from XGesture's capsule design tokens: navy page gradient `#091422 → #0D1E30 → #07101D`, blue accent `#7CBEFF`, 16/18 dp page padding, 16 dp card padding, 14 dp pill buttons, 1 dp light rim, icon tiles with bundled Lucide glyphs.
+- Faux glass is implemented with static `LayerDrawable`s (1 dp `argb(36,255,255,255)` stroke + vertical gradient `argb(32→13)` fill). No runtime blur is used by default; the existing blur switch in "Nền bảng" stays as an optional enhancement applied by `FloatBallService`.
+- Restyled all settings screens with the kit: main settings (`SettingsScreen.kt`), widget panel editor (`WidgetPanelSettingsActivity.kt`), "Nền bảng" (`BackgroundSettingsActivity.kt`), widget picker (`WidgetPickerActivity.kt`), float icon crop editor (`FloatBallIconCropActivity.kt`).
+- Edge-hide/orientation selectors in settings are now segmented pill tabs; selected tab text uses the accent color. Sliders use the accent track/thumb; switches use white thumb on a blue tinted track.
+- `MainActivity` and activity system bars use the shared `PAGE_COLOR`; `colors.xml` updated to the new palette.
+- Blur controls in "Nền bảng" are grouped in the blur card and only visible while the optional blur switch is on; the live preview mirrors `sharedPanelBackground()` styling.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/GlassUi.kt` (new)
+- `app/src/main/java/com/manh/panelsassistive/SettingsScreen.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetPanelSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/BackgroundSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetPickerActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/FloatBallIconCropActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/MainActivity.kt`
+- `app/src/main/res/values/colors.xml`
+
+### Verification and remaining work
+- Static review only; Gradle compilation and on-device visual tests are not possible in this environment. Run GitHub Actions `assembleDebug` and check the main settings, "Bảng tiện ích", "Nền bảng", widget picker, and crop screens; verify blur remains optional and panels are unaffected in their default faux-glass state.

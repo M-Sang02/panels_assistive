@@ -3,7 +3,6 @@ package com.manh.panelsassistive
 import android.app.Activity
 import android.app.role.RoleManager
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -25,7 +24,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val background = Color.rgb(7, 24, 44)
+        val background = GlassUi.PAGE_COLOR
         window.statusBarColor = background
         window.navigationBarColor = background
         if (intent.getBooleanExtra(EXTRA_REQUEST_OVERLAY_PERMISSION, false) &&

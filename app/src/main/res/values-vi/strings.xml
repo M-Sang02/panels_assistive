@@ -327,4 +327,6 @@
     <string name="float_ball_slideshow_pause_screen_off_description">Dừng slideshow trong khi màn hình tắt.</string>
 
 <string name="gif_choose_from_gif_tab">Hãy chọn GIF trong mục GIF.</string>
+    <string name="background_panel_settings">Cài đặt Nền bảng</string>
+    <string name="panel_appearance_shared_note">Màu nền, độ trong suốt, bo góc và làm mờ được quản lý chung trong Cài đặt Nền bảng.</string>
 </resources>

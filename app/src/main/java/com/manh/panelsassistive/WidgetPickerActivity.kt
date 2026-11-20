@@ -29,9 +29,9 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class WidgetPickerActivity : Activity() {
-    private val foreground = Color.rgb(244, 246, 250)
-    private val secondary = Color.rgb(166, 173, 185)
-    private val cardColor = Color.argb(38, 210, 230, 250)
+    private val foreground = GlassUi.TEXT_PRIMARY
+    private val secondary = GlassUi.TEXT_SECONDARY
+    private val cardColor = Color.argb(24, 224, 236, 255)
     private lateinit var host: AppWidgetHost
     private lateinit var appWidgetManager: AppWidgetManager
     private lateinit var list: LinearLayout
@@ -118,12 +118,16 @@ class WidgetPickerActivity : Activity() {
     private fun createContent(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(20), dp(18), dp(18))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.rgb(8, 24, 43), Color.rgb(14, 33, 54), Color.rgb(7, 18, 33))
-            )
+            setPadding(dp(18), dp(16), dp(18), dp(18))
+            background = GlassUi.pageBackground()
         }
+        root.addView(TextView(this).apply {
+            text = getString(R.string.brand_name)
+            textSize = 11f
+            setTextColor(GlassUi.ACCENT)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            letterSpacing = 0.18f
+        })
         root.addView(TextView(this).apply {
             text = getString(when (currentType) {
                 PanelItemType.ACTION -> R.string.choose_phone_shortcut
@@ -131,10 +135,10 @@ class WidgetPickerActivity : Activity() {
                 PanelItemType.SHORTCUT -> R.string.choose_shortcut
                 else -> R.string.choose_widget
             })
-            textSize = 25f
+            textSize = 22f
             setTextColor(this@WidgetPickerActivity.foreground)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding(0, 0, 0, dp(16))
+            setPadding(0, dp(6), 0, dp(16))
         })
         root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -156,7 +160,7 @@ class WidgetPickerActivity : Activity() {
             setSingleLine(true)
             setTextColor(this@WidgetPickerActivity.foreground)
             setHintTextColor(secondary)
-            background = roundedBackground(Color.argb(46, 220, 236, 250), dp(18))
+            background = GlassUi.fieldBackground(this@WidgetPickerActivity, 18)
             setPadding(dp(14), dp(10), dp(14), dp(10))
         }
         root.addView(search, LinearLayout.LayoutParams(
@@ -183,11 +187,8 @@ class WidgetPickerActivity : Activity() {
         currentType = type
         categoryButtons.forEach { (category, button) ->
             val selected = category == type
-            button.setTextColor(if (selected) foreground else secondary)
-            button.background = roundedBackground(
-                if (selected) Color.argb(150, 44, 104, 161) else Color.argb(36, 210, 230, 250),
-                dp(18)
-            )
+            button.setTextColor(if (selected) GlassUi.ACCENT else secondary)
+            button.background = GlassUi.tabSurface(this, selected)
         }
         search.hint = getString(when (type) {
             PanelItemType.APP -> R.string.search_apps
@@ -232,7 +233,7 @@ class WidgetPickerActivity : Activity() {
                 isClickable = true
                 isFocusable = true
                 addView(
-                    ActionGlyphView(this@WidgetPickerActivity, action.id, Color.rgb(125, 188, 255)),
+                    ActionGlyphView(this@WidgetPickerActivity, action.id, GlassUi.ACCENT),
                     LinearLayout.LayoutParams(dp(42), dp(42))
                 )
                 addView(TextView(this@WidgetPickerActivity).apply {
@@ -363,7 +364,7 @@ class WidgetPickerActivity : Activity() {
                     card.addView(TextView(this).apply {
                         text = getString(R.string.show_more_widgets)
                         textSize = 14f
-                        setTextColor(Color.rgb(125, 188, 255))
+                        setTextColor(GlassUi.ACCENT)
                         gravity = Gravity.CENTER
                         setPadding(dp(12), dp(12), dp(12), dp(12))
                         isClickable = true
@@ -393,7 +394,7 @@ class WidgetPickerActivity : Activity() {
             val preview = ImageView(this@WidgetPickerActivity).apply {
                 layoutParams = LinearLayout.LayoutParams(dp(64), dp(64))
                 scaleType = ImageView.ScaleType.FIT_CENTER
-                background = roundedBackground(Color.argb(52, 220, 236, 250), dp(12))
+                background = GlassUi.fieldBackground(this@WidgetPickerActivity, 12)
                 tag = provider
             }
             addView(preview)
@@ -714,11 +715,8 @@ class WidgetPickerActivity : Activity() {
             }
             categoryButtons.add(type to button)
             val selected = type == currentType
-            button.setTextColor(if (selected) foreground else secondary)
-            button.background = roundedBackground(
-                if (selected) Color.argb(150, 44, 104, 161) else cardColor,
-                dp(18)
-            )
+            button.setTextColor(if (selected) GlassUi.ACCENT else secondary)
+            button.background = GlassUi.tabSurface(this, selected)
         }
 
     private fun discardPendingWidget() {
@@ -731,7 +729,7 @@ class WidgetPickerActivity : Activity() {
     private fun message(text: String) = TextView(this).apply {
         this.text = text
         textSize = 14f
-        setTextColor(Color.rgb(167, 184, 203))
+        setTextColor(GlassUi.TEXT_SECONDARY)
         gravity = Gravity.CENTER
         setPadding(dp(16), dp(24), dp(16), dp(24))
     }

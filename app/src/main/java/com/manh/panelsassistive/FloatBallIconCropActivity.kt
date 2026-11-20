@@ -3,7 +3,6 @@ package com.manh.panelsassistive
 import android.app.Activity
 import android.graphics.*
 import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.GradientDrawable
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
@@ -37,39 +36,50 @@ class FloatBallIconCropActivity : Activity() {
         sourceUri = intent.getStringExtra(EXTRA_URI)?.let(Uri::parse)
         if (sourceUri == null) { finish(); return }
 
-        val bg = Color.rgb(7, 18, 33)
+        val bg = GlassUi.PAGE_COLOR
         window.statusBarColor = bg
         window.navigationBarColor = bg
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(bg)
+            background = GlassUi.pageBackground()
             setPadding(dp(18), dp(16), dp(18), dp(18))
         }
+        root.addView(TextView(this).apply {
+            text = getString(R.string.brand_name)
+            textSize = 11f
+            setTextColor(GlassUi.ACCENT)
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.18f
+        })
         root.addView(TextView(this).apply {
             text = if (mode == AppPrefs.FloatBallIconMode.GIF) getString(R.string.crop_gif_title)
             else getString(R.string.crop_static_title)
             textSize = 22f
-            setTextColor(Color.WHITE)
+            setTextColor(GlassUi.TEXT_PRIMARY)
+            setPadding(0, dp(6), 0, 0)
             typeface = Typeface.DEFAULT_BOLD
         })
         root.addView(TextView(this).apply {
             text = getString(R.string.crop_icon_hint)
             textSize = 13f
-            setTextColor(Color.rgb(166,173,185))
+            setTextColor(GlassUi.TEXT_SECONDARY)
             setPadding(0, dp(6), 0, dp(12))
         })
 
         preview = CropPreviewView(this)
         val previewHolder = FrameLayout(this).apply {
-            background = rounded(Color.argb(24, 210,230,250), dp(24))
+            background = GlassUi.glassSurface(this@FloatBallIconCropActivity, 24)
             addView(preview, FrameLayout.LayoutParams(dp(300), dp(300), Gravity.CENTER))
         }
         root.addView(previewHolder, LinearLayout.LayoutParams(-1, dp(320)))
 
-        zoomValue = TextView(this).apply { setTextColor(Color.rgb(220,225,235)); textSize = 13f }
+        zoomValue = TextView(this).apply {
+            setTextColor(GlassUi.TEXT_SECONDARY)
+            textSize = 13f
+        }
         root.addView(zoomValue)
-        root.addView(SeekBar(this).apply {
+        val zoomSlider = GlassUi.slider(this).apply {
             max = 300
             progress = 100
             setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
@@ -82,11 +92,17 @@ class FloatBallIconCropActivity : Activity() {
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
-        })
+        }
 
-        cornerValue = TextView(this).apply { setTextColor(Color.rgb(220,225,235)); textSize = 13f }
+        root.addView(zoomSlider)
+
+        cornerValue = TextView(this).apply {
+            setTextColor(GlassUi.TEXT_SECONDARY)
+            textSize = 13f
+            setPadding(0, dp(8), 0, 0)
+        }
         root.addView(cornerValue)
-        root.addView(SeekBar(this).apply {
+        val cornerSlider = GlassUi.slider(this).apply {
             max = 100
             progress = AppPrefs.floatBallCrop(this@FloatBallIconCropActivity, mode).corner
             setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
@@ -98,21 +114,21 @@ class FloatBallIconCropActivity : Activity() {
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {}
             })
-        })
+        }
+        root.addView(cornerSlider)
 
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(12), 0, 0)
         }
-        buttons.addView(Button(this).apply {
-            text = getString(android.R.string.cancel)
-            setOnClickListener { finish() }
-        })
-        buttons.addView(Button(this).apply {
-            text = getString(R.string.crop_save)
-            setOnClickListener { saveAndFinish() }
-        })
-        root.addView(buttons, LinearLayout.LayoutParams(-1, dp(56)))
+        buttons.addView(GlassUi.actionButton(this, getString(android.R.string.cancel)) {
+            finish()
+        }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(6) })
+        buttons.addView(GlassUi.actionButton(this, getString(R.string.crop_save), prominent = true) {
+            saveAndFinish()
+        }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(6) })
+        root.addView(buttons, LinearLayout.LayoutParams(-1, -2))
         setContentView(root)
 
         val saved = AppPrefs.floatBallCrop(this, mode)
@@ -120,7 +136,9 @@ class FloatBallIconCropActivity : Activity() {
         preview.offsetX = saved.x
         preview.offsetY = saved.y
         preview.corner = saved.corner
-        (root.getChildAt(4) as? SeekBar)?.progress = ((saved.scale - 1f) * 100f).toInt().coerceIn(0,300)
+        zoomSlider.post {
+            zoomSlider.progress = ((saved.scale - 1f) * 100f).toInt().coerceIn(0, 300)
+        }
         cornerValue.text = getString(R.string.crop_corner_value, saved.corner)
         zoomValue.text = getString(R.string.crop_zoom_value, saved.scale)
         preview.load(sourceUri!!)
@@ -135,10 +153,6 @@ class FloatBallIconCropActivity : Activity() {
             })
         }
         finish()
-    }
-
-    private fun rounded(color: Int, radius: Int) = GradientDrawable().apply {
-        setColor(color); cornerRadius = radius.toFloat()
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
