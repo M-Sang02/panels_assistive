@@ -342,7 +342,8 @@ class RecordingPlaybackActivity : Activity() {
     }
 
     private fun showRecordingActions(recording: RecordingEntry) {
-        val content = LinearLayout(this).apply {
+        lateinit var content: LinearLayout
+        content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(18), dp(18), dp(14))
             background = dialogPanelBackground()
@@ -372,7 +373,8 @@ class RecordingPlaybackActivity : Activity() {
     }
 
     private fun confirmDeleteRecording(recording: RecordingEntry) {
-        val content = LinearLayout(this).apply {
+        lateinit var content: LinearLayout
+        content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(18), dp(18), dp(14))
             background = dialogPanelBackground()
