@@ -88,6 +88,9 @@ class FloatBallService : Service() {
     private var downRawY = 0f
     private var downWindowX = 0
     private var downWindowY = 0
+    // Coalesce rapid slider movements so the system volume is committed only
+    // after the user has stopped dragging for 500 ms.
+    private val pendingVolumeUpdates = mutableMapOf<Int, Runnable>()
 
     private val configurationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -306,6 +309,8 @@ class FloatBallService : Service() {
         } catch (error: IllegalArgumentException) {
             Log.w(TAG, "Configuration receiver was already unregistered", error)
         }
+        pendingVolumeUpdates.values.forEach(handler::removeCallbacks)
+        pendingVolumeUpdates.clear()
         removePopup()
         removeFloatBall()
         try {
@@ -1061,7 +1066,7 @@ class FloatBallService : Service() {
             max = maximum,
             progress = current,
             compact = false
-        ) { value -> setStreamVolume(audio, stream, value) }, LinearLayout.LayoutParams(
+        ) { value -> scheduleStreamVolume(audio, stream, value) }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             dp(48)
         ).apply {
@@ -1177,6 +1182,20 @@ class FloatBallService : Service() {
         }
     }
 
+    private fun scheduleStreamVolume(
+        audio: android.media.AudioManager,
+        stream: Int,
+        requested: Int
+    ) {
+        pendingVolumeUpdates.remove(stream)?.let(handler::removeCallbacks)
+        val update = Runnable {
+            pendingVolumeUpdates.remove(stream)
+            setStreamVolume(audio, stream, requested)
+        }
+        pendingVolumeUpdates[stream] = update
+        handler.postDelayed(update, 500L)
+    }
+
     private fun setStreamVolume(
         audio: android.media.AudioManager,
         stream: Int,
@@ -1220,7 +1239,9 @@ class FloatBallService : Service() {
     }
 
     private fun applyEdgeHide(params: WindowManager.LayoutParams, size: Int) {
-        val hiddenAmount = (size - dp(10)).coerceAtLeast(0)
+        // Keep half of the bubble outside the edge: the visible half remains
+        // a practical touch target, matching the requested 50% edge position.
+        val hiddenAmount = (size / 2).coerceAtLeast(0)
         params.x = if (params.x + size / 2 < resources.displayMetrics.widthPixels / 2) {
             -hiddenAmount
         } else {

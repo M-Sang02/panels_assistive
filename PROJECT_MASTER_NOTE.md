@@ -147,3 +147,33 @@
 3. Open Expansion Panel and verify five icon-only slider rows update their corresponding system levels.
 4. Verify the shortcut tiles can launch, add, and remove shortcuts.
 5. Test with blur disabled on a device without cross-window blur support; the panel should still open using the static background.
+
+
+## 2026-11-20 — v28.7 incremental interaction repair (based on v28.5)
+
+### Changes completed
+- Volume sliders now debounce system volume writes by 500 ms. Each drag update replaces the pending write for that stream; the final value is applied only after movement has paused for half a second. This applies while the overlay service is running, regardless of whether the Panels Assistive settings activity is foregrounded.
+- Pending volume callbacks are cancelled and cleared when the service is destroyed.
+- Edge-hide positioning now places 50% of the Float Ball outside the left/right display edge, leaving half of the bubble visible as the touch target.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `PROJECT_MASTER_NOTE.md`
+
+### Not yet implemented in this incremental revision
+- One-second post-release Float Ball reveal followed by a gradual return animation.
+- Center snap-point behavior and the dedicated Left / Center / Right position subpage.
+- Shared “Nền bảng” settings with per-property utility-panel overrides.
+- Correct view-local `BackgroundBlurDrawable` implementation for panel-only blur; current panel-only path still uses the window blur API and must be replaced.
+- Full settings hierarchy/subpage reorganization and layout spacing pass.
+- Independent brightness configuration page and the final vertical slider/panel layout refinements.
+
+### Verification
+- Source edits are limited to the volume update scheduling and edge-hide offset; ZIP integrity will be checked after packaging.
+- Gradle compilation is **not verified** in this environment. Previous attempts could not download Gradle 8.9 because `services.gradle.org` was unreachable. Run GitHub Actions `assembleDebug` before installing.
+
+### Next implementation order
+1. Implement shared background preference model and utility-panel per-field overrides with migration-safe defaults.
+2. Replace panel-only blur with an API 31+ view-background blur drawable, retaining a safe static-background fallback.
+3. Add Float Ball reveal/return animation and center snap behavior.
+4. Reorganize settings into dedicated subpages and finish spacing/slider layout refinements.
