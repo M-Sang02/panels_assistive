@@ -46,3 +46,28 @@
 - Added the missing `android.net.Uri` import in `MainActivity.kt`.
 - These changes address the reported unresolved references (`dp`, `roundedBackground`, `usesLandscapeLayout`, `showOverlayDialog`, `openWidgetPicker`, and `Uri`) and the cascading `FrameLayout.LayoutParams` type-inference errors.
 - Build status: attempted `./gradlew :app:compileDebugKotlin --no-daemon`; Gradle 8.9 could not be downloaded because this environment has no DNS/network access to `services.gradle.org`. Therefore compilation remains unverified here. Run GitHub Actions to confirm.
+
+
+## 2026-11-20 — v28.2 repair of missing FloatBallService panel methods and default visual mode
+
+### Changes
+- Restored the missing outer-service panel/Popup implementation methods in `FloatBallService.kt` from the earlier intact project source: `createPanelShortcut`, `launchPanelItem`, `scheduleCloseAfterTap`, `panelSwipeListener`, `changePanel`, `popupIconButton`, `popupActionButton`, `roundedControlBackground`, `frostedPanelBackground`, `selectedCellWidth`, `showOverlayPanel`, `applyPopupBlur`, `removePopup`, `keepFloatBallAvailable`, `bringFloatBallToFront`, `removeFloatBall`, `scheduleIdleDim`, and `overlayWindowType`. This restores real Popup lifecycle, gestures, panel navigation, shortcut rendering, and overlay presentation rather than adding placeholder methods.
+- Kept the v28 image/GIF crop and battery-saving implementation intact.
+- Changed `AppPrefs.popupBlurEnabled()` default from `true` to `false`. The default is now the static translucent/fake-glass panel without system background blur.
+- When optional blur is enabled, existing settings for blur scope and radius/intensity remain available; dependent controls are hidden when blur is disabled.
+- Reduced no-blur background dimming to 18%. Android versions below 12 continue using the static background because cross-window blur is guarded by the SDK check.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt`
+
+### Build and test status
+- Source restoration completed; ZIP integrity checked.
+- Local Gradle build remains **not verified**: Gradle 8.9 wrapper download failed because this environment cannot resolve `services.gradle.org` (`UnknownHostException`); no system Gradle executable is installed.
+- GitHub Actions must run `:app:compileDebugKotlin` / `assembleDebug` to confirm compilation.
+
+### Next steps
+1. Upload/overwrite the repository with this complete ZIP.
+2. Run GitHub Actions and inspect the Kotlin compile stage.
+3. On device, verify Popup open/close, swipe between panels, shortcut/app launch, idle dim, and static no-blur appearance.
+4. Enable optional blur on a supported Android 12+ device and verify blur controls appear and blur can be disabled again.

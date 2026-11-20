@@ -1157,6 +1157,417 @@ class FloatBallService : Service() {
         )
     }
 
+
+    private fun createPanelShortcut(
+        item: PanelItem,
+        showLabel: Boolean = AppPrefs.showPanelLabels(this),
+        touchObserver: ((View, MotionEvent) -> Boolean)? = null
+    ): View {
+        val cell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            background = GradientDrawable().apply {
+                setColor(Color.argb(24, 255, 255, 255))
+                cornerRadius = dp(16).toFloat()
+            }
+        }
+        val iconSize = dp(minOf(40, selectedCellWidth() - 12).coerceAtLeast(18))
+        if (item.type == PanelItemType.ACTION) {
+            cell.addView(ActionGlyphView(this, item.value, Color.rgb(125, 188, 255)), LinearLayout.LayoutParams(iconSize, iconSize))
+        } else {
+            cell.addView(ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                try {
+                    val icon = when (item.type) {
+                        PanelItemType.APP -> ComponentName.unflattenFromString(item.value)
+                            ?.let { packageManager.getActivityIcon(it) }
+                        PanelItemType.SHORTCUT -> Intent.parseUri(item.value, 0)
+                            .resolveActivity(packageManager)
+                            ?.let { packageManager.getActivityIcon(it) }
+                        else -> null
+                    }
+                    setImageDrawable(icon ?: packageManager.getDefaultActivityIcon())
+                } catch (error: Exception) {
+                    Log.w(TAG, "Unable to load panel item icon", error)
+                    setImageResource(android.R.drawable.sym_def_app_icon)
+                }
+            })
+        }
+        if (showLabel) {
+            cell.addView(TextView(this).apply {
+                text = item.label
+                textSize = 11f
+                setTextColor(Color.rgb(225, 229, 235))
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(dp(2), dp(4), dp(2), 0)
+            })
+        }
+        cell.setOnClickListener {
+            launchPanelItem(item)
+            scheduleCloseAfterTap()
+        }
+        cell.setOnTouchListener { view, event ->
+            if (touchObserver?.invoke(view, event) == true) return@setOnTouchListener true
+            panelSwipeListener.onTouch(view, event)
+            false
+        }
+        return cell
+    }
+
+
+
+    private fun launchPanelItem(item: PanelItem) {
+        try {
+            if (item.type == PanelItemType.ACTION) {
+                ActionDispatcher.dispatch(this, item.value)
+                return
+            }
+            val intent = when (item.type) {
+                PanelItemType.APP -> Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    component = ComponentName.unflattenFromString(item.value)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                PanelItemType.SHORTCUT -> Intent.parseUri(item.value, 0).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                else -> return
+            }
+            startActivity(intent)
+        } catch (error: Exception) {
+            Log.e(TAG, "Unable to launch panel item", error)
+            Toast.makeText(this, R.string.panel_item_launch_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+
+    private fun scheduleCloseAfterTap() {
+        if (AppPrefs.closePanelAfterTap(this)) {
+            handler.postDelayed({ removePopup() }, 180)
+        }
+    }
+
+
+
+    private val panelSwipeListener = View.OnTouchListener { _, event ->
+        when (event.actionMasked) {
+            MotionEvent.ACTION_OUTSIDE -> {
+                removePopup()
+                return@OnTouchListener true
+            }
+            MotionEvent.ACTION_DOWN -> {
+                downRawX = event.rawX
+                downRawY = event.rawY
+            }
+            MotionEvent.ACTION_UP -> {
+                val dx = event.rawX - downRawX
+                val dy = event.rawY - downRawY
+                if (kotlin.math.abs(dx) > dp(60) && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                    changePanel(if (dx < 0) 1 else -1)
+                }
+            }
+        }
+        false
+    }
+
+
+
+    private fun changePanel(direction: Int) {
+        val landscape = usesLandscapeLayout()
+        val pages = AppPrefs.panelPages(this, landscape)
+        if (pages.size < 2) return
+        val current = pages.indexOfFirst { it.id == AppPrefs.currentPanelId(this, landscape) }.coerceAtLeast(0)
+        val next = (current + direction + pages.size) % pages.size
+        AppPrefs.setCurrentPanel(this, landscape, pages[next].id)
+        populateWidgetList()
+    }
+
+
+
+    private fun popupIconButton(icon: PopupIcon, description: Int, action: () -> Unit) =
+        FrameLayout(this).apply {
+            background = roundedControlBackground()
+            isClickable = true
+            isFocusable = true
+            contentDescription = getString(description)
+            addView(PopupIconView(this@FloatBallService, icon).apply {
+                setIconColor(Color.rgb(225, 232, 241))
+            }, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
+            setOnClickListener { action() }
+        }
+
+
+
+    private fun popupActionButton(label: String, action: () -> Unit) =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(14), 0, dp(16), 0)
+            background = roundedBackground(Color.rgb(49, 87, 128), dp(14))
+            isClickable = true
+            isFocusable = true
+            addView(
+                PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
+                    setIconColor(Color.WHITE)
+                },
+                LinearLayout.LayoutParams(dp(16), dp(16)).apply {
+                    marginEnd = dp(8)
+                }
+            )
+            addView(TextView(this@FloatBallService).apply {
+                text = label
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            setOnClickListener { action() }
+        }
+
+
+
+    private fun roundedControlBackground() = GradientDrawable().apply {
+        setColor(Color.rgb(35, 39, 48))
+        cornerRadius = dp(18).toFloat()
+        setStroke(dp(1), Color.argb(100, 91, 174, 255))
+    }
+
+
+
+    private fun frostedPanelBackground(
+        radius: Int,
+        color: Int = Color.rgb(19, 24, 33),
+        opacity: Int = 66
+    ) = GradientDrawable().apply {
+        val alpha = opacity.coerceIn(0, 100) * 255 / 100
+        setColor((color and 0x00FFFFFF) or (alpha shl 24))
+        cornerRadius = dp(radius).toFloat()
+        if (alpha > 0) setStroke(1, Color.argb((alpha * 0.42f).toInt(), 225, 235, 248))
+    }
+
+
+
+    private fun selectedCellWidth(): Int =
+        AppPrefs.panelPages(this, usesLandscapeLayout())
+            .firstOrNull { it.id == AppPrefs.currentPanelId(this, usesLandscapeLayout()) }
+
+
+    private fun showOverlayPanel(
+        view: View,
+        width: Int,
+        height: Int,
+        dragHandle: View? = null,
+        windowBackground: Drawable? = null,
+        backgroundOpacity: Int? = null
+    ) {
+        val panelWidth = minOf(width, (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(1)))
+        val panelHeight = minOf(height, (resources.displayMetrics.heightPixels - dp(64)).coerceAtLeast(dp(1)))
+        val dialog = Dialog(this)
+        val freeformContainer = FrameLayout(this)
+        freeformContainer.addView(view, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        dialog.setContentView(freeformContainer)
+        dialog.setCanceledOnTouchOutside(true)
+        val window = dialog.window
+        try {
+            if (window == null) {
+                Toast.makeText(this, R.string.overlay_permission_required, Toast.LENGTH_LONG).show()
+                return
+            }
+            window.setType(overlayWindowType())
+            window.setBackgroundDrawable(windowBackground ?: GradientDrawable().apply {
+                setColor(Color.TRANSPARENT)
+            })
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                    WindowManager.LayoutParams.FLAG_DIM_BEHIND
+            )
+            window.attributes = window.attributes.apply { dimAmount = 0.18f }
+            window.setLayout(panelWidth, panelHeight)
+            window.attributes = window.attributes.apply { gravity = Gravity.CENTER }
+            applyPopupBlur(window)
+            var panelDownRawX = 0f
+            var panelDownRawY = 0f
+            var panelStartX = 0
+            var panelStartY = 0
+            dragHandle?.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        panelDownRawX = event.rawX
+                        panelDownRawY = event.rawY
+                        panelStartX = (resources.displayMetrics.widthPixels - panelWidth).coerceAtLeast(0) / 2
+                        panelStartY = (resources.displayMetrics.heightPixels - panelHeight).coerceAtLeast(0) / 2
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val attributes = window.attributes
+                        attributes.gravity = Gravity.TOP or Gravity.START
+                        val currentWidth = attributes.width.takeIf { it > 0 } ?: panelWidth
+                        val currentHeight = attributes.height.takeIf { it > 0 } ?: panelHeight
+                        attributes.x = (panelStartX + (event.rawX - panelDownRawX).toInt())
+                            .coerceIn(0, (resources.displayMetrics.widthPixels - currentWidth).coerceAtLeast(0))
+                        attributes.y = (panelStartY + (event.rawY - panelDownRawY).toInt())
+                            .coerceIn(0, (resources.displayMetrics.heightPixels - currentHeight).coerceAtLeast(0))
+                        window.attributes = attributes
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
+                    else -> false
+                }
+            }
+            dialog.setOnDismissListener {
+                if (popupDialog === dialog) {
+                    crossWindowBlurListener?.let { listener ->
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            windowManager.removeCrossWindowBlurEnabledListener(listener)
+                        }
+                    }
+                    crossWindowBlurListener = null
+                    popupDialog = null
+                    popup = null
+                    popupList = null
+                    popupAddButton = null
+                    popupEditMode = false
+                    keepFloatBallAvailable()
+                }
+            }
+            dialog.show()
+            dialog.window?.setLayout(panelWidth, panelHeight)
+            popupDialog = dialog
+            popup = view
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val listener = Consumer<Boolean> { applyPopupBlur(window) }
+                windowManager.addCrossWindowBlurEnabledListener(listener)
+                crossWindowBlurListener = listener
+            }
+            bringFloatBallToFront()
+        } catch (error: WindowManager.BadTokenException) {
+            Log.e(TAG, "Unable to display assistive panel", error)
+            Toast.makeText(this, R.string.overlay_permission_required, Toast.LENGTH_LONG).show()
+        } catch (error: SecurityException) {
+            Log.e(TAG, "Overlay permission was revoked before the panel appeared", error)
+            AppPrefs.setFloatBallEnabled(this, false)
+            stopSelf()
+        }
+    }
+
+
+
+    private fun applyPopupBlur(window: android.view.Window) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val blurRequested = AppPrefs.popupBlurEnabled(this)
+        val requestedRadius = if (blurRequested) {
+            AppPrefs.popupBlurRadius(this).coerceIn(0, 80)
+        } else {
+            0
+        }
+        val blurAvailable = windowManager.isCrossWindowBlurEnabled
+        val blurEnabled = requestedRadius > 0 && blurAvailable
+        val panelOnly = AppPrefs.popupBlurScope(this) == AppPrefs.BLUR_SCOPE_PANEL
+        if (blurEnabled && !panelOnly) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+        }
+        window.setBackgroundBlurRadius(
+            if (blurEnabled && panelOnly) requestedRadius else 0
+        )
+        val attributes = window.attributes
+        attributes.setBlurBehindRadius(
+            if (blurEnabled && !panelOnly) requestedRadius else 0
+        )
+        attributes.dimAmount = if (blurEnabled) 0.14f else 0.18f
+        window.attributes = attributes
+    }
+
+
+
+    private fun removePopup(stopIfEmpty: Boolean = true) {
+        popupTemporarilyHidden = false
+        popupEditMode = false
+        val dialog = popupDialog
+        popupDialog = null
+        popup?.let { view ->
+            if (dialog != null) {
+                if (dialog.isShowing) dialog.dismiss()
+                return@let
+            }
+            try {
+                windowManager.removeView(view)
+            } catch (error: IllegalArgumentException) {
+                Log.w(TAG, "Widget popup was already removed", error)
+            }
+        }
+        popup = null
+        popupList = null
+        if (stopIfEmpty && floatBall == null) keepFloatBallAvailable()
+    }
+
+
+
+    private fun keepFloatBallAvailable() {
+        if (AppPrefs.floatBallEnabled(this) && Settings.canDrawOverlays(this)) {
+            showFloatBall()
+        } else if (!BackgroundRecordingService.isActive) {
+            stopSelf()
+        }
+    }
+
+
+
+    private fun bringFloatBallToFront() {
+        if (!AppPrefs.floatBallEnabled(this) || floatBall == null) return
+        removeFloatBall()
+        showFloatBall()
+    }
+
+
+
+    private fun removeFloatBall() {
+        handler.removeCallbacks(idleDimRunnable)
+        floatBall?.let { view ->
+            try {
+                windowManager.removeView(view)
+            } catch (error: IllegalArgumentException) {
+                Log.w(TAG, "Floating shortcut was already removed", error)
+            }
+        }
+        floatBall = null
+        floatBallParams = null
+    }
+
+
+
+    private fun scheduleIdleDim() {
+        handler.removeCallbacks(idleDimRunnable)
+        val view = floatBall ?: return
+        view.animate().cancel()
+        view.alpha = AppPrefs.floatBallOpacity(this) / 100f
+        view.setAnimationFrozen(false)
+        if (AppPrefs.dimWhenIdle(this)) {
+            handler.postDelayed(
+                idleDimRunnable,
+                AppPrefs.idleDelaySeconds(this) * 1000L
+            )
+        }
+    }
+
+
+
+    private fun overlayWindowType() =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        }
+
     private class FloatBallIconView(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         private val iconHandler = Handler(Looper.getMainLooper())

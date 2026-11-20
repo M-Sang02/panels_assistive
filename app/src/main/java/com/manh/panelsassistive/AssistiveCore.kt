@@ -608,7 +608,7 @@ object AppPrefs {
     }
 
     fun popupBlurEnabled(context: Context) =
-        store(context).getBoolean(KEY_POPUP_BLUR, true)
+        store(context).getBoolean(KEY_POPUP_BLUR, false)
 
     fun setPopupBlurEnabled(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_POPUP_BLUR, enabled).apply()
