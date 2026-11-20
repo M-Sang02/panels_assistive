@@ -243,3 +243,34 @@
 2. Tap the centered chevron: confirm only shortcut tiles hide/show.
 3. Open the Brightness Slider action: confirm it opens a separate vertical brightness-only control and dragging changes system brightness (after granting WRITE_SETTINGS if requested).
 4. Review action icon appearance and report any specific glyphs that still look outdated.
+
+## 2026-11-20 — v28.11 XGesture icon library and panel restoration
+
+### User-requested changes
+- Replace the legacy hand-drawn action glyphs with the Lucide outline icon library used in XGesture 1.66.0's icon library.
+- Restore brightness control in the Expansion Panel.
+- Fix the standalone vertical brightness panel so the top brightness icon is not clipped.
+- Make Expansion Panel and standalone brightness panel use the shared “Nền bảng” preferences.
+
+### Changes in this source
+- Added `LucideGlyphView.kt`, a small runtime renderer that resolves icon names through `lucide_icons.tsv` and draws glyphs using the Lucide font.
+- Added the Lucide font resource and icon-name/codepoint catalog from XGesture's packaged icon library. The font/catalog are attributed in `THIRD_PARTY_NOTICES.md` under the ISC license; no XGesture application implementation files were copied.
+- Replaced `ActionGlyphView` hand-drawn paths with Lucide outline glyphs.
+- Replaced the local popup control glyph renderer with Lucide glyphs, including chevrons for shortcut collapse/expand.
+- Rebuilt the Expansion Panel's level-control section in the XGesture five-column vertical-slider arrangement: brightness, media, ringtone, notifications, and alarm. Each column has a Lucide icon, a vertical draggable track, and a compact label.
+- Added `sharedPanelBackground()` and applied the shared background color, opacity, corner radius, and border to both the Expansion Panel and standalone brightness panel. Existing popup blur preferences continue to be applied by the shared overlay-window path.
+- Increased the standalone brightness panel's available height and adjusted its top padding/icon size so the brightness icon and slider fit without clipping.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/ActionGlyphView.kt`
+- `app/src/main/java/com/manh/panelsassistive/LucideGlyphView.kt` (new)
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/res/font/lucide.ttf` (new)
+- `app/src/main/assets/lucide_icons.tsv` (new)
+- `THIRD_PARTY_NOTICES.md`
+
+### Verification and remaining work
+- Verified every icon name referenced by `ActionGlyphView` and the popup icon mapping exists in the bundled Lucide catalog.
+- Source ZIP integrity is checked after packaging.
+- Gradle compilation and on-device visual/interaction tests are not verified in this environment. Run GitHub Actions `assembleDebug` and test both panels on-device.
+- The Expansion Panel now uses the five-column vertical slider layout based on XGesture's `ExpandPanelSlidersSection` structure. This is a UI reimplementation in the existing Android View project, not a direct copy of XGesture's Compose application code.

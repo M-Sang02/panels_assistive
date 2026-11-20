@@ -957,21 +957,35 @@ class FloatBallService : Service() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(12))
-            background = GradientDrawable().apply {
-                val base = AppPrefs.sharedPanelColor(this@FloatBallService)
-                val alpha = AppPrefs.sharedPanelOpacity(this@FloatBallService) * 255 / 100
-                setColor(Color.argb(alpha, Color.red(base), Color.green(base), Color.blue(base)))
-                cornerRadius = dp(AppPrefs.sharedPanelCorner(this@FloatBallService)).toFloat()
-                setStroke(dp(1), Color.argb(65, 225, 238, 250))
-            }
+            background = sharedPanelBackground()
         }
 
         // Brightness is intentionally a separate floating control, not part of this panel.
-        val volumeRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_MUSIC, PopupIcon.MEDIA)
-        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_RING, PopupIcon.RING)
-        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_NOTIFICATION, PopupIcon.NOTIFICATION)
-        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_ALARM, PopupIcon.ALARM)
+        // XGesture-style five-column vertical level controls: brightness + four audio streams.
+        val volumeRows = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(6))
+        }
+        val audio = getSystemService(android.media.AudioManager::class.java)
+        val brightnessValue = try {
+            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
+        } catch (_: Exception) { 128 }
+        addVerticalLevelSlider(volumeRows, PopupIcon.BRIGHTNESS, "Sáng", 255, brightnessValue) { updateBrightness(it) }
+        if (audio != null) {
+            listOf(
+                Triple(android.media.AudioManager.STREAM_MUSIC, PopupIcon.MEDIA, "Media"),
+                Triple(android.media.AudioManager.STREAM_RING, PopupIcon.RING, "Chuông"),
+                Triple(android.media.AudioManager.STREAM_NOTIFICATION, PopupIcon.NOTIFICATION, "Thông báo"),
+                Triple(android.media.AudioManager.STREAM_ALARM, PopupIcon.ALARM, "Báo thức")
+            ).forEach { (stream, icon, label) ->
+                val maximum = audio.getStreamMaxVolume(stream).coerceAtLeast(1)
+                val current = audio.getStreamVolume(stream).coerceIn(0, maximum)
+                addVerticalLevelSlider(volumeRows, icon, label, maximum, current) {
+                    scheduleStreamVolume(audio, stream, it)
+                }
+            }
+        }
         panel.addView(volumeRows)
 
         val shortcutRow = LinearLayout(this).apply {
@@ -1058,19 +1072,15 @@ class FloatBallService : Service() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(12), dp(14), dp(12), dp(14))
-            background = GradientDrawable().apply {
-                setColor(Color.argb(242, 27, 43, 62))
-                cornerRadius = dp(28).toFloat()
-                setStroke(dp(1), Color.argb(70, 225, 238, 250))
-            }
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = sharedPanelBackground()
             addView(PopupIconView(this@FloatBallService, PopupIcon.BRIGHTNESS).apply {
                 setIconColor(Color.WHITE)
-            }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { bottomMargin = dp(12) })
+            }, LinearLayout.LayoutParams(dp(28), dp(28)).apply { bottomMargin = dp(8) })
             addView(VerticalBrightnessTrackView(this@FloatBallService, 255, current) { updateBrightness(it) },
                 LinearLayout.LayoutParams(dp(48), dp(220)))
         }
-        showOverlayPanel(panel, dp(76), dp(292))
+        showOverlayPanel(panel, dp(84), dp(300))
     }
 
     private inner class VerticalBrightnessTrackView(
@@ -1114,6 +1124,47 @@ class FloatBallService : Service() {
             val next = (((bottom - y) / (bottom - top)).coerceIn(0f, 1f) * maximum).toInt()
             if (next != value) { value = next; invalidate(); onValueChanged(value) }
         }
+    }
+
+    private fun addVerticalLevelSlider(
+        parent: LinearLayout,
+        icon: PopupIcon,
+        label: String,
+        maximum: Int,
+        progress: Int,
+        onChanged: (Int) -> Unit
+    ) {
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(2), 0, dp(2), 0)
+            addView(PopupIconView(this@FloatBallService, icon).apply {
+                setIconColor(Color.WHITE)
+                contentDescription = label
+            }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { bottomMargin = dp(7) })
+            addView(VerticalBrightnessTrackView(this@FloatBallService, maximum.coerceAtLeast(1), progress) {
+                onChanged(it)
+            }, LinearLayout.LayoutParams(dp(42), dp(142)))
+            addView(TextView(this@FloatBallService).apply {
+                text = label
+                textSize = 10f
+                setTextColor(Color.argb(220, 245, 248, 252))
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(20)).apply {
+                topMargin = dp(5)
+            })
+        }
+        parent.addView(column, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+    }
+
+    private fun sharedPanelBackground() = GradientDrawable().apply {
+        val base = AppPrefs.sharedPanelColor(this@FloatBallService)
+        val alpha = AppPrefs.sharedPanelOpacity(this@FloatBallService).coerceIn(0, 100) * 255 / 100
+        setColor(Color.argb(alpha, Color.red(base), Color.green(base), Color.blue(base)))
+        cornerRadius = dp(AppPrefs.sharedPanelCorner(this@FloatBallService)).toFloat()
+        setStroke(dp(1), Color.argb(65, 225, 238, 250))
     }
 
     private fun addVolumeSliderRow(parent: LinearLayout, stream: Int, icon: PopupIcon) {
@@ -2506,151 +2557,26 @@ class FloatBallService : Service() {
         private class PopupIconView(
             context: Context,
             private val icon: PopupIcon
-        ) : View(context) {
-            private var chevronExpanded = true
-            private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-                strokeWidth = 1.7f
-            }
-
-            fun setIconColor(color: Int) {
-                paint.color = color
-                invalidate()
-            }
-
+        ) : LucideGlyphView(context, iconName(icon), Color.WHITE) {
             fun setIcon(expanded: Boolean) {
-                // A minimal chevron communicates the shortcut area's current state.
-                chevronExpanded = expanded
-                invalidate()
+                setIconName(if (expanded) "chevron-up" else "chevron-down")
             }
-
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val size = minOf(width, height).toFloat()
-                if (size <= 0f) return
-                canvas.save()
-                canvas.translate((width - size) / 2f, (height - size) / 2f)
-                canvas.scale(size / 24f, size / 24f)
-                when (icon) {
-                    PopupIcon.WIDGETS -> {
-                        canvas.drawRoundRect(4f, 4f, 20f, 9f, 1.5f, 1.5f, paint)
-                        canvas.drawRoundRect(4f, 11f, 20f, 16f, 1.5f, 1.5f, paint)
-                        canvas.drawRoundRect(4f, 18f, 20f, 20f, 1f, 1f, paint)
-                    }
-                    PopupIcon.APPS -> {
-                        canvas.drawRoundRect(4f, 4f, 10f, 10f, 1.5f, 1.5f, paint)
-                        canvas.drawRoundRect(14f, 4f, 20f, 10f, 1.5f, 1.5f, paint)
-                        canvas.drawRoundRect(4f, 14f, 10f, 20f, 1.5f, 1.5f, paint)
-                        canvas.drawRoundRect(14f, 14f, 20f, 20f, 1.5f, 1.5f, paint)
-                    }
-                    PopupIcon.SHORTCUTS -> {
-                        val path = android.graphics.Path().apply {
-                            moveTo(6f, 18f)
-                            lineTo(6f, 10f)
-                            quadTo(6f, 6f, 10f, 6f)
-                            lineTo(18f, 6f)
-                            moveTo(14f, 3f)
-                            lineTo(18f, 6f)
-                            lineTo(14f, 9f)
-                        }
-                        canvas.drawPath(path, paint)
-                        canvas.drawCircle(6f, 18f, 2f, paint)
-                    }
-                    PopupIcon.ADD -> {
-                        canvas.drawLine(12f, 5f, 12f, 19f, paint)
-                        canvas.drawLine(5f, 12f, 19f, 12f, paint)
-                    }
-                    PopupIcon.CLOSE -> {
-                        canvas.drawLine(6f, 6f, 18f, 18f, paint)
-                        canvas.drawLine(18f, 6f, 6f, 18f, paint)
-                    }
-                    PopupIcon.BRIGHTNESS -> {
-                        canvas.drawCircle(12f, 12f, 4f, paint)
-                        for (index in 0 until 8) {
-                            val angle = Math.PI * index / 4
-                            val inner = 7f
-                            val outer = 10f
-                            canvas.drawLine(
-                                12f + (kotlin.math.cos(angle) * inner).toFloat(),
-                                12f + (kotlin.math.sin(angle) * inner).toFloat(),
-                                12f + (kotlin.math.cos(angle) * outer).toFloat(),
-                                12f + (kotlin.math.sin(angle) * outer).toFloat(),
-                                paint
-                            )
-                        }
-                    }
-                    PopupIcon.ALARM -> {
-                        canvas.drawCircle(12f, 13f, 7f, paint)
-                        canvas.drawLine(12f, 13f, 12f, 9f, paint)
-                        canvas.drawLine(12f, 13f, 16f, 15f, paint)
-                        canvas.drawLine(6f, 5f, 9f, 8f, paint)
-                        canvas.drawLine(18f, 5f, 15f, 8f, paint)
-                    }
-                    PopupIcon.NOTIFICATION -> {
-                        canvas.drawArc(6f, 5f, 18f, 19f, 180f, 180f, false, paint)
-                        canvas.drawLine(6f, 12f, 6f, 17f, paint)
-                        canvas.drawLine(18f, 12f, 18f, 17f, paint)
-                        canvas.drawLine(4f, 17f, 20f, 17f, paint)
-                        canvas.drawCircle(12f, 20f, 1f, paint)
-                    }
-                    PopupIcon.RING -> {
-                        val path = android.graphics.Path().apply {
-                            moveTo(7f, 4f)
-                            lineTo(10f, 3f)
-                            lineTo(13f, 8f)
-                            lineTo(11f, 10f)
-                            quadTo(13f, 14f, 17f, 16f)
-                            lineTo(19f, 14f)
-                            lineTo(22f, 17f)
-                            lineTo(21f, 20f)
-                            quadTo(20f, 22f, 17f, 21f)
-                            quadTo(7f, 17f, 4f, 7f)
-                            quadTo(3f, 5f, 7f, 4f)
-                            close()
-                        }
-                        canvas.drawPath(path, paint)
-                    }
-                    PopupIcon.MEDIA -> {
-                        val path = android.graphics.Path().apply {
-                            moveTo(8f, 5f)
-                            lineTo(19f, 12f)
-                            lineTo(8f, 19f)
-                            close()
-                        }
-                        canvas.drawPath(path, paint)
-                    }
-                    PopupIcon.CHEVRON_UP -> {
-                        if (chevronExpanded) {
-                            canvas.drawLine(6f, 15f, 12f, 9f, paint)
-                            canvas.drawLine(12f, 9f, 18f, 15f, paint)
-                        } else {
-                            canvas.drawLine(6f, 9f, 12f, 15f, paint)
-                            canvas.drawLine(12f, 15f, 18f, 9f, paint)
-                        }
-                    }
-                    PopupIcon.RESIZE -> {
-                        canvas.drawLine(7f, 17f, 17f, 7f, paint)
-                        canvas.drawLine(12f, 7f, 17f, 7f, paint)
-                        canvas.drawLine(17f, 7f, 17f, 12f, paint)
-                        canvas.drawLine(7f, 17f, 7f, 12f, paint)
-                        canvas.drawLine(7f, 17f, 12f, 17f, paint)
-                    }
-                    PopupIcon.MOVE -> {
-                        canvas.drawLine(12f, 4f, 12f, 20f, paint)
-                        canvas.drawLine(4f, 12f, 20f, 12f, paint)
-                        canvas.drawLine(12f, 4f, 9f, 7f, paint)
-                        canvas.drawLine(12f, 4f, 15f, 7f, paint)
-                        canvas.drawLine(12f, 20f, 9f, 17f, paint)
-                        canvas.drawLine(12f, 20f, 15f, 17f, paint)
-                        canvas.drawLine(4f, 12f, 7f, 9f, paint)
-                        canvas.drawLine(4f, 12f, 7f, 15f, paint)
-                        canvas.drawLine(20f, 12f, 17f, 9f, paint)
-                        canvas.drawLine(20f, 12f, 17f, 15f, paint)
-                    }
+            companion object {
+                private fun iconName(icon: PopupIcon): String = when (icon) {
+                    PopupIcon.WIDGETS -> "panels-top-left"
+                    PopupIcon.APPS -> "grid-2x2"
+                    PopupIcon.SHORTCUTS -> "corner-up-right"
+                    PopupIcon.ADD -> "plus"
+                    PopupIcon.CLOSE -> "x"
+                    PopupIcon.BRIGHTNESS -> "sun"
+                    PopupIcon.ALARM -> "alarm-clock"
+                    PopupIcon.NOTIFICATION -> "bell"
+                    PopupIcon.RING -> "phone"
+                    PopupIcon.MEDIA -> "music-2"
+                    PopupIcon.RESIZE -> "expand"
+                    PopupIcon.MOVE -> "move"
+                    PopupIcon.CHEVRON_UP -> "chevron-up"
                 }
-                canvas.restore()
             }
         }
 
