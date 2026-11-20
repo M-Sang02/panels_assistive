@@ -958,14 +958,41 @@ class FloatBallService : Service() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(14))
-            background = roundedBackground(Color.argb(238, 24, 41, 61), 26)
+            background = GradientDrawable().apply {
+                val base = AppPrefs.sharedPanelColor(this@FloatBallService)
+                val alpha = AppPrefs.sharedPanelOpacity(this@FloatBallService) * 255 / 100
+                setColor(Color.argb(alpha, Color.red(base), Color.green(base), Color.blue(base)))
+                cornerRadius = dp(AppPrefs.sharedPanelCorner(this@FloatBallService)).toFloat()
+                setStroke(dp(1), Color.argb(65, 225, 238, 250))
+            }
         }
 
         addBrightnessSliderRow(panel, compact = false)
-        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_MUSIC, PopupIcon.MEDIA)
-        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_RING, PopupIcon.RING)
-        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_NOTIFICATION, PopupIcon.NOTIFICATION)
-        addVolumeSliderRow(panel, android.media.AudioManager.STREAM_ALARM, PopupIcon.ALARM)
+
+        val volumeRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_MUSIC, PopupIcon.MEDIA)
+        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_RING, PopupIcon.RING)
+        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_NOTIFICATION, PopupIcon.NOTIFICATION)
+        addVolumeSliderRow(volumeRows, android.media.AudioManager.STREAM_ALARM, PopupIcon.ALARM)
+        val volumeHeader = TextView(this).apply {
+            text = "Âm lượng / Media  ▾"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            isClickable = true
+            isFocusable = true
+        }
+        var volumeExpanded = true
+        volumeHeader.setOnClickListener {
+            volumeExpanded = !volumeExpanded
+            volumeRows.visibility = if (volumeExpanded) View.VISIBLE else View.GONE
+            volumeHeader.text = if (volumeExpanded) "Âm lượng / Media  ▾" else "Âm lượng / Media  ▸"
+        }
+        panel.addView(volumeHeader, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(36)
+        ))
+        panel.addView(volumeRows)
 
         val shortcutRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1015,7 +1042,17 @@ class FloatBallService : Service() {
             })
         }
         panel.addView(shortcutRow)
-        showOverlayPanel(panel, dp(360), dp(390))
+        // The shortcut row is part of the measured content; reserve enough room
+        // and let the panel scroll on short displays instead of clipping its bottom.
+        val scroll = android.widget.ScrollView(this).apply {
+            isFillViewport = true
+            clipToPadding = false
+            addView(panel, android.widget.ScrollView.LayoutParams(
+                android.widget.ScrollView.LayoutParams.MATCH_PARENT,
+                android.widget.ScrollView.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        showOverlayPanel(scroll, dp(360), minOf(dp(520), resources.displayMetrics.heightPixels - dp(80)))
     }
 
     private fun showBrightnessSlider() {

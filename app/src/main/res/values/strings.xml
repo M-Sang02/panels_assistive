@@ -327,4 +327,5 @@
     <string name="float_ball_slideshow_pause_screen_off_description">Stops the slideshow while the display is off.</string>
 
 <string name="gif_choose_from_gif_tab">GIF files belong in the GIF tab.</string>
+    <string name="background_panel_settings">Cài đặt Nền bảng</string>
 </resources>

@@ -98,6 +98,9 @@ object AppPrefs {
     private const val KEY_POPUP_BLUR = "popup_blur"
     private const val KEY_POPUP_BLUR_RADIUS = "popup_blur_radius"
     private const val KEY_POPUP_BLUR_SCOPE = "popup_blur_scope"
+    private const val KEY_SHARED_PANEL_COLOR = "shared_panel_color"
+    private const val KEY_SHARED_PANEL_OPACITY = "shared_panel_opacity"
+    private const val KEY_SHARED_PANEL_CORNER = "shared_panel_corner"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
     private const val KEY_FLOAT_BALL_ICON_URI = "float_ball_icon_uri"
@@ -628,6 +631,13 @@ object AppPrefs {
         require(scope == BLUR_SCOPE_SCREEN || scope == BLUR_SCOPE_PANEL)
         store(context).edit().putString(KEY_POPUP_BLUR_SCOPE, scope).apply()
     }
+
+    fun sharedPanelColor(context: Context) = store(context).getInt(KEY_SHARED_PANEL_COLOR, android.graphics.Color.rgb(24, 41, 61))
+    fun setSharedPanelColor(context: Context, color: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_COLOR, color).apply() }
+    fun sharedPanelOpacity(context: Context) = store(context).getInt(KEY_SHARED_PANEL_OPACITY, 82).coerceIn(5, 100)
+    fun setSharedPanelOpacity(context: Context, value: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_OPACITY, value.coerceIn(5, 100)).apply() }
+    fun sharedPanelCorner(context: Context) = store(context).getInt(KEY_SHARED_PANEL_CORNER, 26).coerceIn(0, 48)
+    fun setSharedPanelCorner(context: Context, value: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_CORNER, value.coerceIn(0, 48)).apply() }
 
     fun showPanelLabels(context: Context) =
         store(context).getBoolean(KEY_PANEL_LABELS, false)

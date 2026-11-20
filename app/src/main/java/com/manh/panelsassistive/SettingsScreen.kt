@@ -166,6 +166,16 @@ class SettingsScreen(private val activity: Activity) {
         })
 
         content.addView(card().apply {
+            addView(label("Nền bảng", 18, primaryText, true))
+            addView(label("Tùy chỉnh màu nền, độ trong suốt, làm mờ và bo góc cho các bảng dùng chung.", 14, secondaryText).apply {
+                setPadding(0, dp(6), 0, dp(12))
+            })
+            addView(actionButton(R.string.background_panel_settings) {
+                activity.startActivity(Intent(activity, BackgroundSettingsActivity::class.java))
+            })
+        })
+
+        content.addView(card().apply {
             addView(label(activity.getString(R.string.widget_popup_title), 18, primaryText, true))
             addView(label(activity.getString(R.string.widget_popup_description), 14, secondaryText).apply {
                 setPadding(0, dp(6), 0, dp(12))

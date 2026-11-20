@@ -177,3 +177,27 @@
 2. Replace panel-only blur with an API 31+ view-background blur drawable, retaining a safe static-background fallback.
 3. Add Float Ball reveal/return animation and center snap behavior.
 4. Reorganize settings into dedicated subpages and finish spacing/slider layout refinements.
+
+
+## 2026-11-20 — v28.8 follow-up: expansion layout and shared panel background entry
+
+### User-reported issues addressed in source
+- Added an explicit collapsible “Âm lượng / Media” section in the Expansion Panel. Its four volume streams can be hidden/shown independently of the brightness row.
+- Wrapped the Expansion Panel content in a ScrollView and increased its available height cap so the shortcut row is reachable rather than being clipped by a fixed 390dp dialog height on shorter screens.
+- Added a dedicated “Nền bảng” entry to the main Settings screen and a separate BackgroundSettingsActivity.
+- Added shared preferences for panel base color, opacity, and corner radius; the Expansion Panel now reads these shared values. Blur enabled/scope/radius use the existing popup preferences and are editable from the new page.
+
+### Files changed
+- app/src/main/java/com/manh/panelsassistive/FloatBallService.kt
+- app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt
+- app/src/main/java/com/manh/panelsassistive/SettingsScreen.kt
+- app/src/main/java/com/manh/panelsassistive/BackgroundSettingsActivity.kt (new)
+- app/src/main/AndroidManifest.xml
+- app/src/main/res/values/strings.xml
+
+### Known incomplete items / verification
+- The utility-panel per-field inheritance/override model is not implemented yet.
+- The panel-only blur path still uses Window.setBackgroundBlurRadius and has not yet been replaced with a view-attached BackgroundBlurDrawable; do not claim panel-only blur is fixed.
+- The shared color/opacity/corner values are currently applied to the Expansion Panel; other popup surfaces still need migration to the shared defaults.
+- The collapse control currently collapses the four volume streams; the shortcut row remains visible.
+- Static source review and ZIP integrity checks are required. Gradle compilation/device testing are not verified in this environment.
