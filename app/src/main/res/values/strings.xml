@@ -28,6 +28,13 @@
     <string name="recording_control_labels_description">Show Pause/Stop text beside the compact recording controls.</string>
     <string name="recording_drag_controls">Move recording controls</string>
     <string name="choose_float_ball_icon">Choose image or GIF</string>
+    <string name="crop_float_ball_icon">Crop &amp; position image/GIF</string>
+    <string name="crop_static_title">Crop floating image</string>
+    <string name="crop_gif_title">Crop floating GIF</string>
+    <string name="crop_icon_hint">The frame is always 1:1. Drag to position, zoom and round the corners. GIFs keep their original source and crop metadata to avoid re-encoding.</string>
+    <string name="crop_zoom_value">Image scale: %.2fx</string>
+    <string name="crop_corner_value">Corner: %1$d%%</string>
+    <string name="crop_save">Save</string>
     <string name="reset_float_ball_icon">Use default icon</string>
     <string name="snap_to_edge">Snap to nearest edge</string>
     <string name="snap_to_edge_description">Dock the ball to the closest screen edge after dragging.</string>

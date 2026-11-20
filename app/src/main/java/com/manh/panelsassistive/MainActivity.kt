@@ -82,6 +82,16 @@ class MainActivity : Activity() {
         )
     }
 
+    fun openFloatBallIconCrop(mode: AppPrefs.FloatBallIconMode) {
+        val uri = if (mode == AppPrefs.FloatBallIconMode.GIF) AppPrefs.floatBallGifUri(this)
+        else AppPrefs.floatBallStaticUris(this).firstOrNull()
+        if (uri.isNullOrBlank()) return
+        startActivityForResult(Intent(this, FloatBallIconCropActivity::class.java).apply {
+            putExtra(FloatBallIconCropActivity.EXTRA_MODE, if (mode == AppPrefs.FloatBallIconMode.GIF) "gif" else "static")
+            putExtra(FloatBallIconCropActivity.EXTRA_URI, uri)
+        }, REQUEST_FLOAT_ICON_CROP)
+    }
+
     fun openFloatBallGifPicker() {
         startActivityForResult(
             Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -240,6 +250,10 @@ class MainActivity : Activity() {
                 if (requestCode == REQUEST_FLOAT_ICON_GIF) {
                     AppPrefs.setFloatBallGifUri(this, uris.first().toString())
                     AppPrefs.setFloatBallGifPlayEnabled(this, false)
+                    startActivityForResult(Intent(this, FloatBallIconCropActivity::class.java).apply {
+                        putExtra(FloatBallIconCropActivity.EXTRA_MODE, "gif")
+                        putExtra(FloatBallIconCropActivity.EXTRA_URI, uris.first().toString())
+                    }, REQUEST_FLOAT_ICON_CROP)
                 } else {
                     val staticUris = uris.filterNot { uri ->
                         contentResolver.getType(uri)?.equals("image/gif", ignoreCase = true) == true ||
@@ -251,6 +265,10 @@ class MainActivity : Activity() {
                     }
                     AppPrefs.setFloatBallStaticUris(this, staticUris.map(Uri::toString))
                     AppPrefs.setFloatBallSlideshowEnabled(this, false)
+                    startActivityForResult(Intent(this, FloatBallIconCropActivity::class.java).apply {
+                        putExtra(FloatBallIconCropActivity.EXTRA_MODE, "static")
+                        putExtra(FloatBallIconCropActivity.EXTRA_URI, staticUris.first().toString())
+                    }, REQUEST_FLOAT_ICON_CROP)
                 }
                 updateFloatBall()
             } catch (error: SecurityException) {
@@ -416,6 +434,7 @@ class MainActivity : Activity() {
         private const val REQUEST_CAMERA = 41
         private const val REQUEST_FLOAT_ICON_STATIC = 42
         private const val REQUEST_FLOAT_ICON_GIF = 43
+        private const val REQUEST_FLOAT_ICON_CROP = 44
         private const val REQUEST_ASSISTANT_ROLE = 43
         private const val REQUEST_RECORDING_PERMISSION = 44
         private const val REQUEST_EXPORT_SETTINGS = 45

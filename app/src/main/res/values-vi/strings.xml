@@ -28,6 +28,13 @@
     <string name="recording_control_labels_description">Hiện chữ Tạm dừng/Dừng cạnh các nút ghi âm nhỏ gọn.</string>
     <string name="recording_drag_controls">Di chuyển nút điều khiển ghi âm</string>
     <string name="choose_float_ball_icon">Chọn ảnh hoặc GIF</string>
+    <string name="crop_float_ball_icon">Cắt &amp; căn chỉnh ảnh/GIF</string>
+    <string name="crop_static_title">Cắt ảnh bóng nổi</string>
+    <string name="crop_gif_title">Cắt GIF bóng nổi</string>
+    <string name="crop_icon_hint">Khung luôn 1:1. Kéo để đổi vị trí, phóng to/thu nhỏ và bo tròn theo ý muốn. GIF được lưu dưới dạng nguồn + thông số cắt để không phải giải mã lại toàn bộ file.</string>
+    <string name="crop_zoom_value">Tỉ lệ ảnh: %.2fx</string>
+    <string name="crop_corner_value">Độ bo: %1$d%%</string>
+    <string name="crop_save">Lưu</string>
     <string name="reset_float_ball_icon">Dùng biểu tượng mặc định</string>
     <string name="snap_to_edge">Tự ghim vào cạnh gần nhất</string>
     <string name="snap_to_edge_description">Sau khi kéo, bóng nổi sẽ ghim vào cạnh màn hình gần nhất.</string>

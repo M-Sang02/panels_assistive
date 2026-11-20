@@ -59,6 +59,15 @@ class SettingsScreen(private val activity: Activity) {
             addView(actionButton(R.string.float_ball_gif_image) {
                 (activity as? MainActivity)?.openFloatBallGifPicker()
             })
+            val cropButton = actionButton(R.string.crop_float_ball_icon) {
+                val mode = AppPrefs.floatBallIconMode(activity)
+                (activity as? MainActivity)?.openFloatBallIconCrop(mode)
+            }
+            cropButton.visibility = if (
+                (AppPrefs.floatBallIconMode(activity) == AppPrefs.FloatBallIconMode.GIF && AppPrefs.floatBallGifUri(activity) != null) ||
+                (AppPrefs.floatBallIconMode(activity) == AppPrefs.FloatBallIconMode.STATIC && AppPrefs.floatBallStaticUris(activity).isNotEmpty())
+            ) View.VISIBLE else View.GONE
+            addView(cropButton)
             addView(label(activity.getString(R.string.float_ball_gif_hint), 12, mutedText).apply {
                 setPadding(0, dp(4), 0, dp(4))
             })
@@ -136,14 +145,6 @@ class SettingsScreen(private val activity: Activity) {
                 hapticOptions.visibility = if (enabled) View.VISIBLE else View.GONE
             })
             addView(hapticOptions)
-            addView(switchRow(
-                R.string.recording_control_labels,
-                R.string.recording_control_labels_description,
-                AppPrefs.recordingControlLabels(activity)
-            ) {
-                AppPrefs.setRecordingControlLabels(activity, it)
-                BackgroundRecordingService.refreshControls(activity)
-            })
             addView(switchRow(
                 R.string.snap_to_edge,
                 R.string.snap_to_edge_description,
@@ -235,6 +236,14 @@ class SettingsScreen(private val activity: Activity) {
             }
             addView(phoneSource)
             addView(externalSource)
+            addView(switchRow(
+                R.string.recording_control_labels,
+                R.string.recording_control_labels_description,
+                AppPrefs.recordingControlLabels(activity)
+            ) {
+                AppPrefs.setRecordingControlLabels(activity, it)
+                BackgroundRecordingService.refreshControls(activity)
+            })
         })
 
         content.addView(sectionTitle(R.string.gestures_section))

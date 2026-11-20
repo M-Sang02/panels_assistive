@@ -1124,6 +1124,10 @@ class FloatBallService : Service() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         private val iconHandler = Handler(Looper.getMainLooper())
         private var sourceMode = AppPrefs.FloatBallIconMode.STATIC
+        private var cropScale = 1f
+        private var cropOffsetX = 0f
+        private var cropOffsetY = 0f
+        private var cropCorner = 70
         private var sourceUris: List<String> = emptyList()
         private var currentIndex = 0
         private var bitmap: Bitmap? = null
@@ -1177,6 +1181,12 @@ class FloatBallService : Service() {
         fun setIconSources(context: Context) {
             stopAllPlayback()
             sourceMode = AppPrefs.floatBallIconMode(context)
+            val crop = AppPrefs.floatBallCrop(context, sourceMode)
+            cropScale = crop.scale
+            cropOffsetX = crop.x
+            cropOffsetY = crop.y
+            cropCorner = crop.corner
+            setCornerPercent(cropCorner)
             sourceUris = when (sourceMode) {
                 AppPrefs.FloatBallIconMode.GIF -> listOfNotNull(AppPrefs.floatBallGifUri(context))
                 AppPrefs.FloatBallIconMode.STATIC -> AppPrefs.floatBallStaticUris(context)
@@ -1447,8 +1457,18 @@ class FloatBallService : Service() {
 
             val drawable = animatedDrawable
             if (drawable != null && playing) {
-                drawable.setBounds(0, 0, width, height)
+                val iw = drawable.intrinsicWidth.coerceAtLeast(1)
+                val ih = drawable.intrinsicHeight.coerceAtLeast(1)
+                val scale = maxOf(width.toFloat() / iw, height.toFloat() / ih) * cropScale
+                val dw = iw * scale
+                val dh = ih * scale
+                val cx = width / 2f + cropOffsetX * width / 2f
+                val cy = height / 2f + cropOffsetY * height / 2f
+                canvas.save()
+                canvas.translate(cx - dw / 2f, cy - dh / 2f)
+                drawable.setBounds(0, 0, dw.toInt().coerceAtLeast(1), dh.toInt().coerceAtLeast(1))
                 drawable.draw(canvas)
+                canvas.restore()
                 canvas.restoreToCount(saveCount)
                 return
             }
@@ -1459,14 +1479,16 @@ class FloatBallService : Service() {
                 val position =
                     ((SystemClock.uptimeMillis() - animationStart) % duration).toInt()
                 movie.setTime(position)
-                val scale = minOf(
+                val scale = maxOf(
                     width.toFloat() / movie.width().coerceAtLeast(1),
                     height.toFloat() / movie.height().coerceAtLeast(1)
-                )
+                ) * cropScale
                 val drawWidth = movie.width() * scale
                 val drawHeight = movie.height() * scale
+                val cx = width / 2f + cropOffsetX * width / 2f
+                val cy = height / 2f + cropOffsetY * height / 2f
                 canvas.save()
-                canvas.translate((width - drawWidth) / 2f, (height - drawHeight) / 2f)
+                canvas.translate(cx - drawWidth / 2f, cy - drawHeight / 2f)
                 canvas.scale(scale, scale)
                 movie.draw(canvas, 0f, 0f, paint)
                 canvas.restore()
@@ -1475,20 +1497,20 @@ class FloatBallService : Service() {
             }
 
             bitmap?.let { image ->
-                val scale = minOf(
+                val scale = maxOf(
                     width.toFloat() / image.width.coerceAtLeast(1),
                     height.toFloat() / image.height.coerceAtLeast(1)
-                )
+                ) * cropScale
                 val drawWidth = image.width * scale
                 val drawHeight = image.height * scale
+                val cx = width / 2f + cropOffsetX * width / 2f
+                val cy = height / 2f + cropOffsetY * height / 2f
                 canvas.drawBitmap(
                     image,
                     null,
                     RectF(
-                        (width - drawWidth) / 2f,
-                        (height - drawHeight) / 2f,
-                        (width + drawWidth) / 2f,
-                        (height + drawHeight) / 2f
+                        cx - drawWidth / 2f, cy - drawHeight / 2f,
+                        cx + drawWidth / 2f, cy + drawHeight / 2f
                     ),
                     paint
                 )

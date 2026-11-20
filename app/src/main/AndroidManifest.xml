@@ -52,6 +52,9 @@
             android:name=".WidgetPickerActivity"
             android:exported="false" />
         <activity
+            android:name=".FloatBallIconCropActivity"
+            android:exported="false" />
+        <activity
             android:name=".WidgetPanelSettingsActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false" />

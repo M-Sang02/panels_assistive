@@ -110,6 +110,14 @@ object AppPrefs {
     private const val KEY_FLOAT_BALL_SLIDESHOW = "float_ball_slideshow"
     private const val KEY_FLOAT_BALL_SLIDESHOW_INTERVAL = "float_ball_slideshow_interval"
     private const val KEY_FLOAT_BALL_SLIDESHOW_PAUSE_SCREEN_OFF = "float_ball_slideshow_pause_screen_off"
+    private const val KEY_FLOAT_BALL_CROP_STATIC_SCALE = "float_ball_crop_static_scale"
+    private const val KEY_FLOAT_BALL_CROP_STATIC_X = "float_ball_crop_static_x"
+    private const val KEY_FLOAT_BALL_CROP_STATIC_Y = "float_ball_crop_static_y"
+    private const val KEY_FLOAT_BALL_CROP_STATIC_CORNER = "float_ball_crop_static_corner"
+    private const val KEY_FLOAT_BALL_CROP_GIF_SCALE = "float_ball_crop_gif_scale"
+    private const val KEY_FLOAT_BALL_CROP_GIF_X = "float_ball_crop_gif_x"
+    private const val KEY_FLOAT_BALL_CROP_GIF_Y = "float_ball_crop_gif_y"
+    private const val KEY_FLOAT_BALL_CROP_GIF_CORNER = "float_ball_crop_gif_corner"
     private const val KEY_FLOAT_BALL_OPACITY = "float_ball_opacity"
     private const val KEY_FLOAT_BALL_CORNER = "float_ball_corner"
     private const val KEY_FLOAT_BALL_EDGE_HIDE_ENABLED = "float_ball_edge_hide_enabled"
@@ -695,11 +703,42 @@ object AppPrefs {
             .apply()
     }
 
+    data class FloatBallCrop(val scale: Float, val x: Float, val y: Float, val corner: Int)
+
+    fun floatBallCrop(context: Context, mode: FloatBallIconMode): FloatBallCrop {
+        val p = store(context)
+        val gif = mode == FloatBallIconMode.GIF
+        return FloatBallCrop(
+            p.getFloat(if (gif) KEY_FLOAT_BALL_CROP_GIF_SCALE else KEY_FLOAT_BALL_CROP_STATIC_SCALE, 1f).coerceIn(1f, 4f),
+            p.getFloat(if (gif) KEY_FLOAT_BALL_CROP_GIF_X else KEY_FLOAT_BALL_CROP_STATIC_X, 0f).coerceIn(-1.5f, 1.5f),
+            p.getFloat(if (gif) KEY_FLOAT_BALL_CROP_GIF_Y else KEY_FLOAT_BALL_CROP_STATIC_Y, 0f).coerceIn(-1.5f, 1.5f),
+            p.getInt(if (gif) KEY_FLOAT_BALL_CROP_GIF_CORNER else KEY_FLOAT_BALL_CROP_STATIC_CORNER, 70).coerceIn(0, 100)
+        )
+    }
+
+    fun setFloatBallCrop(context: Context, mode: FloatBallIconMode, scale: Float, x: Float, y: Float, corner: Int) {
+        val gif = mode == FloatBallIconMode.GIF
+        store(context).edit()
+            .putFloat(if (gif) KEY_FLOAT_BALL_CROP_GIF_SCALE else KEY_FLOAT_BALL_CROP_STATIC_SCALE, scale.coerceIn(1f, 4f))
+            .putFloat(if (gif) KEY_FLOAT_BALL_CROP_GIF_X else KEY_FLOAT_BALL_CROP_STATIC_X, x.coerceIn(-1.5f, 1.5f))
+            .putFloat(if (gif) KEY_FLOAT_BALL_CROP_GIF_Y else KEY_FLOAT_BALL_CROP_STATIC_Y, y.coerceIn(-1.5f, 1.5f))
+            .putInt(if (gif) KEY_FLOAT_BALL_CROP_GIF_CORNER else KEY_FLOAT_BALL_CROP_STATIC_CORNER, corner.coerceIn(0, 100))
+            .apply()
+    }
+
     fun clearFloatBallIcon(context: Context) {
         store(context).edit()
             .remove(KEY_FLOAT_BALL_ICON_URI)
             .remove(KEY_FLOAT_BALL_STATIC_URIS)
             .remove(KEY_FLOAT_BALL_GIF_URI)
+            .remove(KEY_FLOAT_BALL_CROP_STATIC_SCALE)
+            .remove(KEY_FLOAT_BALL_CROP_STATIC_X)
+            .remove(KEY_FLOAT_BALL_CROP_STATIC_Y)
+            .remove(KEY_FLOAT_BALL_CROP_STATIC_CORNER)
+            .remove(KEY_FLOAT_BALL_CROP_GIF_SCALE)
+            .remove(KEY_FLOAT_BALL_CROP_GIF_X)
+            .remove(KEY_FLOAT_BALL_CROP_GIF_Y)
+            .remove(KEY_FLOAT_BALL_CROP_GIF_CORNER)
             .putString(KEY_FLOAT_BALL_ICON_MODE, "static")
             .putBoolean(KEY_FLOAT_BALL_GIF_PLAY, false)
             .putBoolean(KEY_FLOAT_BALL_SLIDESHOW, false)
