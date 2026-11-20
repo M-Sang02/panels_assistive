@@ -26,11 +26,11 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -50,9 +50,9 @@ class BackgroundRecordingService : Service() {
     private var outputDescriptor: ParcelFileDescriptor? = null
     private var windowManager: WindowManager? = null
     private var controlBar: LinearLayout? = null
-    private var pauseButton: ImageButton? = null
+    private var pauseButton: LucideGlyphView? = null
     private var pauseLabel: TextView? = null
-    private var controlDragHandle: TextView? = null
+    private var controlDragHandle: View? = null
     private var paused = false
     private var isFinalizing = false
     private var foregroundStarted = false
@@ -368,39 +368,37 @@ class BackgroundRecordingService : Service() {
             gravity = Gravity.CENTER
             setPadding(dp(6), dp(8), dp(6), dp(8))
             background = GradientDrawable().apply {
-                setColor(Color.argb(238, 15, 35, 57))
-                cornerRadius = dp(20).toFloat()
-                setStroke(dp(1), Color.argb(150, 103, 184, 255))
+                setColor(Color.argb(240, 10, 22, 38))
+                cornerRadius = dp(22).toFloat()
+                setStroke(dp(1), Color.argb(150, 124, 190, 255))
             }
         }
-        controlDragHandle = TextView(this).apply {
-            text = "⋮⋮"
-            textSize = 14f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(166, 173, 185))
+        controlDragHandle = android.widget.FrameLayout(this).apply {
             contentDescription = getString(R.string.recording_drag_controls)
-        }.also { bar.addView(it, LinearLayout.LayoutParams(dp(48), dp(20))) }
+            addView(
+                LucideGlyphView(this@BackgroundRecordingService, "grip-vertical", GlassUi.TEXT_SECONDARY),
+                android.widget.FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER)
+            )
+        }.also {
+            bar.addView(it, LinearLayout.LayoutParams(dp(44), dp(24)))
+        }
         val pauseCell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
-        pauseButton = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_media_pause)
-            setColorFilter(Color.WHITE)
-            contentDescription = getString(R.string.recording_pause)
-            background = controlButtonBackground()
-            setOnClickListener {
-                ActionDispatcher.performHapticFeedback(this@BackgroundRecordingService)
-                togglePause()
-            }
-        }
-        pauseCell.addView(pauseButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val pauseGlyph = LucideGlyphView(this, "pause", Color.WHITE)
+        pauseButton = pauseGlyph
+        pauseCell.addView(controlButton(pauseGlyph, getString(R.string.recording_pause)) {
+            ActionDispatcher.performHapticFeedback(this@BackgroundRecordingService)
+            togglePause()
+        }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { topMargin = dp(4) })
         pauseLabel = if (labelsVisible) {
             TextView(this).apply {
                 text = getString(R.string.recording_pause)
                 textSize = 11f
-                setTextColor(Color.WHITE)
+                setTextColor(GlassUi.TEXT_SECONDARY)
                 gravity = Gravity.CENTER
+                setPadding(0, dp(2), 0, 0)
             }.also { pauseCell.addView(it) }
         } else {
             null
@@ -411,22 +409,20 @@ class BackgroundRecordingService : Service() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
-        stopCell.addView(ImageButton(this).apply {
-            setImageResource(R.drawable.ic_media_stop)
-            setColorFilter(Color.WHITE)
-            contentDescription = getString(R.string.recording_stop)
-            background = controlButtonBackground()
-            setOnClickListener {
-                ActionDispatcher.performHapticFeedback(this@BackgroundRecordingService)
-                stopRecording()
-            }
-        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        stopCell.addView(controlButton(
+            LucideGlyphView(this@BackgroundRecordingService, "square", STOP_COLOR),
+            getString(R.string.recording_stop)
+        ) {
+            ActionDispatcher.performHapticFeedback(this@BackgroundRecordingService)
+            stopRecording()
+        }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { topMargin = dp(4) })
         if (labelsVisible) {
             stopCell.addView(TextView(this).apply {
                 text = getString(R.string.recording_stop)
                 textSize = 11f
-                setTextColor(Color.WHITE)
+                setTextColor(GlassUi.TEXT_SECONDARY)
                 gravity = Gravity.CENTER
+                setPadding(0, dp(2), 0, 0)
             })
         }
         bar.addView(stopCell)
@@ -499,11 +495,9 @@ class BackgroundRecordingService : Service() {
     }
 
     private fun updatePauseButton() {
-        pauseButton?.setImageResource(
-            if (paused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
-        )
+        pauseButton?.setIconName(if (paused) "play" else "pause")
         val label = getString(if (paused) R.string.recording_resume else R.string.recording_pause)
-        pauseButton?.contentDescription = label
+        (pauseButton?.parent as? View)?.contentDescription = label
         pauseLabel?.text = label
     }
 
@@ -521,9 +515,20 @@ class BackgroundRecordingService : Service() {
         controlDragHandle = null
     }
 
-    private fun controlButtonBackground() = GradientDrawable().apply {
-        setColor(Color.argb(54, 255, 255, 255))
-        cornerRadius = dp(14).toFloat()
+    private fun controlButton(
+        glyph: LucideGlyphView,
+        description: String,
+        onClick: () -> Unit
+    ): android.widget.FrameLayout = android.widget.FrameLayout(this).apply {
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.argb(30, 224, 236, 255))
+        }
+        contentDescription = description
+        isClickable = true
+        isFocusable = true
+        addView(glyph, android.widget.FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
+        setOnClickListener { onClick() }
     }
 
     private fun updateNotification() {
@@ -690,6 +695,7 @@ class BackgroundRecordingService : Service() {
         private const val REQUEST_PLAYBACK = 3
         private const val REQUEST_LIBRARY = 4
         private const val ONE_SECOND = 1000L
+        private val STOP_COLOR = Color.rgb(255, 122, 122)
 
         const val ACTION_START = "com.manh.panelsassistive.action.START_BACKGROUND_RECORDING"
         const val ACTION_TOGGLE_PAUSE = "com.manh.panelsassistive.action.TOGGLE_RECORDING_PAUSE"

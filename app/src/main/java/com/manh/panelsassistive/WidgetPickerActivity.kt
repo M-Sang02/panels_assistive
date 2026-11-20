@@ -598,6 +598,15 @@ class WidgetPickerActivity : Activity() {
             AppPrefs.setAssistantReplacementAction(this, action)
             return true
         }
+        if (target == ACTION_PICKER_QUICK_TILE_PRIMARY) {
+            AppPrefs.setQuickTilePrimaryAction(this, action)
+            QuickSettingsTiles.updateListeningServices(this)
+            return true
+        }
+        if (target == ACTION_PICKER_QUICK_TILE_SECONDARY) {
+            AppPrefs.setQuickTileSecondaryAction(this, action)
+            return true
+        }
         val gesture = Gesture.values().firstOrNull { it.preferenceKey == target }
         if (gesture == null) {
             Log.e(TAG, "Unknown gesture action-picker target: $target")
@@ -766,6 +775,8 @@ class WidgetPickerActivity : Activity() {
         const val EXTRA_EXPANSION_SLOT = "com.manh.panelsassistive.extra.EXPANSION_SLOT"
         const val EXTRA_ACTION_PICKER_TARGET = "com.manh.panelsassistive.extra.ACTION_PICKER_TARGET"
         const val ACTION_PICKER_ASSISTANT = "assistant"
+        const val ACTION_PICKER_QUICK_TILE_PRIMARY = "quick_tile_primary"
+        const val ACTION_PICKER_QUICK_TILE_SECONDARY = "quick_tile_secondary"
         const val EXTRA_ITEM_TYPE = "com.manh.panelsassistive.extra.PANEL_ITEM_TYPE"
         private const val REQUEST_BIND = 1
         private const val REQUEST_CONFIGURE = 2

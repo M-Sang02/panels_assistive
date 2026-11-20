@@ -100,6 +100,9 @@ object AppPrefs {
     private const val KEY_POPUP_BLUR_SCOPE = "popup_blur_scope"
     private const val KEY_WIDGET_PANEL_BLUR = "widget_panel_blur"
     private const val KEY_WIDGET_PANEL_BLUR_RADIUS = "widget_panel_blur_radius"
+    private const val KEY_WIDGET_PANEL_BLUR_SCOPE = "widget_panel_blur_scope"
+    private const val KEY_QUICK_TILE_PRIMARY = "quick_tile_primary"
+    private const val KEY_QUICK_TILE_SECONDARY = "quick_tile_secondary"
     private const val KEY_SHARED_PANEL_COLOR = "shared_panel_color"
     private const val KEY_SHARED_PANEL_OPACITY = "shared_panel_opacity"
     private const val KEY_SHARED_PANEL_CORNER = "shared_panel_corner"
@@ -664,6 +667,32 @@ object AppPrefs {
 
     fun setWidgetPanelBlurRadius(context: Context, radius: Int) {
         store(context).edit().putInt(KEY_WIDGET_PANEL_BLUR_RADIUS, radius.coerceIn(0, 80)).apply()
+    }
+
+    fun widgetPanelBlurScope(context: Context) =
+        store(context).getString(KEY_WIDGET_PANEL_BLUR_SCOPE, BLUR_SCOPE_PANEL) ?: BLUR_SCOPE_PANEL
+
+    fun setWidgetPanelBlurScope(context: Context, scope: String) {
+        require(scope == BLUR_SCOPE_SCREEN || scope == BLUR_SCOPE_PANEL)
+        store(context).edit().putString(KEY_WIDGET_PANEL_BLUR_SCOPE, scope).apply()
+    }
+
+    // Quick settings tile: tap runs the first action, long-press (via the
+    // QS tile preferences activity) runs the second one.
+    fun quickTilePrimaryAction(context: Context) =
+        store(context).getString(KEY_QUICK_TILE_PRIMARY, ActionDispatcher.WIDGET_POPUP)
+            ?: ActionDispatcher.WIDGET_POPUP
+
+    fun setQuickTilePrimaryAction(context: Context, action: String) {
+        store(context).edit().putString(KEY_QUICK_TILE_PRIMARY, action).apply()
+    }
+
+    fun quickTileSecondaryAction(context: Context) =
+        store(context).getString(KEY_QUICK_TILE_SECONDARY, ActionDispatcher.FLASHLIGHT)
+            ?: ActionDispatcher.FLASHLIGHT
+
+    fun setQuickTileSecondaryAction(context: Context, action: String) {
+        store(context).edit().putString(KEY_QUICK_TILE_SECONDARY, action).apply()
     }
 
     fun sharedPanelColor(context: Context) = store(context).getInt(KEY_SHARED_PANEL_COLOR, android.graphics.Color.rgb(24, 41, 61))

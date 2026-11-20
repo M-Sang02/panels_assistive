@@ -10,10 +10,11 @@ class ActionGlyphView(
     color: Int = Color.WHITE
 ) : LucideGlyphView(context, iconFor(action), color) {
     companion object {
-        private fun iconFor(action: String): String = when (action) {
+        /** Mirrors the icons used by the matching rows in the settings screens. */
+        fun iconFor(action: String): String = when (action) {
             ActionDispatcher.FLASHLIGHT -> "flashlight"
-            ActionDispatcher.BACKGROUND_RECORDING -> "screen-share"
-            ActionDispatcher.WIDGET_POPUP -> "panels-top-left"
+            ActionDispatcher.BACKGROUND_RECORDING -> "audio-lines"
+            ActionDispatcher.WIDGET_POPUP -> "square-stack"
             ActionDispatcher.EXPANSION_PANEL -> "sliders-horizontal"
             ActionDispatcher.BRIGHTNESS_SLIDER -> "sun"
             ActionDispatcher.MEDIA_VOLUME -> "volume-2"
@@ -25,7 +26,7 @@ class ActionGlyphView(
             ActionDispatcher.CALL_ASSISTANT -> "mic"
             ActionDispatcher.TOGGLE_FLOAT_BALL -> "circle-dot"
             ActionDispatcher.ACCESSIBILITY_SETTINGS -> "accessibility"
-            ActionDispatcher.OPEN_APP -> "app-window"
+            ActionDispatcher.OPEN_APP -> "settings-2"
             ActionDispatcher.OPEN_SELECTED_APP -> "external-link"
             ActionDispatcher.OPEN_SELECTED_SHORTCUT -> "arrow-up-right"
             else -> "circle-help"

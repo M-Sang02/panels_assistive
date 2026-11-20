@@ -2086,6 +2086,28 @@ class FloatBallService : Service() {
             window.attributes = window.attributes.apply { dimAmount = 0.18f }
             window.setLayout(panelWidth, panelHeight)
             window.attributes = window.attributes.apply { gravity = Gravity.CENTER }
+            // Dialog windows can inherit status-bar/nav-bar insets as decor
+            // padding; that padding made the live widget panel's top gap thicker
+            // than the pinned preview. Consume the insets so the panel content
+            // starts exactly at the panel edge on every device.
+            window.decorView.setOnApplyWindowInsetsListener { _, insets ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    insets
+                } else {
+                    @Suppress("DEPRECATION")
+                    insets.consumeSystemWindowInsets()
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility =
+                    window.decorView.systemUiVisibility or
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            }
             applyPopupBlur(window, surface)
             var panelDownRawX = 0f
             var panelDownRawY = 0f
@@ -2183,8 +2205,12 @@ class FloatBallService : Service() {
         val blurEnabled = requestedRadius > 0 && blurAvailable
         // Panel-scope blur still needs FLAG_BLUR_BEHIND; the flag alone opts the
         // window into the blur pipeline, the radii decide what actually blurs.
-        val panelOnly = widgetSurface ||
-            AppPrefs.popupBlurScope(this) == AppPrefs.BLUR_SCOPE_PANEL
+        val scope = if (widgetSurface) {
+            AppPrefs.widgetPanelBlurScope(this)
+        } else {
+            AppPrefs.popupBlurScope(this)
+        }
+        val panelOnly = scope == AppPrefs.BLUR_SCOPE_PANEL
         if (blurEnabled) {
             window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
         } else {

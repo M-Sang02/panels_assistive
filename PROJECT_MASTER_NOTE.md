@@ -390,3 +390,42 @@
 
 ### Verification and remaining work
 - Static review only; run the GitHub Actions build and check: open/close widget panel (no background widget updates after close, fade-in without a hard pop), screen off/on with the panel open, and settings preview while leaving/returning to the editor.
+
+## 2026-11-20 — v28.17 Recording UI redesign, QS quick-action tile, settings search, widget blur scope
+
+### User-requested changes
+- Quick recording got a new, consistent identity: recording settings, playback dialog, saved-recordings library and the floating recording controls now all follow the expansion panel / brightness slider glass language, with Lucide icons instead of platform drawables.
+- The quick-recording row in Settings uses `audio-lines`, and action shortcuts reuse the settings-screen icons (`audio-lines` for recording, `square-stack` for the widget panel, `settings-2` for app settings, ...).
+- The widget panel editor now offers both blur scopes: "Làm mờ toàn bộ màn hình" and "Chỉ làm mờ trong phạm vi bảng".
+- The live widget panel's top gap was still thicker than the preview; dialog decor system-bar insets are now consumed so content starts at the panel edge, and the preview/live chains stay identical.
+- "Thao tác và cử chỉ" moved directly under "Bóng nổi", and Settings gained a search field in the top-right corner (diacritic-insensitive filtering of every row).
+- New "Cài đặt nhanh" card inside "Thao tác và cử chỉ": pick action 1 (its icon becomes the QS tile icon, tap runs it) and action 2 (long-press on the tile runs it through the QS tile preferences activity), plus a one-tap "Thêm ô vào cài đặt nhanh" request.
+
+### Changes in this source
+- `AppPrefs`: `widgetPanelBlurScope`, `quickTilePrimaryAction` (default widget popup) and `quickTileSecondaryAction` (default flashlight).
+- `FloatBallService`: `applyPopupBlur` reads the widget scope for `OverlaySurface.WIDGETS`; `showOverlayPanel` disables decor-fit system windows and consumes window insets (with the pre-R layout flags) so overlay content is never pushed down by status/navigation bar padding.
+- `WidgetPanelSettingsActivity`: scope chips (glass tab style) inside the widget blur block.
+- `QuickSettingsTiles.kt`: `QuickActionTileService` renders the action glyph into the tile icon, runs action 1 on click and refreshes its label/state; `QuickTileActionsActivity` (Theme.NoDisplay, `QS_TILE_PREFERENCES`) runs action 2 on long-press; `requestAddQuickAction` requests the tile via `StatusBarManager`.
+- `WidgetPickerActivity`: new picker targets for the two quick-tile actions.
+- `RecordingSettingsActivity`: glass header cards with icon tiles, selectable source rows (at least one source stays on), labels toggle, gesture shortcut / saved-recordings shortcuts, permission card.
+- `RecordingPlaybackActivity`: full glass redesign — rounded gradient panel, Lucide play/pause/rewind/folder controls, glass seek card, library rows with icon tiles, and custom glass dialogs replacing `AlertDialog`/`PopupMenu` for share/delete.
+- `BackgroundRecordingService`: floating controls use Lucide pause/play/square glyphs, a grip drag handle, glass colors and secondary labels.
+- `SettingsScreen`: search field in the header row, row filtering, empty-state text, and the new menu order.
+- `AndroidManifest.xml`: registers `QuickActionTileService` and `QuickTileActionsActivity`.
+
+### Files changed
+- `app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt`
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetPanelSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/SettingsScreen.kt`
+- `app/src/main/java/com/manh/panelsassistive/GestureSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetPickerActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/QuickSettingsTiles.kt`
+- `app/src/main/java/com/manh/panelsassistive/ActionGlyphView.kt`
+- `app/src/main/java/com/manh/panelsassistive/RecordingSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/RecordingPlaybackActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/BackgroundRecordingService.kt`
+- `app/src/main/AndroidManifest.xml`
+
+### Verification and remaining work
+- Static review only; no local JDK/Android SDK, so Gradle compilation must run through GitHub Actions. On-device checks: widget blur scope both ways on Android 12+, live-vs-preview top gap, settings search with/without Vietnamese diacritics, quick-action tile add/tap/long-press (ROM dependent), recording overlay, playback dialog and library, and share/delete glass dialogs.

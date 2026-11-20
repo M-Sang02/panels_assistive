@@ -386,7 +386,7 @@ class WidgetPanelSettingsActivity : Activity() {
             addView(GlassUi.divider(this@WidgetPanelSettingsActivity))
             addView(text("Làm mờ nền bảng", 13, secondary, true))
             addView(text(
-                "Chỉ làm mờ phía sau bảng tiện ích, tách riêng với mục Hiệu ứng.",
+                "Tách riêng với mục Hiệu ứng; có thể chọn mờ toàn màn hình hoặc chỉ trong phạm vi bảng.",
                 12,
                 GlassUi.TEXT_MUTED
             ).apply { setPadding(0, dp(4), 0, dp(2)) })
@@ -417,9 +417,41 @@ class WidgetPanelSettingsActivity : Activity() {
             val controls = LinearLayout(this@WidgetPanelSettingsActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 visibility = if (enabled) View.VISIBLE else View.GONE
-                addView(blurValue)
-                addView(blurSlider)
             }
+            val scopeRow = LinearLayout(this@WidgetPanelSettingsActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+            lateinit var screenChip: TextView
+            lateinit var panelChip: TextView
+            fun refreshScope() {
+                val panel = AppPrefs.widgetPanelBlurScope(this@WidgetPanelSettingsActivity) ==
+                    AppPrefs.BLUR_SCOPE_PANEL
+                screenChip.isSelected = !panel
+                screenChip.setTextColor(if (!panel) GlassUi.ACCENT else GlassUi.TEXT_MUTED)
+                screenChip.background = GlassUi.tabSurface(this@WidgetPanelSettingsActivity, !panel)
+                panelChip.isSelected = panel
+                panelChip.setTextColor(if (panel) GlassUi.ACCENT else GlassUi.TEXT_MUTED)
+                panelChip.background = GlassUi.tabSurface(this@WidgetPanelSettingsActivity, panel)
+            }
+            fun chooseScope(panel: Boolean) {
+                AppPrefs.setWidgetPanelBlurScope(
+                    this@WidgetPanelSettingsActivity,
+                    if (panel) AppPrefs.BLUR_SCOPE_PANEL else AppPrefs.BLUR_SCOPE_SCREEN
+                )
+                refreshScope()
+                refreshPopupSurface()
+            }
+            screenChip = chip(getString(R.string.popup_blur_scope_screen)) { chooseScope(false) }
+            panelChip = chip(getString(R.string.popup_blur_scope_panel)) { chooseScope(true) }
+            scopeRow.addView(screenChip, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
+            scopeRow.addView(panelChip, LinearLayout.LayoutParams(0, dp(42), 1f))
+            controls.addView(text("Chọn phạm vi làm mờ", 13, secondary, true).apply {
+                setPadding(0, dp(10), 0, dp(5))
+            })
+            controls.addView(scopeRow)
+            controls.addView(blurValue.apply { setPadding(0, dp(8), 0, 0) })
+            controls.addView(blurSlider)
+            refreshScope()
             addView(GlassUi.switch(this@WidgetPanelSettingsActivity, enabled) { on ->
                 AppPrefs.setWidgetPanelBlurEnabled(this@WidgetPanelSettingsActivity, on)
                 controls.visibility = if (on) View.VISIBLE else View.GONE
@@ -1192,6 +1224,16 @@ class WidgetPanelSettingsActivity : Activity() {
         GlassUi.actionButton(this, getString(title), onAction = action).apply {
             textSize = 13f
         }
+
+    private fun chip(label: CharSequence, onClick: () -> Unit): TextView = TextView(this).apply {
+        text = label
+        textSize = 13f
+        gravity = android.view.Gravity.CENTER
+        setPadding(dp(8), dp(9), dp(8), dp(9))
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { onClick() }
+    }
 
     private fun text(value: String, size: Int, color: Int, bold: Boolean = false) =
         TextView(this).apply {

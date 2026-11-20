@@ -40,6 +40,7 @@ class GestureSettingsActivity : Activity() {
             "Gán hành động cho chạm bóng nổi và nút trợ lý."
         ))
         root.addView(gestureCard())
+        root.addView(quickTileCard())
         root.addView(assistantCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
@@ -69,6 +70,44 @@ class GestureSettingsActivity : Activity() {
             AppPrefs.setAction(this@GestureSettingsActivity, gesture, action)
             if (action == ActionDispatcher.BACKGROUND_RECORDING) requestRecordingPermission()
         })
+    }
+
+    private fun quickTileCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(GlassUi.cardTitle(this@GestureSettingsActivity, "Cài đặt nhanh"))
+        addView(hint(
+            "Tạo một ô trong bảng cài đặt nhanh. Icon của ô lấy theo hành động 1; " +
+                "chạm để chạy hành động 1, nhấn giữ để chạy hành động 2."
+        ))
+        addView(label("Hành động 1 · Chạm trên ô", 14, GlassUi.TEXT_PRIMARY, true).apply {
+            setPadding(0, dp(10), 0, dp(5))
+        })
+        addView(actionSpinner(
+            AppPrefs.quickTilePrimaryAction(this@GestureSettingsActivity),
+            pickerTarget = WidgetPickerActivity.ACTION_PICKER_QUICK_TILE_PRIMARY
+        ) { action ->
+            AppPrefs.setQuickTilePrimaryAction(this@GestureSettingsActivity, action)
+            if (action == ActionDispatcher.BACKGROUND_RECORDING) requestRecordingPermission()
+            QuickSettingsTiles.updateListeningServices(this@GestureSettingsActivity)
+        })
+        addView(label("Hành động 2 · Nhấn giữ trên ô", 14, GlassUi.TEXT_PRIMARY, true).apply {
+            setPadding(0, dp(12), 0, dp(5))
+        })
+        addView(actionSpinner(
+            AppPrefs.quickTileSecondaryAction(this@GestureSettingsActivity),
+            pickerTarget = WidgetPickerActivity.ACTION_PICKER_QUICK_TILE_SECONDARY
+        ) { action ->
+            AppPrefs.setQuickTileSecondaryAction(this@GestureSettingsActivity, action)
+            if (action == ActionDispatcher.BACKGROUND_RECORDING) requestRecordingPermission()
+        })
+        addView(GlassUi.actionButton(
+            this@GestureSettingsActivity,
+            "Thêm ô vào cài đặt nhanh",
+            prominent = true
+        ) { QuickSettingsTiles.requestAddQuickAction(this@GestureSettingsActivity) })
+        addView(hint(
+            "Android không cho ô cài đặt nhanh nhận nhấn giữ trực tiếp; " +
+                "nhấn giữ ô sẽ mở màn hình ẩn chạy hành động 2 (một số ROM có thể mở cài đặt ô thay thế)."
+        ))
     }
 
     private fun assistantCard(): LinearLayout = GlassUi.glassCard(this).apply {

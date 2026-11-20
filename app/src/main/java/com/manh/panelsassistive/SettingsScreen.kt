@@ -5,10 +5,17 @@ import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
 import android.provider.Settings
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
+import android.view.View
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import java.text.Normalizer
 
 class SettingsScreen(private val activity: Activity) {
     fun createView(): ScrollView {
@@ -18,15 +25,61 @@ class SettingsScreen(private val activity: Activity) {
             background = GlassUi.pageBackground()
         }
 
-        content.addView(label(activity.getString(R.string.brand_name), 11, GlassUi.ACCENT, true).apply {
-            letterSpacing = 0.18f
-        })
+        val rowEntries = mutableListOf<Pair<View, String>>()
+        val footer = label(
+            "Chạm nhẹ vào từng mục để mở cài đặt chi tiết. Công tắc bên phải bật/tắt nhanh.",
+            12,
+            GlassUi.TEXT_MUTED
+        ).apply { setPadding(dp(4), dp(16), dp(4), 0) }
+        val emptyState = label("Không tìm thấy mục cài đặt nào.", 13, GlassUi.TEXT_MUTED).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(28), 0, dp(8))
+            visibility = View.GONE
+        }
+        fun filter(rawQuery: String) {
+            val query = normalize(rawQuery.trim())
+            var visible = 0
+            rowEntries.forEach { (row, haystack) ->
+                val match = query.isEmpty() || haystack.contains(query)
+                row.visibility = if (match) View.VISIBLE else View.GONE
+                if (match) visible++
+            }
+            emptyState.visibility = if (query.isNotEmpty() && visible == 0) View.VISIBLE else View.GONE
+            footer.visibility = if (query.isEmpty()) View.VISIBLE else View.GONE
+        }
+
+        val headerRow = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        headerRow.addView(
+            label(activity.getString(R.string.brand_name), 11, GlassUi.ACCENT, true).apply {
+                letterSpacing = 0.18f
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        headerRow.addView(searchField { query -> filter(query) }, LinearLayout.LayoutParams(dp(148), dp(38)))
+        content.addView(headerRow)
+
         content.addView(label(activity.getString(R.string.settings_title), 28, GlassUi.TEXT_PRIMARY, true).apply {
             setPadding(0, dp(6), 0, dp(4))
         })
         content.addView(label(activity.getString(R.string.settings_subtitle), 14, GlassUi.TEXT_SECONDARY))
 
-        content.addView(menuRow(
+        fun addRow(
+            icon: String,
+            title: String,
+            subtitle: String,
+            checked: Boolean? = null,
+            onChecked: ((Boolean) -> Unit)? = null,
+            onClick: () -> Unit
+        ) {
+            val row = menuRow(icon, title, subtitle, checked, onChecked, onClick)
+            content.addView(row)
+            rowEntries.add(row to searchText(title, subtitle))
+        }
+
+        addRow(
             icon = "circle-dot",
             title = "Bóng nổi",
             subtitle = "Biểu tượng, kích thước, ghim cạnh, ẩn cạnh",
@@ -34,9 +87,17 @@ class SettingsScreen(private val activity: Activity) {
             onChecked = ::setFloatBallEnabled
         ) {
             activity.startActivity(Intent(activity, FloatBallSettingsActivity::class.java))
-        })
+        }
 
-        content.addView(menuRow(
+        addRow(
+            icon = "hand",
+            title = "Thao tác và cử chỉ",
+            subtitle = "Chạm, chạm đôi, chạm ba, nhấn giữ, ô cài đặt nhanh"
+        ) {
+            activity.startActivity(Intent(activity, GestureSettingsActivity::class.java))
+        }
+
+        addRow(
             icon = "square-stack",
             title = "Bảng tiện ích",
             subtitle = "Bố cục, kích thước ô và nền riêng",
@@ -54,50 +115,82 @@ class SettingsScreen(private val activity: Activity) {
                 Intent(activity, WidgetPanelSettingsActivity::class.java)
                     .putExtra(WidgetPanelSettingsActivity.EXTRA_LANDSCAPE_LAYOUT, false)
             )
-        })
+        }
 
-        content.addView(menuRow(
-            icon = "mic",
+        addRow(
+            icon = "audio-lines",
             title = "Ghi âm nhanh",
             subtitle = "Nguồn micro, nhãn điều khiển, quyền ghi âm"
         ) {
             activity.startActivity(Intent(activity, RecordingSettingsActivity::class.java))
-        })
+        }
 
-        content.addView(menuRow(
-            icon = "hand",
-            title = "Thao tác và cử chỉ",
-            subtitle = "Chạm, chạm đôi, chạm ba, nhấn giữ"
-        ) {
-            activity.startActivity(Intent(activity, GestureSettingsActivity::class.java))
-        })
-
-        content.addView(menuRow(
+        addRow(
             icon = "sparkles",
             title = "Hiệu ứng",
             subtitle = "Làm mờ, rung và chuyển động tab"
         ) {
             activity.startActivity(Intent(activity, EffectsSettingsActivity::class.java))
-        })
+        }
 
-        content.addView(menuRow(
+        addRow(
             icon = "settings-2",
             title = activity.getString(R.string.advanced_settings_title),
             subtitle = "Quyền hệ thống, ô cài đặt nhanh, sao lưu"
         ) {
             activity.startActivity(Intent(activity, AdvancedSettingsActivity::class.java))
-        })
+        }
 
-        content.addView(label(
-            "Chạm nhẹ vào từng mục để mở cài đặt chi tiết. Công tắc bên phải bật/tắt nhanh.",
-            12,
-            GlassUi.TEXT_MUTED
-        ).apply { setPadding(dp(4), dp(16), dp(4), 0) })
+        content.addView(emptyState)
+        content.addView(footer)
 
         return ScrollView(activity).apply {
             isFillViewport = true
             clipToPadding = false
             addView(content)
+        }
+    }
+
+    private fun searchField(onQuery: (String) -> Unit): FrameLayout {
+        val input = EditText(activity).apply {
+            background = null
+            hint = "Tìm cài đặt"
+            setHintTextColor(GlassUi.TEXT_MUTED)
+            setTextColor(GlassUi.TEXT_PRIMARY)
+            textSize = 13f
+            isSingleLine = true
+            gravity = Gravity.CENTER_VERTICAL
+            inputType = InputType.TYPE_CLASS_TEXT
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            setPadding(dp(34), 0, dp(28), 0)
+            includeFontPadding = false
+        }
+        val clear = LucideGlyphView(activity, "x", GlassUi.TEXT_MUTED).apply {
+            visibility = View.GONE
+            isClickable = true
+            contentDescription = "Xóa tìm kiếm"
+            setOnClickListener { input.setText("") }
+        }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                clear.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
+                onQuery(s?.toString().orEmpty())
+            }
+        })
+        return FrameLayout(activity).apply {
+            background = GlassUi.fieldBackground(activity, 19)
+            addView(LucideGlyphView(activity, "search", GlassUi.TEXT_MUTED), FrameLayout.LayoutParams(
+                dp(16), dp(16), Gravity.START or Gravity.CENTER_VERTICAL
+            ).apply { marginStart = dp(12) })
+            addView(input, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            ))
+            addView(clear, FrameLayout.LayoutParams(
+                dp(15), dp(15), Gravity.END or Gravity.CENTER_VERTICAL
+            ).apply { marginEnd = dp(10) })
         }
     }
 
@@ -158,6 +251,15 @@ class SettingsScreen(private val activity: Activity) {
             )
         }
     }
+
+    /** Diacritic-insensitive search so "bong noi" also finds "Bóng nổi". */
+    private fun searchText(title: String, subtitle: String): String =
+        normalize("$title $subtitle")
+
+    private fun normalize(text: String): String =
+        Normalizer.normalize(text, Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "")
+            .lowercase()
 
     private fun label(
         text: String,
