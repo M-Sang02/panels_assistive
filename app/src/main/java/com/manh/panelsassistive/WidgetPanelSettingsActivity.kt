@@ -850,9 +850,7 @@ class WidgetPanelSettingsActivity : Activity() {
 
     private fun previewTile(item: PanelItem, position: Int): View {
         val page = selectedPage()
-        val tile = FrameLayout(this).apply {
-            background = roundedBackground(Color.argb(24, 255, 255, 255), dp(16))
-        }
+        val tile = FrameLayout(this)
         if (item.type == PanelItemType.WIDGET) {
             val widgetId = item.value.toIntOrNull()
             val info = widgetId?.let { AppWidgetManager.getInstance(this).getAppWidgetInfo(it) }

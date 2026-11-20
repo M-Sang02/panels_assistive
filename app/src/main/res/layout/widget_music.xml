@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -13,87 +14,75 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:gravity="center"
-        android:padding="10dp">
+        android:padding="6dp">
 
-        <TextView
-            android:id="@+id/widget_title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:text="Trình phát nhạc"
-            android:textColor="#FF182434"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:includeFontPadding="false" />
+        <ImageButton
+            android:id="@+id/widget_minus"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/widget_button_bg"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_wg_minus"
+            android:contentDescription="Giảm âm lượng" />
 
-        <TextView
-            android:id="@+id/widget_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:gravity="center"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:text="Điều khiển nhạc đang phát"
-            android:textColor="#CC3A4A60"
-            android:textSize="10sp"
-            android:includeFontPadding="false" />
+        <ImageButton
+            android:id="@+id/widget_prev"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/widget_button_bg"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_wg_prev"
+            android:contentDescription="Bài trước" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+        <FrameLayout
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp">
 
-            <ImageButton
-                android:id="@+id/widget_prev"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@drawable/widget_button_bg"
-                android:padding="8dp"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_wg_prev"
-                android:contentDescription="Bài trước" />
-
-            <FrameLayout
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="10dp">
-
-                <ImageView
-                    android:id="@+id/widget_play_bg"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="@null" />
-
-                <ImageButton
-                    android:id="@+id/widget_play"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:layout_gravity="center"
-                    android:background="@android:color/transparent"
-                    android:padding="11dp"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_wg_play"
-                    android:contentDescription="Phát hoặc tạm dừng" />
-            </FrameLayout>
+            <ImageView
+                android:id="@+id/widget_play_bg"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null" />
 
             <ImageButton
-                android:id="@+id/widget_next"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:background="@drawable/widget_button_bg"
-                android:padding="8dp"
+                android:id="@+id/widget_play"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_gravity="center"
+                android:background="@android:color/transparent"
+                android:padding="12dp"
                 android:scaleType="centerInside"
-                android:src="@drawable/ic_wg_next"
-                android:contentDescription="Bài tiếp theo" />
-        </LinearLayout>
+                android:src="@drawable/ic_wg_play"
+                android:contentDescription="Phát hoặc tạm dừng" />
+        </FrameLayout>
+
+        <ImageButton
+            android:id="@+id/widget_next"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_button_bg"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_wg_next"
+            android:contentDescription="Bài tiếp theo" />
+
+        <ImageButton
+            android:id="@+id/widget_plus"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/widget_button_bg"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_wg_plus"
+            android:contentDescription="Tăng âm lượng" />
     </LinearLayout>
 </FrameLayout>

@@ -44,15 +44,14 @@
                 android:textStyle="bold"
                 android:includeFontPadding="false" />
 
-            <TextView
+            <ImageView
                 android:id="@+id/widget_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="ÂM LƯỢNG"
-                android:textColor="#CC3A4A60"
-                android:textSize="9sp"
-                android:letterSpacing="0.1" />
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginTop="3dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_wg_volume"
+                android:contentDescription="Âm lượng" />
         </LinearLayout>
 
         <ImageButton

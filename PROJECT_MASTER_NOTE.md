@@ -525,3 +525,26 @@
 - `FloatBallService`: hai lời gọi `addVerticalLevelSlider` / `VerticalBrightnessTrackView` truyền trailing lambda nên rơi vào tham số `onFinished` (optional) thay vì `onChanged`/`onValueChanged`; đổi sang named argument.
 - `IconPacks`: `android.content.res.Resources` không có `packageName`; truyền package của gói icon xuyên suốt `findFirst`/`resolveId`.
 - `OverlayActivities`: `AudioPlaybackConfiguration.isActive()` và `getClientUid()` là API ẩn (không có trong SDK công khai); đọc bằng reflection trong try/catch, lỗi thì rơi về `CATEGORY_APP_MUSIC` như trước.
+
+## v30 — Widget glass 2.0, mặt nạ icon, icon bóng nổi
+
+### Mặt nạ icon pack
+- `IconPacks.maskMode()` nhận diện hai quy ước ADW/Nova bằng alpha góc (1,1) so với tâm: góc đục + tâm trong = khung đen → `DST_OUT`, ngược lại = shape trắng → `DST_IN`. Trước đây luôn dùng `DST_IN` nên pack dạng khung đen bị khoét lỗ.
+- `masked()`: chỉ vẽ `iconback` khi pack có, vẽ icon full-bleed rồi clip bằng mask, cuối cùng mới ghép `iconupon`. Bỏ lớp back giả tự tạo.
+
+### Bảng tiện ích
+- `FloatBallService.createPanelShortcut` và `WidgetPanelSettingsActivity.previewTile` không còn đặt background cho ô, mất viền trắng quanh app/shortcut.
+
+### Widget
+- Biên tập lại `GlassWidgets`: mặt kính bo `34dp`, watermark tia sét, màu chữ lấy từ `AppPrefs.widgetTextColor` (mặc định `0xFF182434`), fill trắng theo mức (pin dọc từ đáy, âm lượng ngang trái→phải mép mềm 14dp), `refreshSoon` bắn 2 update 70ms/180ms để thấy hoạt ảnh.
+- Âm lượng: nhãn đổi thành icon loa, nút +/− tint accent, text % dùng màu chữ; widget dọc fill theo chiều cao.
+- Nhạc: layout 1 hàng × 3 cột `[ −  ‹  phát/tạm dừng  ›  + ]`, không còn chữ; icon đổi play/pause theo `AudioManager.isMusicActive`; thêm `ic_wg_pause`, `ic_wg_volume`; xoá `ic_media_stop` không dùng.
+- Pin: sửa fill + màu chữ + tap target.
+- Mọi widget bấm vào thân mở app đã gán (`AppPrefs.widgetShortcut`) hoặc `MainActivity`; widget nhạc có thêm lựa chọn mở app đang phát (`WidgetLaunchActivity` + `EXTRA_OPEN_MEDIA`).
+- Cài đặt widget: thẻ "Mở nhanh" (chọn/bỏ gán app, công tắc "Widget nhạc mở app đang phát") và thẻ "Màu chữ" (5 swatch + `PanelColorPicker` tuỳ chỉnh).
+
+### Bóng nổi
+- Icon mặc định trong `FloatBallIconView.onDraw` thay bằng gradient accent (`GlassUi.ACCENT` → `ACCENT_STRONG`) squircle theo `cornerPercent`, glyph vòng tròn đứt nét + chấm giữa màu trắng — cùng ngôn ngữ với icon trong Cài đặt.
+
+### Verification
+- Static review only. Gate: GitHub Actions "Android build". On device: icon pack dạng khung đen không còn khoét lỗ, bảng tiện ích hết viền, widget pin/nhạc/âm lượng hiển thị và bấm đúng, bóng nổi mặc định khớp màu accent.

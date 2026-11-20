@@ -117,6 +117,9 @@ object AppPrefs {
     private const val KEY_ICON_PACK_PACKAGE = "icon_pack_package"
     private const val KEY_ICON_MASK_ENABLED = "icon_mask_enabled"
     private const val KEY_ICON_OVERRIDES = "icon_overrides"
+    private const val KEY_WIDGET_TEXT_COLOR = "widget_text_color"
+    private const val KEY_WIDGET_SHORTCUT = "widget_shortcut"
+    private const val KEY_MUSIC_WIDGET_SOURCE = "music_widget_source"
     private const val KEY_EXPANSION_SLIDERS = "expansion_sliders"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
@@ -821,6 +824,30 @@ object AppPrefs {
 
     fun setIconMaskEnabled(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_ICON_MASK_ENABLED, enabled).apply()
+    }
+
+    /** Text color shared by every home-screen widget. */
+    fun widgetTextColor(context: Context) =
+        store(context).getInt(KEY_WIDGET_TEXT_COLOR, 0xFF182434.toInt())
+
+    fun setWidgetTextColor(context: Context, color: Int) {
+        store(context).edit().putInt(KEY_WIDGET_TEXT_COLOR, color).apply()
+    }
+
+    /** App opened when a widget card is tapped; empty keeps the Panels activity. */
+    fun widgetShortcut(context: Context): String =
+        store(context).getString(KEY_WIDGET_SHORTCUT, null).orEmpty()
+
+    fun setWidgetShortcut(context: Context, value: String?) {
+        store(context).edit().putString(KEY_WIDGET_SHORTCUT, value.orEmpty()).apply()
+    }
+
+    /** Music card: true opens the playing app, false opens the assigned shortcut. */
+    fun musicWidgetOpensSource(context: Context) =
+        store(context).getBoolean(KEY_MUSIC_WIDGET_SOURCE, true)
+
+    fun setMusicWidgetOpensSource(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_MUSIC_WIDGET_SOURCE, enabled).apply()
     }
 
     private fun iconOverrideStore(context: Context) =

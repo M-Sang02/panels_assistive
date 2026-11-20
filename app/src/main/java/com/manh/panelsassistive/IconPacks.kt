@@ -97,6 +97,7 @@ object IconPacks {
             bitmap(context, pack, name, sizePx)?.let { return BitmapDrawable(context.resources, it) }
         }
         if (!AppPrefs.iconMaskEnabled(context) || original == null) return original
+        if (pack.back == null && pack.mask == null) return original
         return BitmapDrawable(context.resources, masked(context, pack, original, sizePx))
     }
 
@@ -228,27 +229,31 @@ object IconPacks {
     private fun masked(context: Context, pack: PackData, original: Drawable, sizePx: Int): Bitmap {
         val out = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
-        val back = pack.back?.let { bitmap(context, pack, it, sizePx) }
-        if (back != null) {
-            canvas.drawBitmap(back, 0f, 0f, null)
-        } else {
-            drawFallbackBack(canvas, sizePx)
+        // No invented background: packs that ship no iconback stay fully transparent,
+        // so panel icons never get a rim they did not ask for.
+        pack.back?.let { name ->
+            bitmap(context, pack, name, sizePx)?.let { canvas.drawBitmap(it, 0f, 0f, null) }
         }
-        val inset = (sizePx * 0.17f).toInt()
-        val target = RectF(inset.toFloat(), inset.toFloat(), (sizePx - inset).toFloat(), (sizePx - inset).toFloat())
         val icon = drawableBitmap(original, sizePx)
         val mask = pack.mask?.let { bitmap(context, pack, it, sizePx) }
         if (mask != null) {
+            // The pack mask already carries its own safe margin, so the icon is
+            // drawn over the full canvas and only the mask decides the shape.
             val layer = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
             val layerCanvas = Canvas(layer)
-            layerCanvas.drawBitmap(icon, null, target, null)
+            layerCanvas.drawBitmap(icon, 0f, 0f, null)
             val clip = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+                xfermode = PorterDuffXfermode(maskMode(mask))
             }
-            layerCanvas.drawBitmap(mask, null, target, clip)
+            layerCanvas.drawBitmap(mask, 0f, 0f, clip)
             canvas.drawBitmap(layer, 0f, 0f, null)
         } else {
-            canvas.drawBitmap(icon, null, target, null)
+            val inset = (sizePx * 0.17f).toInt()
+            canvas.drawBitmap(
+                icon, null,
+                RectF(inset.toFloat(), inset.toFloat(), (sizePx - inset).toFloat(), (sizePx - inset).toFloat()),
+                null
+            )
         }
         pack.upon?.let { name ->
             bitmap(context, pack, name, sizePx)?.let { canvas.drawBitmap(it, 0f, 0f, null) }
@@ -256,15 +261,20 @@ object IconPacks {
         return out
     }
 
-    private fun drawFallbackBack(canvas: Canvas, sizePx: Int) {
-        val rect = RectF(sizePx * 0.03f, sizePx * 0.03f, sizePx * 0.97f, sizePx * 0.97f)
-        val radius = sizePx * 0.24f
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#E8EDF4") }
-        canvas.drawRoundRect(rect, radius, radius, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = sizePx * 0.02f
-        paint.color = Color.argb(150, 255, 255, 255)
-        canvas.drawRoundRect(rect, radius, radius, paint)
+    /**
+     * ADW-style masks come in two conventions: "black frame" (opaque outside,
+     * transparent inside) must erase with DST_OUT, while "white shape" (transparent
+     * outside, opaque inside) must keep with DST_IN. Pick from the alpha of the
+     * corners versus the center so both pack families render the same.
+     */
+    private fun maskMode(mask: Bitmap): PorterDuff.Mode {
+        val edge = mask.getPixel(1.coerceAtMost(mask.width - 1), 1.coerceAtMost(mask.height - 1))
+        val center = mask.getPixel(mask.width / 2, mask.height / 2)
+        return if (Color.alpha(edge) > Color.alpha(center)) {
+            PorterDuff.Mode.DST_OUT
+        } else {
+            PorterDuff.Mode.DST_IN
+        }
     }
 
     private fun decodeOverride(context: Context, value: String, sizePx: Int): Bitmap? = try {

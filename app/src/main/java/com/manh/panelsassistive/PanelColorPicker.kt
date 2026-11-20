@@ -11,7 +11,10 @@ import android.widget.SeekBar
 
 /** Shared HSV picker used by panel background settings. */
 object PanelColorPicker {
-    fun show(activity: Activity, initial: Int, onColor: (Int) -> Unit) {
+    fun show(activity: Activity, initial: Int, onColor: (Int) -> Unit) =
+        show(activity, initial, "Màu nền tùy chỉnh", onColor)
+
+    fun show(activity: Activity, initial: Int, title: String, onColor: (Int) -> Unit) {
         val hsv = FloatArray(3)
         Color.colorToHSV(initial, hsv)
         val container = LinearLayout(activity).apply {
@@ -40,7 +43,7 @@ object PanelColorPicker {
             GlassUi.dp(activity, 44)
         ).apply { topMargin = GlassUi.dp(activity, 8) })
         AlertDialog.Builder(activity)
-            .setTitle("Màu nền tùy chỉnh")
+            .setTitle(title)
             .setView(container)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok, null)
