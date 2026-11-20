@@ -255,7 +255,8 @@ class WidgetPickerActivity : Activity() {
                             this@WidgetPickerActivity,
                             landscapeLayout,
                             panelId,
-                            PanelItem(PanelItemType.ACTION, action.id, action.label, targetPosition)
+                            PanelItem(PanelItemType.ACTION, action.id, action.label, targetPosition),
+                            allowOverlap = AppPrefs.panelFreeMode(this@WidgetPickerActivity)
                         )
                     }
                     finishPicking()
@@ -511,7 +512,8 @@ class WidgetPickerActivity : Activity() {
                         landscapeLayout,
                         panelId,
                         PanelItem(PanelItemType.APP, component.flattenToString(), label)
-                            .copy(position = targetPosition)
+                            .copy(position = targetPosition),
+                        allowOverlap = AppPrefs.panelFreeMode(this)
                     )
                 }
                 finishPicking()
@@ -585,7 +587,8 @@ class WidgetPickerActivity : Activity() {
                 this,
                 landscapeLayout,
                 panelId,
-                PanelItem(PanelItemType.SHORTCUT, value, label, targetPosition)
+                PanelItem(PanelItemType.SHORTCUT, value, label, targetPosition),
+                allowOverlap = AppPrefs.panelFreeMode(this)
             )
         }
         return true
@@ -658,14 +661,37 @@ class WidgetPickerActivity : Activity() {
         if (pendingWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
         val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
         val page = AppPrefs.panelPages(this, landscapeLayout).firstOrNull { it.id == panelId }
-        val spanX = if (info != null && page != null) {
-            kotlin.math.ceil(info.minWidth.toDouble() / page.cellWidthDp).toInt()
-                .coerceIn(1, page.columns)
-        } else 1
-        val spanY = if (info != null && page != null) {
-            kotlin.math.ceil(info.minHeight.toDouble() / page.rowHeightDp).toInt()
-                .coerceIn(1, 10)
-        } else 1
+        if (info == null || page == null) {
+            addPendingWidget(info, 1, 1)
+            return
+        }
+        // Auto size stays within 2..6 cells; manual resize in the panel editor
+        // can still go beyond that.
+        val autoX = kotlin.math.ceil(info.minWidth.toDouble() / page.cellWidthDp).toInt()
+            .coerceIn(2, 6)
+        val autoY = kotlin.math.ceil(info.minHeight.toDouble() / page.rowHeightDp).toInt()
+            .coerceIn(2, 6)
+        val column = if (targetPosition >= 0) targetPosition % page.columns else 0
+        val spanX = autoX.coerceAtMost((page.columns - column).coerceAtLeast(1))
+        if (spanX < 2) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.widget_size_warning_title)
+                .setMessage(R.string.widget_size_warning_message)
+                .setPositiveButton(R.string.widget_size_warning_continue) { _, _ ->
+                    addPendingWidget(info, spanX, autoY)
+                }
+                .setNegativeButton(R.string.widget_size_warning_cancel) { _, _ ->
+                    discardPendingWidget()
+                    finish()
+                }
+                .setCancelable(false)
+                .show()
+            return
+        }
+        addPendingWidget(info, spanX, autoY)
+    }
+
+    private fun addPendingWidget(info: android.appwidget.AppWidgetProviderInfo?, spanX: Int, spanY: Int) {
         AppPrefs.addPanelItem(
             this,
             landscapeLayout,
@@ -677,7 +703,8 @@ class WidgetPickerActivity : Activity() {
                 position = targetPosition,
                 spanX = spanX,
                 spanY = spanY
-            )
+            ),
+            allowOverlap = AppPrefs.panelFreeMode(this)
         )
         finishPicking()
     }

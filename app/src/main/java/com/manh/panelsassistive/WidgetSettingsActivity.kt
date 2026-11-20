@@ -35,26 +35,32 @@ class WidgetSettingsActivity : Activity() {
         ))
         root.addView(widgetCard(
             "volume-2",
-            "Âm lượng",
-            "Tự xoay dọc khi kéo cao và ngang khi kéo rộng. Nút + / − chỉnh âm lượng nhạc.",
-            GlassVolumeWidget::class.java
+            "Âm lượng dọc (1×2)",
+            "Một cột dọc gọn cho mép màn hình. Nút + / − chỉnh âm lượng nhạc.",
+            GlassVolumeVerticalWidget::class.java
+        ))
+        root.addView(widgetCard(
+            "audio-lines",
+            "Âm lượng ngang (2×1)",
+            "Dạng thanh ngang một hàng, hợp đặt dưới đồng hồ hoặc cạnh widget khác.",
+            GlassVolumeHorizontalWidget::class.java
         ))
         root.addView(widgetCard(
             "battery-charging",
-            "Pin",
-            "Hiển thị phần trăm pin và trạng thái sạc, có thanh mức pin theo màu chủ đề.",
+            "Pin (2×2)",
+            "Kính trong suốt, tia sét chìm, nhãn Pin yếu/Đang sạc và phần trăm pin lớn.",
             GlassBatteryWidget::class.java
         ))
         root.addView(widgetCard(
             "clock",
-            "Đồng hồ",
+            "Đồng hồ (2×2)",
             "Giờ và thứ trong ngày, tự cập nhật theo múi giờ và định dạng 12/24 giờ của máy.",
             GlassClockWidget::class.java
         ))
         root.addView(widgetCard(
             "music",
-            "Nhạc",
-            "Nút bài trước, phát/tạm dừng và bài tiếp theo cho trình phát nhạc đang hoạt động.",
+            "Nhạc (2×2)",
+            "Bài trước, phát/tạm dừng, bài tiếp theo. Chạm vào thẻ để mở ứng dụng đang phát nhạc.",
             GlassMusicWidget::class.java
         ))
         root.addView(styleCard())
@@ -86,8 +92,8 @@ class WidgetSettingsActivity : Activity() {
     private fun styleCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Giao diện của widget"))
         addView(hint(
-            "Widget dùng chung bảng màu ở mục Giao diện. Nhấn giữ widget trên màn hình " +
-                "chính để đổi kích thước; kéo cao để Âm lượng chuyển sang bố cục dọc."
+            "Widget dùng nền kính trong suốt, bảng màu chỉ đổi màu nút bấm. Nhấn giữ widget trên " +
+                "màn hình chính để đổi kích thước; thêm tiện ích vào bảng trong Cài đặt → Bảng tiện ích."
         ))
         addView(GlassUi.actionButton(
             this@WidgetSettingsActivity,

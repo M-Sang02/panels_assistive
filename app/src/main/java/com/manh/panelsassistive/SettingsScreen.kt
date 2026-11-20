@@ -118,6 +118,14 @@ class SettingsScreen(private val activity: Activity) {
         }
 
         addRow(
+            icon = "sliders-horizontal",
+            title = "Bản mở rộng",
+            subtitle = "Thứ tự thanh độ sáng, âm lượng và lối tắt"
+        ) {
+            activity.startActivity(Intent(activity, ExpansionSettingsActivity::class.java))
+        }
+
+        addRow(
             icon = "audio-lines",
             title = "Ghi âm nhanh",
             subtitle = "Nguồn micro, nhãn điều khiển, quyền ghi âm"

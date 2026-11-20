@@ -503,6 +503,14 @@ class WidgetPanelSettingsActivity : Activity() {
         addView(styledSwitch(R.string.close_panel_after_tap, AppPrefs.closePanelAfterTap(this@WidgetPanelSettingsActivity)) { checked ->
             AppPrefs.setClosePanelAfterTap(this@WidgetPanelSettingsActivity, checked)
         })
+        addView(styledSwitch(R.string.panel_free_mode, AppPrefs.panelFreeMode(this@WidgetPanelSettingsActivity)) { checked ->
+            AppPrefs.setPanelFreeMode(this@WidgetPanelSettingsActivity, checked)
+            renderPreview()
+            schedulePanelRefresh()
+        })
+        addView(text(getString(R.string.panel_free_mode_description), 12, secondary).apply {
+            setPadding(0, dp(2), 0, dp(6))
+        })
         addView(valueControl(
             getString(R.string.grid_cell_width),
             selectedPage().cellWidthDp,
@@ -1037,7 +1045,7 @@ class WidgetPanelSettingsActivity : Activity() {
             current.spanY,
             (page.columns - column).coerceAtLeast(1)
         ) { spanX, spanY ->
-            val overlaps = page.items.any { other ->
+            val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
                 if (other.id == current.id) return@any false
                 val otherPosition = other.position.coerceAtLeast(0)
                 val otherColumn = otherPosition % page.columns
@@ -1068,7 +1076,7 @@ class WidgetPanelSettingsActivity : Activity() {
         val targetRow = (sourceRow + dy).coerceIn(0, 19 - current.spanY.coerceAtLeast(1))
         val destination = targetRow * columns + targetColumn
         if (destination == source) return
-        val overlaps = page.items.any { other ->
+        val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
             if (other.id == current.id) return@any false
             val otherPosition = other.position.coerceAtLeast(0)
             val otherColumn = otherPosition % columns

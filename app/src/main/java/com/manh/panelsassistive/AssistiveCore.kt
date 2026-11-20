@@ -111,6 +111,8 @@ object AppPrefs {
     private const val KEY_POPUP_PANEL_OPACITY = "popup_panel_opacity"
     private const val KEY_POPUP_PANEL_CORNER = "popup_panel_corner"
     private const val KEY_TAB_TRANSITION = "tab_transition"
+    private const val KEY_PANEL_FREE_MODE = "panel_free_mode"
+    private const val KEY_EXPANSION_SLIDERS = "expansion_sliders"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
     private const val KEY_FLOAT_BALL_ICON_URI = "float_ball_icon_uri"
@@ -225,6 +227,23 @@ object AppPrefs {
             })
         }
         store(context).edit().putString(KEY_EXPANSION_SHORTCUTS, array.toString()).apply()
+    }
+
+    /** Ordered keys shown as vertical bars in the expansion panel; media sits last by default. */
+    val EXPANSION_SLIDER_KEYS = listOf("brightness", "ring", "notification", "alarm", "media")
+    private val DEFAULT_EXPANSION_SLIDERS = EXPANSION_SLIDER_KEYS
+
+    fun expansionSliders(context: Context): List<String> {
+        val saved = store(context).getString(KEY_EXPANSION_SLIDERS, null) ?: return DEFAULT_EXPANSION_SLIDERS
+        val keys = saved.split(',').filter { it in EXPANSION_SLIDER_KEYS }.distinct()
+        return keys.ifEmpty { DEFAULT_EXPANSION_SLIDERS }
+    }
+
+    fun setExpansionSliders(context: Context, keys: List<String>) {
+        val valid = keys.filter { it in EXPANSION_SLIDER_KEYS }.distinct()
+        store(context).edit()
+            .putString(KEY_EXPANSION_SLIDERS, valid.ifEmpty { DEFAULT_EXPANSION_SLIDERS }.joinToString(","))
+            .apply()
     }
 
     fun exportSettings(context: Context): String {
@@ -551,7 +570,13 @@ object AppPrefs {
         savePanelPages(context, landscape, pages)
     }
 
-    fun addPanelItem(context: Context, landscape: Boolean, panelId: String, item: PanelItem) {
+    fun addPanelItem(
+        context: Context,
+        landscape: Boolean,
+        panelId: String,
+        item: PanelItem,
+        allowOverlap: Boolean = false
+    ) {
         val pages = panelPages(context, landscape)
         val targetId = pages.firstOrNull { it.id == panelId }?.id ?: pages.first().id
         val target = pages.first { it.id == targetId }
@@ -575,9 +600,13 @@ object AppPrefs {
                 (0 until spanX).all { dx -> (row + dy) * columns + column + dx !in occupied }
             }
         }
-        val position = generateSequence(startPosition) { it + 1 }
-            .take(columns * target.rows.coerceIn(1, 10) * 10)
-            .firstOrNull(::fits) ?: startPosition
+        val position = if (allowOverlap) {
+            startPosition
+        } else {
+            generateSequence(startPosition) { it + 1 }
+                .take(columns * target.rows.coerceIn(1, 10) * 10)
+                .firstOrNull(::fits) ?: startPosition
+        }
         val column = position % columns
         val spanX = item.spanX.coerceIn(1, columns - column)
         savePanelPages(
@@ -749,6 +778,14 @@ object AppPrefs {
 
     fun setClosePanelAfterTap(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_CLOSE_PANEL_AFTER_TAP, enabled).apply()
+    }
+
+    /** Free mode lets panel items overlap each other; manual resize/move stays unchanged. */
+    fun panelFreeMode(context: Context) =
+        store(context).getBoolean(KEY_PANEL_FREE_MODE, false)
+
+    fun setPanelFreeMode(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_PANEL_FREE_MODE, enabled).apply()
     }
 
     fun floatBallIconUri(context: Context): String? =

@@ -3,6 +3,7 @@ package com.manh.panelsassistive
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -22,9 +23,10 @@ import android.widget.RemoteViews
 import kotlin.math.roundToInt
 
 /**
- * Home-screen widgets in the same faux-glass language as the in-app panels.
- * All cards share one bitmap-drawn background so every theme also recolours
- * the widgets. Everything is RemoteViews, so third-party launchers work too.
+ * Home-screen widgets in the same see-through glass language as the reference
+ * mockup: a quiet white pane, thin rim and a faint watermark. The active theme
+ * only tints the buttons (volume, music) so the cards stay neutral everywhere.
+ * Everything is RemoteViews, so third-party launchers can host them too.
  */
 object GlassWidgets {
     const val ACTION_VOLUME_UP = "com.manh.panelsassistive.widget.VOLUME_UP"
@@ -35,7 +37,8 @@ object GlassWidgets {
 
     val providers = listOf(
         GlassBatteryWidget::class.java,
-        GlassVolumeWidget::class.java,
+        GlassVolumeVerticalWidget::class.java,
+        GlassVolumeHorizontalWidget::class.java,
         GlassClockWidget::class.java,
         GlassMusicWidget::class.java
     )
@@ -43,7 +46,7 @@ object GlassWidgets {
     fun refreshAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
         providers.forEach { provider ->
-            val component = android.content.ComponentName(context, provider)
+            val component = ComponentName(context, provider)
             val ids = manager.getAppWidgetIds(component)
             if (ids.isEmpty()) return@forEach
             context.sendBroadcast(
@@ -68,33 +71,52 @@ object GlassWidgets {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-    fun bindCard(views: RemoteViews, context: Context, options: Bundle, accent: Int) {
+    fun appPending(context: Context, request: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            request,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    /** Tapping the music card opens whichever app is playing right now. */
+    fun mediaSourcePending(context: Context, request: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            request,
+            Intent(context, WidgetLaunchActivity::class.java)
+                .putExtra(WidgetLaunchActivity.EXTRA_OPEN_MEDIA, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    fun bindCard(
+        views: RemoteViews,
+        context: Context,
+        options: Bundle,
+        boltWatermark: Boolean = false
+    ) {
         val (widthDp, heightDp) = sizeDp(options)
-        val theme = AppThemes.current(context)
         views.setImageViewBitmap(
             R.id.widget_bg,
             cardBitmap(
                 context,
                 dp(context, widthDp).coerceIn(dp(context, 40), dp(context, 900)),
                 dp(context, heightDp).coerceIn(dp(context, 40), dp(context, 900)),
-                accent,
-                theme.panel
+                boltWatermark
             )
         )
     }
 
-    fun barBitmap(context: Context, widthPx: Int, heightPx: Int, progress: Float, accent: Int): Bitmap {
-        val width = widthPx.coerceAtLeast(dp(context, 24))
-        val height = heightPx.coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    /** Draws an icon drawable tinted with the theme accent, for RemoteViews buttons. */
+    fun tintedBitmap(context: Context, resId: Int, color: Int, sizePx: Int): Bitmap {
+        val size = sizePx.coerceAtLeast(2)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val radius = height / 2f
-        paint.color = Color.argb(46, 255, 255, 255)
-        canvas.drawRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, paint)
-        val filled = (width * progress.coerceIn(0f, 1f)).coerceAtLeast(height.toFloat())
-        paint.color = accent
-        canvas.drawRoundRect(RectF(0f, 0f, filled, height.toFloat()), radius, radius, paint)
+        val drawable = context.getDrawable(resId) ?: return bitmap
+        drawable.setTint(color)
+        drawable.setBounds(0, 0, size, size)
+        drawable.draw(canvas)
         return bitmap
     }
 
@@ -107,38 +129,31 @@ object GlassWidgets {
         return bitmap
     }
 
-    private fun cardBitmap(
-        context: Context,
-        width: Int,
-        height: Int,
-        accent: Int,
-        panel: Int
-    ): Bitmap {
+    private fun cardBitmap(context: Context, width: Int, height: Int, bolt: Boolean): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val radius = dp(context, 24).toFloat().coerceAtMost(width / 2f)
+        val radius = dp(context, 26).toFloat().coerceAtMost(minOf(width, height) / 2f)
         val path = Path().apply {
-            addRoundRect(RectF(0f, 0f, width.toFloat(), height.toFloat()), radius, radius, Path.Direction.CW)
+            addRoundRect(
+                RectF(0f, 0f, width.toFloat(), height.toFloat()),
+                radius, radius, Path.Direction.CW
+            )
         }
         canvas.clipPath(path)
-        val solid = (panel and 0x00FFFFFF) or 0xE4000000.toInt()
-        val deep = (darken(panel, 0.55f) and 0x00FFFFFF) or 0xE4000000.toInt()
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                0f, 0f, width.toFloat(), height.toFloat(),
-                solid, deep, Shader.TileMode.CLAMP
+                0f, 0f, 0f, height.toFloat(),
+                Color.argb(46, 238, 246, 255),
+                Color.argb(18, 238, 246, 255),
+                Shader.TileMode.CLAMP
             )
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
-        // Soft accent glow in the top-left corner, like the reference glass cards.
-        val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = (accent and 0x00FFFFFF) or 0x30000000
-        }
-        canvas.drawCircle(width * 0.16f, height * 0.08f, height * 1.05f, glow)
+        if (bolt) drawBoltWatermark(canvas, width, height)
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = dp(context, 1).toFloat().coerceAtLeast(1f)
-            color = (accent and 0x00FFFFFF) or 0x5A000000
+            color = Color.argb(96, 255, 255, 255)
         }
         val inset = rim.strokeWidth / 2f
         canvas.drawRoundRect(
@@ -148,12 +163,35 @@ object GlassWidgets {
         return bitmap
     }
 
-    private fun darken(color: Int, factor: Float): Int =
-        Color.rgb(
-            (Color.red(color) * factor).roundToInt().coerceIn(0, 255),
-            (Color.green(color) * factor).roundToInt().coerceIn(0, 255),
-            (Color.blue(color) * factor).roundToInt().coerceIn(0, 255)
-        )
+    private fun drawBoltWatermark(canvas: Canvas, width: Int, height: Int) {
+        val size = minOf(width, height) * 0.66f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(124, 156, 198)
+            style = Paint.Style.FILL
+        }
+        val layers = floatArrayOf(1f, 1.2f, 1.42f)
+        val alphas = intArrayOf(72, 52, 34)
+        layers.forEachIndexed { index, layer ->
+            canvas.save()
+            canvas.translate(width / 2f, height / 2f)
+            val scale = size / 24f * layer
+            canvas.scale(scale, scale)
+            canvas.translate(-12f, -12f)
+            paint.alpha = alphas[index]
+            canvas.drawPath(boltPath(), paint)
+            canvas.restore()
+        }
+    }
+
+    private fun boltPath(): Path = Path().apply {
+        moveTo(13.2f, 2f)
+        lineTo(4.6f, 13.4f)
+        lineTo(10.6f, 13.4f)
+        lineTo(9.2f, 22f)
+        lineTo(19.4f, 10.4f)
+        lineTo(13.4f, 10.4f)
+        close()
+    }
 
     private fun dp(context: Context, value: Int): Int =
         (value * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
@@ -161,6 +199,8 @@ object GlassWidgets {
 
 abstract class GlassWidgetProvider : AppWidgetProvider() {
     protected abstract fun layoutId(context: Context, options: Bundle): Int
+
+    protected open val boltWatermark: Boolean = false
 
     protected abstract fun bind(
         context: Context,
@@ -194,7 +234,7 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
         val action = intent.action ?: return
         if (!handleAction(context, action)) return
         val manager = AppWidgetManager.getInstance(context)
-        manager.getAppWidgetIds(android.content.ComponentName(context, this.javaClass))
+        manager.getAppWidgetIds(ComponentName(context, this.javaClass))
             .forEach { render(context, manager, it) }
     }
 
@@ -202,14 +242,15 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
         val options = manager.getAppWidgetOptions(widgetId)
         val accent = AppThemes.current(context).accent
         val views = RemoteViews(context.packageName, layoutId(context, options))
-        GlassWidgets.bindCard(views, context, options, accent)
+        GlassWidgets.bindCard(views, context, options, boltWatermark)
         bind(context, views, widgetId, options, accent)
         manager.updateAppWidget(widgetId, views)
     }
 }
 
-class GlassBatteryWidget : GlassWidgetProvider() {
-    override fun layoutId(context: Context, options: Bundle): Int = R.layout.widget_battery
+class GlassBatteryWidget : GlassWidgetProvider() {    override fun layoutId(context: Context, options: Bundle): Int = R.layout.widget_battery
+
+    override val boltWatermark: Boolean = true
 
     override fun bind(
         context: Context,
@@ -227,35 +268,29 @@ class GlassBatteryWidget : GlassWidgetProvider() {
             BatteryManager.BATTERY_STATUS_FULL -> true
             else -> false
         }
+        val label = when {
+            charging -> "ĐANG SẠC"
+            percent <= 20 -> "PIN YẾU"
+            else -> "PIN"
+        }
         views.setTextViewText(R.id.widget_value, "$percent%")
-        views.setTextViewText(R.id.widget_label, if (charging) "PIN · ĐANG SẠC" else "PIN")
-        val (widthDp, _) = GlassWidgets.sizeDp(options)
-        val barWidth = dp(context, (widthDp - 62).coerceAtLeast(40))
-        views.setImageViewBitmap(
-            R.id.widget_bar,
-            GlassWidgets.barBitmap(context, barWidth, dp(context, 6), percent / 100f, accent)
+        views.setTextViewText(R.id.widget_label, label)
+        views.setOnClickPendingIntent(
+            R.id.widget_value,
+            GlassWidgets.appPending(context, widgetId * 16 + 5)
+        )
+        views.setOnClickPendingIntent(
+            R.id.widget_bg,
+            GlassWidgets.appPending(context, widgetId * 16 + 6)
         )
     }
-
-    private fun dp(context: Context, value: Int): Int =
-        (value * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
 }
 
-class GlassVolumeWidget : GlassWidgetProvider() {
-    override fun layoutId(context: Context, options: Bundle): Int {
-        val (widthDp, heightDp) = GlassWidgets.sizeDp(options)
-        return if (heightDp > widthDp) {
-            R.layout.widget_volume_vertical
-        } else {
-            R.layout.widget_volume_horizontal
-        }
-    }
-
-    override fun bind(
+abstract class GlassVolumeWidget : GlassWidgetProvider() {
+    protected fun bindVolume(
         context: Context,
         views: RemoteViews,
         widgetId: Int,
-        options: Bundle,
         accent: Int
     ) {
         val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -263,6 +298,15 @@ class GlassVolumeWidget : GlassWidgetProvider() {
         val current = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         views.setTextViewText(R.id.widget_value, "${(current * 100f / max).roundToInt()}%")
         views.setTextViewText(R.id.widget_label, "ÂM LƯỢNG")
+        val iconPx = dp(context, 18)
+        views.setImageViewBitmap(
+            R.id.widget_plus,
+            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_plus, accent, iconPx)
+        )
+        views.setImageViewBitmap(
+            R.id.widget_minus,
+            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_minus, accent, iconPx)
+        )
         views.setOnClickPendingIntent(
             R.id.widget_plus,
             GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_VOLUME_UP, widgetId * 16)
@@ -270,6 +314,10 @@ class GlassVolumeWidget : GlassWidgetProvider() {
         views.setOnClickPendingIntent(
             R.id.widget_minus,
             GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_VOLUME_DOWN, widgetId * 16 + 1)
+        )
+        views.setOnClickPendingIntent(
+            R.id.widget_value,
+            GlassWidgets.appPending(context, widgetId * 16 + 7)
         )
     }
 
@@ -283,6 +331,33 @@ class GlassVolumeWidget : GlassWidgetProvider() {
         audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
         return true
     }
+
+    private fun dp(context: Context, value: Int): Int =
+        (value * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+}
+
+class GlassVolumeVerticalWidget : GlassVolumeWidget() {
+    override fun layoutId(context: Context, options: Bundle): Int = R.layout.widget_volume_vertical
+
+    override fun bind(
+        context: Context,
+        views: RemoteViews,
+        widgetId: Int,
+        options: Bundle,
+        accent: Int
+    ) = bindVolume(context, views, widgetId, accent)
+}
+
+class GlassVolumeHorizontalWidget : GlassVolumeWidget() {
+    override fun layoutId(context: Context, options: Bundle): Int = R.layout.widget_volume_horizontal
+
+    override fun bind(
+        context: Context,
+        views: RemoteViews,
+        widgetId: Int,
+        options: Bundle,
+        accent: Int
+    ) = bindVolume(context, views, widgetId, accent)
 }
 
 class GlassClockWidget : GlassWidgetProvider() {
@@ -294,7 +369,12 @@ class GlassClockWidget : GlassWidgetProvider() {
         widgetId: Int,
         options: Bundle,
         accent: Int
-    ) = Unit
+    ) {
+        views.setOnClickPendingIntent(
+            R.id.widget_value,
+            GlassWidgets.appPending(context, widgetId * 16 + 8)
+        )
+    }
 }
 
 class GlassMusicWidget : GlassWidgetProvider() {
@@ -311,6 +391,15 @@ class GlassMusicWidget : GlassWidgetProvider() {
             R.id.widget_play_bg,
             GlassWidgets.circleBitmap(context, dp(context, 44), accent)
         )
+        val iconPx = dp(context, 20)
+        views.setImageViewBitmap(
+            R.id.widget_prev,
+            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_prev, accent, iconPx)
+        )
+        views.setImageViewBitmap(
+            R.id.widget_next,
+            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_next, accent, iconPx)
+        )
         views.setOnClickPendingIntent(
             R.id.widget_prev,
             GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_MEDIA_PREV, widgetId * 16 + 2)
@@ -323,6 +412,10 @@ class GlassMusicWidget : GlassWidgetProvider() {
             R.id.widget_next,
             GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_MEDIA_NEXT, widgetId * 16 + 4)
         )
+        val openSource = GlassWidgets.mediaSourcePending(context, widgetId * 16 + 9)
+        views.setOnClickPendingIntent(R.id.widget_bg, openSource)
+        views.setOnClickPendingIntent(R.id.widget_title, openSource)
+        views.setOnClickPendingIntent(R.id.widget_label, openSource)
     }
 
     override fun handleAction(context: Context, action: String): Boolean {
@@ -340,4 +433,19 @@ class GlassMusicWidget : GlassWidgetProvider() {
 
     private fun dp(context: Context, value: Int): Int =
         (value * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+}
+
+/** Few manifest-safe battery broadcasts keep the card fresh without polling. */
+class BatteryWidgetReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val manager = AppWidgetManager.getInstance(context)
+        val component = ComponentName(context, GlassBatteryWidget::class.java)
+        val ids = manager.getAppWidgetIds(component)
+        if (ids.isEmpty()) return
+        context.sendBroadcast(
+            Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                .setComponent(component)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        )
+    }
 }

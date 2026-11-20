@@ -329,4 +329,10 @@
 <string name="gif_choose_from_gif_tab">Hãy chọn GIF trong mục GIF.</string>
     <string name="background_panel_settings">Cài đặt Nền bảng</string>
     <string name="panel_appearance_shared_note">Màu nền, độ trong suốt, bo góc và làm mờ được quản lý chung trong Cài đặt Nền bảng.</string>
+    <string name="widget_size_warning_title">Không đủ chỗ</string>
+    <string name="widget_size_warning_message">Vị trí này không đủ chỗ cho kích thước 2x2 thông thường nên tiện ích có thể hiển thị hơi lỗi. Bạn vẫn có thể chỉnh lại kích thước trong trình sửa bảng tiện ích.</string>
+    <string name="widget_size_warning_continue">Tiếp tục</string>
+    <string name="widget_size_warning_cancel">Thôi</string>
+    <string name="panel_free_mode">Bố cục tự do</string>
+    <string name="panel_free_mode_description">Cho phép các mục đè lên nhau khi di chuyển hoặc đổi kích thước (mặc định tắt).</string>
 </resources>

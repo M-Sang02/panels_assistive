@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -14,34 +15,35 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:gravity="center"
-        android:padding="14dp">
-
-        <TextView
-            android:id="@+id/widget_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="44%"
-            android:textColor="#F4F6FA"
-            android:textSize="34sp"
-            android:textStyle="bold"
-            android:includeFontPadding="false" />
+        android:gravity="center_horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="16dp">
 
         <TextView
             android:id="@+id/widget_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="PIN"
-            android:textColor="#B9C2CE"
-            android:textSize="11sp"
-            android:letterSpacing="0.14"
-            android:layout_marginTop="4dp" />
+            android:textColor="#CC24334A"
+            android:textSize="13sp"
+            android:letterSpacing="0.06"
+            android:includeFontPadding="false" />
 
-        <ImageView
-            android:id="@+id/widget_bar"
-            android:layout_width="150dp"
-            android:layout_height="6dp"
-            android:layout_marginTop="12dp"
-            android:contentDescription="@null" />
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/widget_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="35%"
+            android:textColor="#FF182434"
+            android:textSize="34sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false" />
     </LinearLayout>
 </FrameLayout>

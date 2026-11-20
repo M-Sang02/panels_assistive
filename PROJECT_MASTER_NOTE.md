@@ -475,3 +475,29 @@
 
 ### Follow-up CI fix (v28.18)
 - GitHub Actions đầu tiên báo `GlassWidgets.kt:124/125 Argument type mismatch: Long but Int expected` — hằng `0xE4000000` vượt `Int.MAX_VALUE` nên Kotlin suy ra `Long`. Đã thêm `.toInt()` cho cả hai biểu thức trong `cardBitmap()`; đã rà toàn bộ hằng hex 8 chữ số khác (đều đã có `.toInt()` hoặc nằm trong giới hạn Int).
+
+## v28.19 — Glass widgets, expansion settings, free layout
+
+### Widgets (home screen)
+- `GlassWidgets.kt` rewritten around a bitmap-drawn white glass card (`cardBitmap`): vertical white gradient, white rim, optional stacked lightning watermark in blue-grey. Text on the card is now dark navy (`#182434` / `#3A4A60`) so it reads like the reference white card; theme accent only tints the volume +/− and music play buttons.
+- Sizes: battery 2x2, clock 2x2, music 2x2, volume vertical 1x2, volume horizontal 2x1 (split into `GlassVolumeVerticalWidget` / `GlassVolumeHorizontalWidget` with separate provider XMLs and manifest receivers).
+- Interaction: value/bg taps open the app (`MainActivity`); music card taps go through `WidgetLaunchActivity`, which resolves the package currently playing via `AudioManager.getActivePlaybackConfigurations()` and opens its launcher intent (fallback: `CATEGORY_APP_MUSIC`, then `MainActivity`). Prev/play/next dispatch media keys.
+- `BatteryWidgetReceiver` (power connected/disconnected, battery low/okay) refreshes the battery card without polling; `updatePeriodMillis` stays at 30 min.
+
+### Expansion panel
+- New `ExpansionSettingsActivity` (Cài đặt → Bản mở rộng): reorder bars up/down, show/hide each bar (at least one stays), add/replace/remove shortcuts (8 slots, `WidgetPickerActivity` action picker).
+- `showExpansionPanel()` now renders `AppPrefs.expansionSliders()` in order (default brightness, ring, notification, alarm, media — media last, far right), has no "+" cells, and hides the chevron/shortcut block when all slots are empty. Window width/height is computed from the bar count and shortcut rows, and stays centered.
+- Audio bars call `applyStreamVolume` while dragging and `finishStreamVolume` on release.
+
+### Volume outside the app
+- `finishStreamVolume` verifies `getStreamVolume` after `setStreamVolume`; when an OEM ROM (OnePlus/Oppo/Realme) silently ignores the background-service call, it retries through `VolumeApplyActivity` (transparent, `Theme.Translucent.NoTitleBar`, `noHistory`), which is the accepted workaround for the background volume restriction.
+
+### Panel editor
+- Free layout switch (`AppPrefs.panelFreeMode`, default off) in `WidgetPanelSettingsActivity`; when on, live panel move/resize and preview move/resize skip overlap checks, and `addPanelItem(..., allowOverlap = true)` keeps the chosen cell.
+- Auto-size when adding a widget into a panel: span = ceil(min size / cell size) clamped to 2..6 in both axes. If the remaining columns at the target cell are narrower than 2 (e.g. 1x3), a confirm dialog (`Tiếp tục` / `Thôi`) explains that the widget may display oddly; manual resize still allows values beyond 6x6 (e.g. 5x10).
+
+### Cleanup
+- Removed now-unused `createSliderPill`, `SliderTrackView`, `sliderPillBackground`, `scheduleStreamVolume`, `pendingVolumeUpdates`, `addVolumeSliderRow`.
+
+### Verification
+- Static review only. Gate: GitHub Actions "Android build". On device: pin each widget and check glass/watermark/text contrast, tap targets, music tap opening the playing app, expansion reorder/hide + shortcuts add/remove, free layout overlap in the live panel, auto-size confirm at a 1-column edge, and media volume change while Facebook is in front.

@@ -333,4 +333,10 @@
     <string name="float_ball_settings_title">Bóng nổi</string>
     <string name="effects_settings_title">Hiệu ứng</string>
     <string name="widget_panels_settings_title">Bảng tiện ích</string>
+    <string name="widget_size_warning_title">Tight space</string>
+    <string name="widget_size_warning_message">There is not enough room here for the usual 2x2 size, so this widget may display oddly. You can still resize it later in the panel editor.</string>
+    <string name="widget_size_warning_continue">Continue</string>
+    <string name="widget_size_warning_cancel">Cancel</string>
+    <string name="panel_free_mode">Free layout</string>
+    <string name="panel_free_mode_description">Items can overlap each other (off by default).</string>
 </resources>

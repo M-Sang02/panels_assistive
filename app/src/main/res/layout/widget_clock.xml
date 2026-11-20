@@ -23,7 +23,7 @@
             android:layout_height="wrap_content"
             android:format12Hour="hh:mm"
             android:format24Hour="HH:mm"
-            android:textColor="#F4F6FA"
+            android:textColor="#FF182434"
             android:textSize="44sp"
             android:includeFontPadding="false" />
 
@@ -34,7 +34,7 @@
             android:layout_marginTop="2dp"
             android:format12Hour="EEE, dd MMM"
             android:format24Hour="EEE, dd MMM"
-            android:textColor="#B9C2CE"
+            android:textColor="#CC3A4A60"
             android:textSize="12sp"
             android:letterSpacing="0.06" />
     </LinearLayout>

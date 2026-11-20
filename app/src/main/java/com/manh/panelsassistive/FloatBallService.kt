@@ -88,9 +88,6 @@ class FloatBallService : Service() {
     private var downRawY = 0f
     private var downWindowX = 0
     private var downWindowY = 0
-    // Coalesce rapid slider movements so the system volume is committed only
-    // after the user has stopped dragging for 500 ms.
-    private val pendingVolumeUpdates = mutableMapOf<Int, Runnable>()
     private var torchCameraId: String? = null
     private var torchOn = false
     private var torchCallbackRegistered = false
@@ -400,8 +397,6 @@ class FloatBallService : Service() {
         } catch (error: IllegalArgumentException) {
             Log.w(TAG, "Configuration receiver was already unregistered", error)
         }
-        pendingVolumeUpdates.values.forEach(handler::removeCallbacks)
-        pendingVolumeUpdates.clear()
         removePopup()
         removeFloatBall()
         stopWidgetUpdates()
@@ -1028,10 +1023,7 @@ class FloatBallService : Service() {
 
 
 
-    /**
-     * Compact icon-first control surface. The visual language follows the
-     * volume-widget reference: one rounded pill, a real slider, and no +/- buttons.
-     */
+    /** Vertical bars ordered by Cài đặt → Bản mở rộng, with optional shortcuts below. */
     private fun showExpansionPanel() {
         if (popup != null) removePopup(stopIfEmpty = false)
         val panel = LinearLayout(this).apply {
@@ -1039,8 +1031,8 @@ class FloatBallService : Service() {
             setPadding(dp(14), dp(14), dp(14), dp(12))
         }
 
-        // Brightness is intentionally a separate floating control, not part of this panel.
-        // XGesture-style five-column vertical level controls: brightness + four audio streams.
+        // Bar order and visibility come from Cài đặt → Bản mở rộng; media is last
+        // by default so it sits at the far right edge of the panel.
         val volumeRows = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -1050,54 +1042,65 @@ class FloatBallService : Service() {
         val brightnessValue = try {
             Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
         } catch (_: Exception) { 128 }
-        addVerticalLevelSlider(volumeRows, PopupIcon.BRIGHTNESS, "Sáng", 255, brightnessValue) { updateBrightness(it) }
-        if (audio != null) {
-            listOf(
-                Triple(android.media.AudioManager.STREAM_MUSIC, PopupIcon.MEDIA, "Media"),
-                Triple(android.media.AudioManager.STREAM_RING, PopupIcon.RING, "Chuông"),
-                Triple(android.media.AudioManager.STREAM_NOTIFICATION, PopupIcon.NOTIFICATION, "Thông báo"),
-                Triple(android.media.AudioManager.STREAM_ALARM, PopupIcon.ALARM, "Báo thức")
-            ).forEach { (stream, icon, label) ->
-                val maximum = audio.getStreamMaxVolume(stream).coerceAtLeast(1)
-                val current = audio.getStreamVolume(stream).coerceIn(0, maximum)
-                addVerticalLevelSlider(volumeRows, icon, label, maximum, current) {
-                    scheduleStreamVolume(audio, stream, it)
+        val sliderKeys = AppPrefs.expansionSliders(this)
+        sliderKeys.forEach { key ->
+            if (key == "brightness") {
+                addVerticalLevelSlider(volumeRows, PopupIcon.BRIGHTNESS, "Sáng", 255, brightnessValue) {
+                    updateBrightness(it)
                 }
+                return@forEach
             }
+            if (audio == null) return@forEach
+            val stream = when (key) {
+                "media" -> android.media.AudioManager.STREAM_MUSIC
+                "ring" -> android.media.AudioManager.STREAM_RING
+                "notification" -> android.media.AudioManager.STREAM_NOTIFICATION
+                else -> android.media.AudioManager.STREAM_ALARM
+            }
+            val icon = when (key) {
+                "media" -> PopupIcon.MEDIA
+                "ring" -> PopupIcon.RING
+                "notification" -> PopupIcon.NOTIFICATION
+                else -> PopupIcon.ALARM
+            }
+            val label = when (key) {
+                "media" -> "Media"
+                "ring" -> "Chuông"
+                "notification" -> "Thông báo"
+                else -> "Báo thức"
+            }
+            val maximum = audio.getStreamMaxVolume(stream).coerceAtLeast(1)
+            val current = audio.getStreamVolume(stream).coerceIn(0, maximum)
+            addVerticalLevelSlider(
+                volumeRows,
+                icon,
+                label,
+                maximum,
+                current,
+                { applyStreamVolume(audio, stream, it) },
+                { finishStreamVolume(audio, stream, it) }
+            )
         }
         panel.addView(volumeRows)
 
-        val shortcutArea = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(5), 0, 0)
-        }
-        AppPrefs.expansionShortcuts(this).chunked(4).forEachIndexed { rowIndex, rowShortcuts ->
-            val shortcutRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
-                if (rowIndex > 0) setPadding(0, dp(4), 0, 0)
+        // Shortcuts are managed in Cài đặt → Bản mở rộng, so the panel shows
+        // only filled slots and shrinks to the bars when there are none.
+        val shortcutEntries = AppPrefs.expansionShortcuts(this)
+            .mapIndexedNotNull { index, shortcut -> shortcut?.let { index to it } }
+        val shortcutRows = shortcutEntries.chunked(4)
+        if (shortcutRows.isNotEmpty()) {
+            val shortcutArea = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(5), 0, 0)
             }
-            rowShortcuts.forEachIndexed { columnIndex, shortcut ->
-                val index = rowIndex * 4 + columnIndex
-                val cell: View = if (shortcut == null) {
-                    FrameLayout(this).apply {
-                        background = sliderTileBackground()
-                        contentDescription = getString(R.string.add_shortcut)
-                        isClickable = true
-                        isFocusable = true
-                        addView(PopupIconView(this@FloatBallService, PopupIcon.ADD).apply {
-                            setIconColor(Color.WHITE)
-                        }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
-                        setOnClickListener {
-                            startActivity(Intent(this@FloatBallService, WidgetPickerActivity::class.java).apply {
-                                putExtra(WidgetPickerActivity.EXTRA_EXPANSION_SLOT, index)
-                                putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, PanelItemType.ACTION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            })
-                        }
-                    }
-                } else {
-                    FrameLayout(this).apply {
+            shortcutRows.forEachIndexed { rowIndex, rowShortcuts ->
+                val shortcutRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER
+                    if (rowIndex > 0) setPadding(0, dp(4), 0, 0)
+                }
+                rowShortcuts.forEach { (index, shortcut) ->
+                    val cell = FrameLayout(this).apply {
                         background = sliderTileBackground()
                         val shortcutView = createPanelShortcut(
                             PanelItem(shortcut.type, shortcut.value, shortcut.label), showLabel = false
@@ -1113,33 +1116,32 @@ class FloatBallService : Service() {
                             true
                         }
                     }
+                    shortcutRow.addView(cell, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+                        setMargins(dp(3), 0, dp(3), 0)
+                    })
                 }
-                shortcutRow.addView(cell, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
-                    setMargins(dp(3), 0, dp(3), 0)
-                })
+                shortcutArea.addView(shortcutRow)
             }
-            shortcutArea.addView(shortcutRow)
-        }
 
-        // The centered chevron controls only the shortcut area; volume rows stay visible.
-        var shortcutsExpanded = true
-        val shortcutToggle = FrameLayout(this).apply {
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Thu gọn hoặc mở rộng lối tắt"
-            addView(PopupIconView(this@FloatBallService, PopupIcon.CHEVRON_UP).apply {
-                setIconColor(Color.WHITE)
-            }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
-            setOnClickListener {
-                shortcutsExpanded = !shortcutsExpanded
-                shortcutArea.visibility = if (shortcutsExpanded) View.VISIBLE else View.GONE
-                (getChildAt(0) as? PopupIconView)?.setIcon(shortcutsExpanded)
+            var shortcutsExpanded = true
+            val shortcutToggle = FrameLayout(this).apply {
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Thu gọn hoặc mở rộng lối tắt"
+                addView(PopupIconView(this@FloatBallService, PopupIcon.CHEVRON_UP).apply {
+                    setIconColor(Color.WHITE)
+                }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+                setOnClickListener {
+                    shortcutsExpanded = !shortcutsExpanded
+                    shortcutArea.visibility = if (shortcutsExpanded) View.VISIBLE else View.GONE
+                    (getChildAt(0) as? PopupIconView)?.setIcon(shortcutsExpanded)
+                }
             }
+            panel.addView(shortcutToggle, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(30)
+            ).apply { topMargin = dp(3) })
+            panel.addView(shortcutArea)
         }
-        panel.addView(shortcutToggle, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(30)
-        ).apply { topMargin = dp(3) })
-        panel.addView(shortcutArea)
 
         val scroll = android.widget.ScrollView(this).apply {
             isFillViewport = true
@@ -1148,10 +1150,17 @@ class FloatBallService : Service() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
+        // 26dp panel padding + 14dp row padding + 198dp slider column, then the
+        // optional shortcut block (toggle + 54dp rows).
+        val baseHeightDp = 238
+        val shortcutHeightDp = if (shortcutRows.isEmpty()) 0 else {
+            33 + shortcutRows.size * 54 + (shortcutRows.size - 1) * 4
+        }
+        val widthDp = (28 + 66 * sliderKeys.size).coerceIn(96, 360)
         showOverlayPanel(
             scroll,
-            dp(360),
-            minOf(dp(470), resources.displayMetrics.heightPixels - dp(80)),
+            dp(widthDp),
+            minOf(dp(baseHeightDp + shortcutHeightDp), resources.displayMetrics.heightPixels - dp(80)),
             windowBackground = sharedPanelBackground(),
             surface = OverlaySurface.EXPANSION
         )
@@ -1187,7 +1196,8 @@ class FloatBallService : Service() {
         context: Context,
         private val maximum: Int,
         initialProgress: Int,
-        private val onValueChanged: (Int) -> Unit
+        private val onValueChanged: (Int) -> Unit,
+        private val onFinished: ((Int) -> Unit)? = null
     ) : View(context) {
         private val density = resources.displayMetrics.density
         private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(95, 230, 240, 250) }
@@ -1195,6 +1205,7 @@ class FloatBallService : Service() {
         private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
         private var value = initialProgress.coerceIn(0, maximum)
         private var tracking = false
+        private var changed = false
         init { isClickable = true; isFocusable = true; contentDescription = getString(R.string.brightness_slider) }
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
@@ -1211,9 +1222,16 @@ class FloatBallService : Service() {
         }
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { tracking = true; parent?.requestDisallowInterceptTouchEvent(true); updateValue(event.y); return true }
+                MotionEvent.ACTION_DOWN -> { tracking = true; changed = false; parent?.requestDisallowInterceptTouchEvent(true); updateValue(event.y); return true }
                 MotionEvent.ACTION_MOVE -> { if (tracking) updateValue(event.y); return tracking }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { if (tracking) updateValue(event.y); tracking = false; parent?.requestDisallowInterceptTouchEvent(false); performClick(); return true }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (tracking) updateValue(event.y)
+                    tracking = false
+                    parent?.requestDisallowInterceptTouchEvent(false)
+                    if (changed) onFinished?.invoke(value)
+                    performClick()
+                    return true
+                }
             }
             return tracking
         }
@@ -1222,7 +1240,7 @@ class FloatBallService : Service() {
             val top = 10f * density
             val bottom = (height - 10f * density).coerceAtLeast(top + 1f)
             val next = (((bottom - y) / (bottom - top)).coerceIn(0f, 1f) * maximum).toInt()
-            if (next != value) { value = next; invalidate(); onValueChanged(value) }
+            if (next != value) { value = next; changed = true; invalidate(); onValueChanged(value) }
         }
     }
 
@@ -1232,7 +1250,8 @@ class FloatBallService : Service() {
         label: String,
         maximum: Int,
         progress: Int,
-        onChanged: (Int) -> Unit
+        onChanged: (Int) -> Unit,
+        onFinished: ((Int) -> Unit)? = null
     ) {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1242,9 +1261,9 @@ class FloatBallService : Service() {
                 setIconColor(Color.WHITE)
                 contentDescription = label
             }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { bottomMargin = dp(7) })
-            addView(VerticalBrightnessTrackView(this@FloatBallService, maximum.coerceAtLeast(1), progress) {
+            addView(VerticalBrightnessTrackView(this@FloatBallService, maximum.coerceAtLeast(1), progress, {
                 onChanged(it)
-            }, LinearLayout.LayoutParams(dp(42), dp(142)))
+            }, onFinished), LinearLayout.LayoutParams(dp(42), dp(142)))
             addView(TextView(this@FloatBallService).apply {
                 text = label
                 textSize = 10f
@@ -1276,163 +1295,6 @@ class FloatBallService : Service() {
         setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
         cornerRadius = dp(corner).toFloat()
         setStroke(dp(1), Color.argb(65, 225, 238, 250))
-    }
-
-    private fun addVolumeSliderRow(parent: LinearLayout, stream: Int, icon: PopupIcon) {
-        val audio = getSystemService(android.media.AudioManager::class.java) ?: return
-        val maximum = audio.getStreamMaxVolume(stream).coerceAtLeast(1)
-        val current = audio.getStreamVolume(stream).coerceIn(0, maximum)
-        val description = when (stream) {
-            android.media.AudioManager.STREAM_MUSIC -> getString(R.string.media_volume)
-            android.media.AudioManager.STREAM_RING -> getString(R.string.ring_volume)
-            android.media.AudioManager.STREAM_NOTIFICATION -> getString(R.string.notification_volume)
-            else -> getString(R.string.alarm_volume)
-        }
-        parent.addView(createSliderPill(
-            icon = icon,
-            description = description,
-            max = maximum,
-            progress = current,
-            compact = false
-        ) { value -> scheduleStreamVolume(audio, stream, value) }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(48)
-        ).apply {
-            bottomMargin = dp(7)
-        })
-    }
-
-    private fun createSliderPill(
-        icon: PopupIcon,
-        description: String,
-        max: Int,
-        progress: Int,
-        compact: Boolean,
-        onChanged: (Int) -> Unit
-    ): View {
-        // A custom-drawn track avoids the platform SeekBar's inconsistent
-        // thumb/track insets and gives brightness + every volume row one design.
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(5), dp(14), dp(5))
-            background = sliderPillBackground()
-            contentDescription = description
-            addView(FrameLayout(this@FloatBallService).apply {
-                addView(PopupIconView(this@FloatBallService, icon).apply {
-                    setIconColor(Color.WHITE)
-                    contentDescription = description
-                }, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
-            }, LinearLayout.LayoutParams(dp(26), dp(30)))
-            addView(SliderTrackView(
-                context = this@FloatBallService,
-                maximum = max.coerceAtLeast(1),
-                initialProgress = progress.coerceIn(0, max.coerceAtLeast(1)),
-                onValueChanged = onChanged
-            ), LinearLayout.LayoutParams(0, dp(38), 1f).apply {
-                leftMargin = dp(12)
-            })
-        }
-    }
-
-    /** Rounded, inset-safe slider shared by brightness and all audio streams. */
-    private inner class SliderTrackView(
-        context: Context,
-        private val maximum: Int,
-        initialProgress: Int,
-        private val onValueChanged: (Int) -> Unit
-    ) : View(context) {
-        private val density = resources.displayMetrics.density
-        private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(105, 230, 240, 250)
-            style = Paint.Style.FILL
-        }
-        private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(132, 198, 255)
-            style = Paint.Style.FILL
-        }
-        private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            style = Paint.Style.FILL
-            setShadowLayer(2.5f * density, 0f, 1f * density, Color.argb(110, 0, 0, 0))
-        }
-        private var value = initialProgress.coerceIn(0, maximum)
-        private val inset = 9f * density
-        private val trackHeight = 4.5f * density
-        private val thumbRadius = 7f * density
-        private var tracking = false
-
-        init {
-            isClickable = true
-            isFocusable = true
-            setLayerType(LAYER_TYPE_SOFTWARE, null)
-            contentDescription = "Thanh điều chỉnh"
-        }
-
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            val left = inset
-            val right = (width.toFloat() - inset).coerceAtLeast(left + 1f)
-            val centerY = height / 2f
-            val fraction = value.toFloat() / maximum.toFloat()
-            val thumbX = left + (right - left) * fraction
-            val top = centerY - trackHeight / 2f
-            val bottom = centerY + trackHeight / 2f
-            canvas.drawRoundRect(left, top, right, bottom, trackHeight, trackHeight, trackPaint)
-            activePaint.alpha = 255
-            if (thumbX > left) {
-                canvas.drawRoundRect(left, top, thumbX, bottom, trackHeight, trackHeight, activePaint)
-            }
-            activePaint.alpha = 75
-            canvas.drawCircle(thumbX, centerY, thumbRadius + 2f * density, activePaint)
-            thumbPaint.alpha = 255
-            canvas.drawCircle(thumbX, centerY, thumbRadius, thumbPaint)
-        }
-
-        override fun onTouchEvent(event: MotionEvent): Boolean {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    tracking = true
-                    parent?.requestDisallowInterceptTouchEvent(true)
-                    updateFromTouch(event.x)
-                    return true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (tracking) updateFromTouch(event.x)
-                    return tracking
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (tracking) updateFromTouch(event.x)
-                    tracking = false
-                    parent?.requestDisallowInterceptTouchEvent(false)
-                    performClick()
-                    return true
-                }
-            }
-            return tracking
-        }
-
-        override fun performClick(): Boolean {
-            super.performClick()
-            return true
-        }
-
-        private fun updateFromTouch(x: Float) {
-            val usable = (width.toFloat() - inset * 2f).coerceAtLeast(1f)
-            val fraction = ((x - inset) / usable).coerceIn(0f, 1f)
-            val next = (fraction * maximum).toInt()
-            if (next != value) {
-                value = next
-                invalidate()
-                onValueChanged(value)
-            }
-        }
-    }
-
-    private fun sliderPillBackground() = GradientDrawable().apply {
-        setColor(Color.argb(72, 225, 237, 250))
-        cornerRadius = dp(16).toFloat()
-        setStroke(dp(1), Color.argb(58, 225, 237, 250))
     }
 
     private fun sliderTileBackground() = GradientDrawable().apply {
@@ -1536,21 +1398,12 @@ class FloatBallService : Service() {
         return fallback
     }
 
-    private fun scheduleStreamVolume(
-        audio: android.media.AudioManager,
-        stream: Int,
-        requested: Int
-    ) {
-        pendingVolumeUpdates.remove(stream)?.let(handler::removeCallbacks)
-        val update = Runnable {
-            pendingVolumeUpdates.remove(stream)
-            setStreamVolume(audio, stream, requested)
-        }
-        pendingVolumeUpdates[stream] = update
-        handler.postDelayed(update, 500L)
-    }
-
-    private fun setStreamVolume(
+    /**
+     * Applied on every drag frame without the system panel so the level follows
+     * the finger. Some OEM ROMs ignore volume calls made by a background
+     * service; [finishStreamVolume] detects and works around that.
+     */
+    private fun applyStreamVolume(
         audio: android.media.AudioManager,
         stream: Int,
         requested: Int
@@ -1559,8 +1412,26 @@ class FloatBallService : Service() {
             audio.setStreamVolume(
                 stream,
                 requested.coerceIn(0, audio.getStreamMaxVolume(stream).coerceAtLeast(1)),
-                android.media.AudioManager.FLAG_SHOW_UI
+                0
             )
+        } catch (error: SecurityException) {
+            Log.e(TAG, "Unable to update volume stream $stream", error)
+        }
+    }
+
+    private fun finishStreamVolume(
+        audio: android.media.AudioManager,
+        stream: Int,
+        requested: Int
+    ) {
+        val clamped = requested.coerceIn(0, audio.getStreamMaxVolume(stream).coerceAtLeast(1))
+        try {
+            audio.setStreamVolume(stream, clamped, android.media.AudioManager.FLAG_SHOW_UI)
+            // OnePlus/Oppo/Realme and similar ROMs silently drop volume changes
+            // from a background service; retry from a briefly visible activity.
+            if (audio.getStreamVolume(stream) != clamped) {
+                VolumeApplyActivity.request(this, stream, clamped)
+            }
         } catch (error: SecurityException) {
             Log.e(TAG, "Unable to update volume stream $stream", error)
             Toast.makeText(this, R.string.volume_update_failed, Toast.LENGTH_SHORT).show()
@@ -1719,7 +1590,7 @@ class FloatBallService : Service() {
             current.spanY,
             (page.columns - column).coerceAtLeast(1)
         ) { spanX, spanY ->
-            val overlaps = page.items.any { other ->
+            val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
                 if (other.id == current.id) return@any false
                 val otherPosition = other.position.coerceAtLeast(0)
                 val otherColumn = otherPosition % page.columns
@@ -1750,7 +1621,7 @@ class FloatBallService : Service() {
         val targetRow = (sourceRow + dy).coerceIn(0, 19 - current.spanY.coerceAtLeast(1))
         val destination = targetRow * columns + targetColumn
         if (destination == source) return
-        val overlaps = page.items.any { other ->
+        val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
             if (other.id == current.id) return@any false
             val otherPosition = other.position.coerceAtLeast(0)
             val otherColumn = otherPosition % columns

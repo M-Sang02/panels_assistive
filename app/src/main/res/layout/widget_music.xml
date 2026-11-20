@@ -25,7 +25,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:text="Trình phát nhạc"
-            android:textColor="#F4F6FA"
+            android:textColor="#FF182434"
             android:textSize="14sp"
             android:textStyle="bold"
             android:includeFontPadding="false" />
@@ -39,7 +39,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:text="Điều khiển nhạc đang phát"
-            android:textColor="#B9C2CE"
+            android:textColor="#CC3A4A60"
             android:textSize="10sp"
             android:includeFontPadding="false" />
 

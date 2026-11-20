@@ -39,7 +39,7 @@ class ThemeSettingsActivity : Activity() {
 
     private fun paletteCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@ThemeSettingsActivity, "Bảng màu"))
-        addView(hint("Chọn bảng màu để đổi màu nhấn, nền các bảng nổi, status bar và widget."))
+        addView(hint("Chọn bảng màu để đổi màu nhấn (nút bấm, thanh trượt), nền các bảng nổi và status bar."))
 
         val current = AppThemes.current(this@ThemeSettingsActivity)
         AppThemes.ALL.forEach { theme ->
@@ -103,7 +103,7 @@ class ThemeSettingsActivity : Activity() {
 
     private fun widgetLinkCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@ThemeSettingsActivity, "Widget dùng chung bảng màu"))
-        addView(hint("Đồng hồ, pin, âm lượng và nhạc trên màn hình chính đổi màu theo bảng màu này."))
+        addView(hint("Widget dùng nền kính trong suốt cố định; bảng màu chỉ đổi màu nút + / − và nút phát nhạc."))
         addView(GlassUi.actionButton(
             this@ThemeSettingsActivity,
             "Mở cài đặt widget"

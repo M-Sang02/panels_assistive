@@ -42,6 +42,16 @@
             </intent-filter>
         </receiver>
         <receiver
+            android:name=".BatteryWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+                <action android:name="android.intent.action.BATTERY_LOW" />
+                <action android:name="android.intent.action.BATTERY_OKAY" />
+            </intent-filter>
+        </receiver>
+        <receiver
             android:name=".GlassBatteryWidget"
             android:exported="false"
             android:label="Pin">
@@ -53,15 +63,26 @@
                 android:resource="@xml/glass_widget_battery" />
         </receiver>
         <receiver
-            android:name=".GlassVolumeWidget"
+            android:name=".GlassVolumeVerticalWidget"
             android:exported="false"
-            android:label="Âm lượng">
+            android:label="Âm lượng dọc">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/glass_widget_volume" />
+                android:resource="@xml/glass_widget_volume_vertical" />
+        </receiver>
+        <receiver
+            android:name=".GlassVolumeHorizontalWidget"
+            android:exported="false"
+            android:label="Âm lượng ngang">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glass_widget_volume_horizontal" />
         </receiver>
         <receiver
             android:name=".GlassClockWidget"
@@ -120,6 +141,23 @@
         <activity
             android:name=".ThemeSettingsActivity"
             android:exported="false" />
+        <activity
+            android:name=".ExpansionSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".WidgetLaunchActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity="${applicationId}.widgetlaunch"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".VolumeApplyActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity="${applicationId}.volume"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
             android:name=".AdvancedSettingsActivity"
             android:exported="false" />
