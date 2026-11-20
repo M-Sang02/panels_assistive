@@ -112,6 +112,11 @@ object AppPrefs {
     private const val KEY_POPUP_PANEL_CORNER = "popup_panel_corner"
     private const val KEY_TAB_TRANSITION = "tab_transition"
     private const val KEY_PANEL_FREE_MODE = "panel_free_mode"
+    private const val KEY_FREEFORM_APPS = "freeform_apps"
+    private const val KEY_ICON_PACK_ENABLED = "icon_pack_enabled"
+    private const val KEY_ICON_PACK_PACKAGE = "icon_pack_package"
+    private const val KEY_ICON_MASK_ENABLED = "icon_mask_enabled"
+    private const val KEY_ICON_OVERRIDES = "icon_overrides"
     private const val KEY_EXPANSION_SLIDERS = "expansion_sliders"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
@@ -788,6 +793,56 @@ object AppPrefs {
         store(context).edit().putBoolean(KEY_PANEL_FREE_MODE, enabled).apply()
     }
 
+    /** Launch panel app items in a floating (freeform) window instead of full screen. */
+    fun freeformApps(context: Context) =
+        store(context).getBoolean(KEY_FREEFORM_APPS, false)
+
+    fun setFreeformApps(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_FREEFORM_APPS, enabled).apply()
+    }
+
+    fun iconPackEnabled(context: Context) =
+        store(context).getBoolean(KEY_ICON_PACK_ENABLED, false)
+
+    fun setIconPackEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_ICON_PACK_ENABLED, enabled).apply()
+    }
+
+    fun iconPackPackage(context: Context): String =
+        store(context).getString(KEY_ICON_PACK_PACKAGE, null).orEmpty()
+
+    fun setIconPackPackage(context: Context, packageName: String) {
+        store(context).edit().putString(KEY_ICON_PACK_PACKAGE, packageName).apply()
+    }
+
+    /** Draw iconback/iconmask/iconupon shapes for apps the pack has no icon for. */
+    fun iconMaskEnabled(context: Context) =
+        store(context).getBoolean(KEY_ICON_MASK_ENABLED, true)
+
+    fun setIconMaskEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_ICON_MASK_ENABLED, enabled).apply()
+    }
+
+    private fun iconOverrideStore(context: Context) =
+        store(context).getString(KEY_ICON_OVERRIDES, null)?.let {
+            try { JSONObject(it) } catch (_: Exception) { JSONObject() }
+        } ?: JSONObject()
+
+    fun iconOverride(context: Context, key: String): String? {
+        val saved = iconOverrideStore(context).optString(key, "")
+        return saved.ifEmpty { null }
+    }
+
+    fun setIconOverride(context: Context, key: String, value: String?) {
+        val json = iconOverrideStore(context)
+        try {
+            if (value == null) json.remove(key) else json.put(key, value)
+        } catch (_: Exception) {
+            return
+        }
+        store(context).edit().putString(KEY_ICON_OVERRIDES, json.toString()).apply()
+    }
+
     fun floatBallIconUri(context: Context): String? =
         store(context).getString(KEY_FLOAT_BALL_ICON_URI, null)
 
@@ -1243,12 +1298,7 @@ object ActionDispatcher {
             val value = Uri.decode(action.split(':', limit = 3).getOrNull(1).orEmpty())
             val component = ComponentName.unflattenFromString(value)
                 ?: throw IllegalArgumentException("Invalid selected app component")
-            context.startActivity(
-                Intent(Intent.ACTION_MAIN)
-                    .addCategory(Intent.CATEGORY_LAUNCHER)
-                    .setComponent(component)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            FloatingApps.open(context, component)
         } catch (error: Exception) {
             Log.e("PanelsAssistive", "Unable to open the selected app", error)
             Toast.makeText(context, R.string.panel_item_launch_failed, Toast.LENGTH_SHORT).show()

@@ -487,11 +487,14 @@ class WidgetPickerActivity : Activity() {
         }
         matches.forEach { resolveInfo ->
             val activityInfo = resolveInfo.activityInfo ?: return@forEach
+            val component = ComponentName(activityInfo.packageName, activityInfo.name)
             list.addView(selectableRow(
                 resolveInfo.loadLabel(packageManager).toString(),
-                resolveInfo.loadIcon(packageManager)
+                IconPacks.resolve(
+                    this, PanelItemType.APP, component.flattenToString(),
+                    resolveInfo.loadIcon(packageManager), dp(36)
+                ) ?: resolveInfo.loadIcon(packageManager)
             ) {
-                val component = ComponentName(activityInfo.packageName, activityInfo.name)
                 val label = resolveInfo.loadLabel(packageManager).toString()
                 if (actionPickerTarget != null) {
                     if (!saveSelectedAction(

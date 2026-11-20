@@ -1722,7 +1722,8 @@ class FloatBallService : Service() {
                             ?.let { packageManager.getActivityIcon(it) }
                         else -> null
                     }
-                    setImageDrawable(icon ?: packageManager.getDefaultActivityIcon())
+                    val fallback = icon ?: packageManager.getDefaultActivityIcon()
+                    setImageDrawable(IconPacks.resolve(this@FloatBallService, item.type, item.value, fallback, iconSize) ?: fallback)
                 } catch (error: Exception) {
                     Log.w(TAG, "Unable to load panel item icon", error)
                     setImageResource(android.R.drawable.sym_def_app_icon)
@@ -1760,12 +1761,13 @@ class FloatBallService : Service() {
                 ActionDispatcher.dispatch(this, item.value)
                 return
             }
+            if (item.type == PanelItemType.APP) {
+                val component = ComponentName.unflattenFromString(item.value)
+                    ?: throw IllegalArgumentException("Invalid app component")
+                FloatingApps.open(this, component)
+                return
+            }
             val intent = when (item.type) {
-                PanelItemType.APP -> Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                    component = ComponentName.unflattenFromString(item.value)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
                 PanelItemType.SHORTCUT -> Intent.parseUri(item.value, 0).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }

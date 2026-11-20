@@ -900,7 +900,7 @@ class WidgetPanelSettingsActivity : Activity() {
                                 ?.let { packageManager.getActivityIcon(it) }
                             else -> null
                         }
-                        setImageDrawable(drawable ?: packageManager.getDefaultActivityIcon())
+                        setImageDrawable(IconPacks.resolve(this@WidgetPanelSettingsActivity, item.type, item.value, drawable ?: packageManager.getDefaultActivityIcon(), iconSize))
                     } catch (error: Exception) {
                         Log.w(TAG, "Unable to load preview icon", error)
                         setImageResource(android.R.drawable.sym_def_app_icon)

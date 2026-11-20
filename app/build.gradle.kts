@@ -20,12 +20,15 @@ android {
         applicationId = "com.manh.panelsassistive"
         minSdk = 23
         targetSdk = 34
-        versionCode = 28
-        versionName = "0.2.8"
+        versionCode = 29
+        versionName = "0.2.9"
     }
 }
 
 dependencies {
     // Required by LucideGlyphView for ResourcesCompat.getFont().
     implementation("androidx.core:core-ktx:1.15.0")
+    // Optional shell bridge for freeform windows; inactive when Shizuku is missing.
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
 }

@@ -501,3 +501,19 @@
 
 ### Verification
 - Static review only. Gate: GitHub Actions "Android build". On device: pin each widget and check glass/watermark/text contrast, tap targets, music tap opening the playing app, expansion reorder/hide + shortcuts add/remove, free layout overlap in the live panel, auto-size confirm at a 1-column edge, and media volume change while Facebook is in front.
+
+## v28.20 — Cửa sổ tự do + icon pack
+
+### Cửa sổ tự do (`Cài đặt nâng cao`)
+- `FloatingApps`: app mở từ bảng tiện ích / action "mở app" đi qua `FloatingApps.open()`. Khi bật, thử theo thứ tự: Shizuku (`am start-activity --windowingMode 5 <pkg>/<cls>`, cần quyền Shizuku) → `ActivityOptions.setLaunchWindowingMode(5)` + `setLaunchBounds` (reflection, không cần quyền) → mở bình thường.
+- Shizuku chỉ được nhắc quyền khi người dùng mở màn Cài đặt nâng cao và bấm "Cấp quyền Shizuku"; nếu chưa cài, nút dẫn tới Play Store. `enableFreeformSupport()` bật `enable_freeform_support` + `development_force_resizable_activities` một lần khi bật công tắc.
+- Thêm dependency `dev.rikka.shizuku:api/provider:13.1.5`, khai báo `rikka.shizuku.ShizukuProvider` với authority `${applicationId}.shizuku`.
+
+### Icon pack (`Giao diện`)
+- `IconPacks`: phát hiện gói icon ADW/Nova (6 theme actions), đọc `assets/appfilter.xml`, `assets/drawable.xml`, chuỗi `iconback/iconmask/iconupon` từ resources của gói mà không cần thư viện zip.
+- Công tắc "Áp dụng icon pack" + chọn gói; công tắc "Mặt nạ & lớp phủ" ghép iconback + icon gốc (clip bằng iconmask) + iconupon cho app không có icon trong gói; bọc bọc fallback glass squircle khi gói thiếu iconback.
+- `IconOverrideActivity`: 2 tab App / Lối tắt (lối tắt lấy từ các trang panel + expansion shortcuts), ô tìm kiếm, mỗi dòng mở tuỳ chọn "Chọn ảnh từ máy" (copy PNG vào `filesDir/icons`), "Chọn icon từ gói" (danh sách có tìm kiếm) hoặc "Đặt lại".
+- Override lưu JSON trong prefs (`icon_overrides`), key `type|value`; icon panel (`FloatBallService.createPanelShortcut`), preview editor và danh sách chọn app đều đi qua `IconPacks.resolve()`.
+
+### Verification
+- Static review only. Gate: GitHub Actions "Android build". On device: bật cửa sổ tự do với/không có Shizuku trên ROM hỗ trợ freeform; cài 1 icon pack, bật/tắt mặt nạ; thay icon 1 app bằng ảnh và bằng icon gói rồi xem trong bảng tiện ích.
