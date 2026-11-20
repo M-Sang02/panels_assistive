@@ -24,3 +24,8 @@ android {
         versionName = "0.2.8"
     }
 }
+
+dependencies {
+    // Required by LucideGlyphView for ResourcesCompat.getFont().
+    implementation("androidx.core:core-ktx:1.15.0")
+}
