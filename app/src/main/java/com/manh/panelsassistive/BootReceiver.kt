@@ -12,6 +12,9 @@ class BootReceiver : BroadcastReceiver() {
         ) {
             return
         }
+        // Widgets are re-hosted after a reboot; revive their live level tracking.
+        WidgetLevelObserver.ensure(context.applicationContext)
+        GlassWidgets.refreshLevelWidgets(context.applicationContext)
         if (AppPrefs.startOnBoot(context) &&
             AppPrefs.floatBallEnabled(context) &&
             Settings.canDrawOverlays(context)

@@ -19,6 +19,7 @@ class WidgetLaunchActivity : Activity() {
         super.onCreate(savedInstanceState)
         val widgetId = intent.getIntExtra(GlassWidgets.EXTRA_WIDGET_ID, -1)
         when {
+            intent.getBooleanExtra(EXTRA_OPEN_WRITE_SETTINGS, false) -> openWriteSettings(this)
             intent.getBooleanExtra(EXTRA_PLAY_NOW, false) -> playNow(this, widgetId)
             intent.getBooleanExtra(EXTRA_MEDIA_TAP, false) -> openMusicApp(this, widgetId)
         }
@@ -29,12 +30,39 @@ class WidgetLaunchActivity : Activity() {
     companion object {
         const val EXTRA_MEDIA_TAP = "com.manh.panelsassistive.extra.MEDIA_TAP"
         const val EXTRA_PLAY_NOW = "com.manh.panelsassistive.extra.PLAY_NOW"
+        const val EXTRA_OPEN_WRITE_SETTINGS =
+            "com.manh.panelsassistive.extra.OPEN_WRITE_SETTINGS"
+
+        /** Brightness widget tapped without the WRITE_SETTINGS grant. */
+        fun openWriteSettings(context: Context) {
+            val intent = Intent(
+                android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                android.net.Uri.parse("package:${context.packageName}")
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val opened = runCatching { context.startActivity(intent) }.isSuccess ||
+                runCatching {
+                    context.startActivity(
+                        Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }.isSuccess
+            if (!opened) return
+            // Rebinding once the user flips the toggle keeps the widget usable
+            // without waiting for the 30-minute provider refresh.
+            val app = context.applicationContext
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            longArrayOf(1500L, 5000L, 15000L).forEach { delay ->
+                handler.postDelayed({ GlassWidgets.refreshLevelWidgets(app) }, delay)
+            }
+        }
 
         /**
          * Opens the app that is playing now, then the app assigned to this
          * widget, then the pinned quick-open app, then the system music app.
          */
         fun openMusicApp(context: Context, widgetId: Int = -1) {
+            // "Không mở app" assignment: the card stays purely informational.
+            if (AppPrefs.musicWidgetNoApp(context, widgetId)) return
             val playing = WidgetMedia.activePackage(context)
             if (playing != null && WidgetMedia.launch(context, playing)) return
             val assigned = AppPrefs.musicWidgetPackage(context, widgetId)

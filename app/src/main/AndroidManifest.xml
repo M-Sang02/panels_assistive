@@ -67,27 +67,26 @@
             </intent-filter>
         </receiver>
         <receiver
-            android:name=".BatteryWidgetReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
-                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
-                <action android:name="android.intent.action.BATTERY_LOW" />
-                <action android:name="android.intent.action.BATTERY_OKAY" />
-                <action android:name="android.intent.action.USER_PRESENT" />
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-        <receiver
-            android:name=".GlassBatteryWidget"
+            android:name=".GlassBrightnessVerticalWidget"
             android:exported="false"
-            android:label="Pin">
+            android:label="Độ sáng dọc">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/glass_widget_battery" />
+                android:resource="@xml/glass_widget_brightness_vertical" />
+        </receiver>
+        <receiver
+            android:name=".GlassBrightnessHorizontalWidget"
+            android:exported="false"
+            android:label="Độ sáng ngang">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glass_widget_brightness_horizontal" />
         </receiver>
         <receiver
             android:name=".GlassVolumeVerticalWidget"

@@ -123,6 +123,9 @@ object AppPrefs {
     private const val KEY_MUSIC_WIDGET_SOURCE = "music_widget_source"
     private const val KEY_MUSIC_WIDGET_PACKAGE = "music_widget_package"
     private const val KEY_MUSIC_WIDGET_PACKAGE_ID = "music_widget_package_"
+
+    /** Sentinel stored per music widget: tap must not open any app. */
+    const val WIDGET_NO_APP = "__none__"
     private const val KEY_EXPANSION_SLIDERS = "expansion_sliders"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
@@ -874,12 +877,19 @@ object AppPrefs {
     fun musicWidgetPackage(context: Context, widgetId: Int): String {
         if (widgetId >= 0) {
             val own = store(context).getString(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId, null)
+            if (own == WIDGET_NO_APP) return ""
             if (!own.isNullOrEmpty()) return own
         }
         val shared = musicWidgetPackage(context)
         if (shared.isNotEmpty()) return shared
         return widgetShortcut(context).substringBefore('/')
     }
+
+    /** True when this instance was explicitly told to open no app at all. */
+    fun musicWidgetNoApp(context: Context, widgetId: Int): Boolean =
+        widgetId >= 0 &&
+            store(context).getString(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId, null) ==
+            WIDGET_NO_APP
 
     fun setMusicWidgetPackage(context: Context, widgetId: Int, packageName: String?) {
         val editor = store(context).edit()

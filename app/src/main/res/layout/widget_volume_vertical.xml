@@ -1,3 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vertical volume column (1x2): top half raises, bottom half lowers.
+     Plus/minus sit close to the edges with a safe margin from the rounded corners. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -13,49 +16,48 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="6dp">
+        android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/widget_plus"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:background="@drawable/widget_button_bg"
-            android:padding="7dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_wg_plus"
+        <LinearLayout
+            android:id="@+id/widget_up"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
             android:contentDescription="Tăng âm lượng" />
 
-        <TextView
-            android:id="@+id/widget_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="75%"
-            android:textColor="#FF182434"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:includeFontPadding="false" />
-
-        <ImageView
-            android:id="@+id/widget_label"
-            android:layout_width="14dp"
-            android:layout_height="14dp"
-            android:layout_marginTop="3dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_wg_volume"
-            android:contentDescription="Âm lượng" />
-
-        <ImageButton
-            android:id="@+id/widget_minus"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/widget_button_bg"
-            android:padding="7dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_wg_minus"
+        <LinearLayout
+            android:id="@+id/widget_down"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
             android:contentDescription="Giảm âm lượng" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/widget_up_icon"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="10dp"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter" />
+
+    <ImageView
+        android:id="@+id/widget_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter" />
+
+    <ImageView
+        android:id="@+id/widget_down_icon"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="10dp"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter" />
 </FrameLayout>

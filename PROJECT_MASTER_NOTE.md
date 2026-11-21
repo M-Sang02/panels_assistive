@@ -613,3 +613,32 @@
 
 ### Follow-up CI fix (v31)
 - GitHub Actions: `WidgetMedia.kt:281 Unresolved reference 'release'` — `android.media.session.MediaController` không có `release()` trong SDK công khai (chỉ `MediaBrowser` mới có `disconnect()`); đã bỏ hàm `release()` và mọi lời gọi `sessions.forEach { release(it) }` trong `snapshot`/`activePackage`/`send`/`resume`. Controller do framework quản lý, không cần giải phóng thủ công.
+
+## v32 — Thiết kế kính tối, ảnh tròn căn giữa, widget độ sáng và cập nhật thời gian thực
+
+### Yêu cầu
+- Widget nhạc: ảnh bìa tròn hoàn toàn căn giữa trên cùng, tên bài + nghệ sĩ căn giữa, hàng Prev / Play / Next căn giữa dưới cùng; nền kính tối có độ loang; trạng thái chờ gọn.
+- Hệ màu thống nhất: chữ và mọi icon màu trắng (mặc định), vệt accent chỉ dùng cho thanh mức và nút Play.
+- Widget âm lượng ngang mỏng, bỏ %, chỉ còn icon (đổi theo mức); nửa trái = giảm, nửa phải = tăng; bỏ chạm mở app.
+- Widget âm lượng dọc: nửa trên = tăng, nửa dưới = giảm; icon + ở sát mép trên, − sát mép dưới, luôn bám mép khi kéo dài; bỏ chạm mở app.
+- Icon tăng/giảm của cả 4 widget mức nằm sát mép ngoài (trên/dưới hoặc trái/phải) và bám mép khi đổi kích thước.
+- Cập nhật thời gian thực khi bấm nút âm lượng vật lý hoặc đổi độ sáng.
+- Bỏ widget Pin (không hoạt động); thêm widget độ sáng dọc + ngang cùng hệ với âm lượng.
+- Các widget khác (đồng hồ) theo ngôn ngữ thiết kế của thẻ nhạc; gán riêng từng widget nhạc có thêm lựa chọn “Không mở app”.
+
+### Thay đổi trong mã
+- `GlassWidgets.kt`:
+  - `cardBitmap(...)` vẽ kính navy đậm (alpha 148/102, thẻ nhạc 176/124), sheen trắng phía trên, quầng accent `RadialGradient` góc dưới phải, halo trắng thêm cho thẻ nhạc, viền trắng 1dp alpha 92; `drawLevelFill` tô accent có vạch sáng 2dp ở biên mức.
+  - `circularArtBitmap` cắt ảnh bìa thành hình tròn có vành sáng, hoặc đĩa kính + glyph “music” khi chờ; `glyphBitmap` render glyph Lucide trắng cho icon RemoteViews.
+  - `GlassWidgetProvider` không còn watermark pin; `GlassLevelWidget` dùng chung cho âm lượng/độ sáng: một glyph ở giữa, hai vùng chạm chia đôi (`widget_up`/`widget_down`), icon +/− đặt ở mép (`widget_up_icon`/`widget_down_icon`) nên bám góc khi kéo dài; `GlassVolumeWidget` chỉnh `STREAM_MUSIC` với `FLAG_SHOW_UI`; `GlassBrightnessWidget` ghi `SCREEN_BRIGHTNESS` (bước 24, kẹp 1..255, chuyển chế độ MANUAL), khi thiếu `WRITE_SETTINGS` thì vùng chạm mở màn hình cấp quyền qua `WidgetLaunchActivity`.
+  - `WidgetLevelObserver`: `ContentObserver` trên `volume_music` và `SCREEN_BRIGHTNESS` (không polling) → `refreshLevelWidgets()`; đăng ký từ `PanelsApp.onCreate`, `BootReceiver`, `onUpdate` và `bind` của widget mức.
+  - Xoá `GlassBatteryWidget`, `BatteryWidgetReceiver`, `roundedBitmap`, `artPlaceholderBitmap`, watermark tia sét; thẻ nhạc dùng chữ trắng, nghệ sĩ `#D9FFFFFF`, nút Play tròn accent + icon trắng.
+- `AssistiveCore.kt`: sentinel `AppPrefs.WIDGET_NO_APP`; `musicWidgetPackage(id)` trả rỗng khi widget được gán “không mở app”; thêm `musicWidgetNoApp(id)`.
+- `OverlayActivities.kt`: `WidgetLaunchActivity` thêm `EXTRA_OPEN_WRITE_SETTINGS` (mở `ACTION_MANAGE_WRITE_SETTINGS` cho package); `openMusicApp` tôn trọng lựa chọn “Không mở app”.
+- Layout/drawable/provider mới: `widget_brightness_vertical.xml`, `widget_brightness_horizontal.xml`, `glass_widget_brightness_vertical.xml`, `glass_widget_brightness_horizontal.xml`; viết lại `widget_volume_vertical.xml`, `widget_volume_horizontal.xml` (2 vùng chạm + icon mép), `widget_music*.xml` (ảnh tròn căn giữa/chữ trắng), `widget_clock.xml` (chữ trắng), `widget_card_bg.xml` (kính navy dự phòng); xoá `widget_battery.xml`, `glass_widget_battery.xml`; provider âm lượng đặt `updatePeriodMillis=1800000` để đăng ký lại observer sau khi process bị kill.
+- `AndroidManifest.xml`: bỏ receiver Pin + `BatteryWidgetReceiver`; thêm receiver độ sáng dọc/ngang.
+- `WidgetSettingsActivity.kt`: thay thẻ Pin bằng 2 thẻ độ sáng; cập nhật mô tả âm lượng (chia đôi, không %, không mở app) và nhạc (ảnh tròn căn giữa); hộp chọn app nhạc có thêm “Không mở app (chỉ hiển thị bài hát)” cho gán riêng từng widget; thẻ màu chữ đổi thành ghi chú hệ chữ trắng cố định.
+
+### Kiểm chứng
+- Chỉ soát mã tĩnh (máy không có JDK/Android SDK); cổng build là GitHub Actions “Android build”.
+- Trên máy: bấm nút âm lượng vật lý và xem widget ngang/dọc cập nhật ngay; kéo dài widget để icon +/− bám mép; chạm nửa trái/phải và nửa trên/dưới; cấp quyền “Chỉnh sửa cài đặt hệ thống” cho widget độ sáng; ghim thẻ nhạc 2×2/4×2/4×4 để xem ảnh tròn căn giữa và hàng nút chia đều; chọn “Không mở app” cho một widget nhạc rồi chạm thân thẻ.

@@ -5,9 +5,7 @@ import android.app.AlertDialog
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -39,43 +37,54 @@ class WidgetSettingsActivity : Activity() {
         root.addView(GlassUi.pageHeader(
             this,
             "Widget màn hình chính",
-            "Pin, âm lượng, đồng hồ và nhạc theo phong cách kính của ứng dụng."
+            "Âm lượng, độ sáng, đồng hồ và nhạc theo phong cách kính tối của ứng dụng."
         ))
         root.addView(widgetCard(
             "volume-2",
             "Âm lượng dọc (1×2)",
-            "Một cột dọc gọn cho mép màn hình. Nút + / − chỉnh âm lượng nhạc.",
+            "Cột dọc mảnh. Nửa trên tăng, nửa dưới giảm âm lượng; icon loa đổi theo mức " +
+                "và thanh sáng dâng theo thời gian thực.",
             GlassVolumeVerticalWidget::class.java
         ))
         root.addView(widgetCard(
             "audio-lines",
             "Âm lượng ngang (2×1)",
-            "Dạng thanh ngang một hàng, hợp đặt dưới đồng hồ hoặc cạnh widget khác.",
+            "Thanh ngang mảnh, chỉ có icon loa (không hiện %). Chạm nửa trái để giảm, " +
+                "nửa phải để tăng — cập nhật ngay cả khi bạn bấm nút âm lượng vật lý.",
             GlassVolumeHorizontalWidget::class.java
         ))
         root.addView(widgetCard(
-            "battery-charging",
-            "Pin (2×2)",
-            "Kính trong suốt, tia sét chìm, nhãn Pin yếu/Đang sạc và phần trăm pin lớn.",
-            GlassBatteryWidget::class.java
+            "sun",
+            "Độ sáng dọc (1×2)",
+            "Cột dọc tăng/giảm độ sáng màn hình. Cần cấp quyền Chỉnh sửa cài đặt hệ thống " +
+                "ở lần chạm đầu tiên.",
+            GlassBrightnessVerticalWidget::class.java
+        ))
+        root.addView(widgetCard(
+            "sun-medium",
+            "Độ sáng ngang (2×1)",
+            "Thanh ngang tăng/giảm độ sáng, icon mặt trời đổi theo mức, không hiện %. " +
+                "Chạm nửa trái để giảm, nửa phải để tăng.",
+            GlassBrightnessHorizontalWidget::class.java
         ))
         root.addView(widgetCard(
             "clock",
             "Đồng hồ (2×2)",
-            "Giờ và thứ trong ngày, tự cập nhật theo múi giờ và định dạng 12/24 giờ của máy.",
+            "Chữ trắng trên nền kính tối giống thẻ nhạc; tự cập nhật theo múi giờ và " +
+                "định dạng 12/24 giờ của máy.",
             GlassClockWidget::class.java
         ))
         root.addView(widgetCard(
             "music",
             "Nhạc (2×2 → 4×2 → 4×4)",
-            "Thẻ kính mờ với ảnh bìa, tên bài, nghệ sĩ và hàng nút chia đều. " +
-                "Ghim ở dạng 2×2, kéo rộng thành 4×2 hoặc phóng to 4×4 — nút tự co giãn, " +
-                "không bao giờ bị ẩn khi thu nhỏ.",
+            "Ảnh bìa tròn cân giữa, tên bài và nghệ sĩ căn giữa, hàng nút Prev / Play / " +
+                "Next chia đều bên dưới. Ghim ở dạng 2×2, kéo rộng thành 4×2 hoặc phóng " +
+                "to 4×4 — nút tự co giãn, không bao giờ bị ẩn khi thu nhỏ.",
             GlassMusicWidget::class.java
         ))
         root.addView(musicCard())
         root.addView(quickOpenCard())
-        root.addView(colorCard())
+        root.addView(themeHint())
         root.addView(styleCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
@@ -105,9 +114,9 @@ class WidgetSettingsActivity : Activity() {
     private fun quickOpenCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Mở nhanh từ widget"))
         addView(hint(
-            "Chạm vào thân widget Pin, Đồng hồ hoặc Âm lượng để mở app được gán. " +
-                "Widget nhạc ưu tiên mở app đang phát; khi im lặng sẽ mở app được gán " +
-                "riêng cho widget đó, rồi mới dùng app dưới đây."
+            "Chạm vào thân widget Đồng hồ để mở app được gán. Widget âm lượng và độ sáng " +
+                "chỉ chỉnh mức, không mở app. Widget nhạc ưu tiên mở app đang phát; khi " +
+                "im lặng sẽ mở app được gán riêng cho widget đó, rồi mới dùng app dưới đây."
         ))
         addView(LinearLayout(this@WidgetSettingsActivity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -234,10 +243,10 @@ class WidgetSettingsActivity : Activity() {
 
     private fun instanceRow(index: Int, widgetId: Int): LinearLayout {
         val active = AppPrefs.musicWidgetPackage(this, widgetId)
-        val detail = if (active.isNotEmpty()) {
-            WidgetMedia.label(this, active)
-        } else {
-            "Tự động theo app đang phát"
+        val detail = when {
+            AppPrefs.musicWidgetNoApp(this, widgetId) -> "Không mở app"
+            active.isNotEmpty() -> WidgetMedia.label(this, active)
+            else -> "Tự động theo app đang phát"
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -249,7 +258,14 @@ class WidgetSettingsActivity : Activity() {
             setOnClickListener {
                 chooseMusicApp(
                     clearLabel = "Dùng app mặc định",
-                    onClear = { AppPrefs.clearMusicWidgetPackage(this@WidgetSettingsActivity, widgetId) }
+                    onClear = { AppPrefs.clearMusicWidgetPackage(this@WidgetSettingsActivity, widgetId) },
+                    onNoApp = {
+                        AppPrefs.setMusicWidgetPackage(
+                            this@WidgetSettingsActivity,
+                            widgetId,
+                            AppPrefs.WIDGET_NO_APP
+                        )
+                    }
                 ) { packageName ->
                     AppPrefs.setMusicWidgetPackage(this@WidgetSettingsActivity, widgetId, packageName)
                 }
@@ -270,14 +286,24 @@ class WidgetSettingsActivity : Activity() {
     private fun chooseMusicApp(
         clearLabel: String,
         onClear: () -> Unit,
+        onNoApp: (() -> Unit)? = null,
         onPick: (String) -> Unit
     ) {
         val apps = WidgetMedia.launcherApps(this)
-        val names = listOf(clearLabel) + apps.map { it.first }
+        val names = buildList {
+            add(clearLabel)
+            if (onNoApp != null) add("Không mở app (chỉ hiển thị bài hát)")
+            addAll(apps.map { it.first })
+        }
+        val appOffset = if (onNoApp != null) 2 else 1
         AlertDialog.Builder(this)
             .setTitle("Chọn ứng dụng nhạc")
             .setItems(names.toTypedArray()) { _, which ->
-                if (which == 0) onClear() else onPick(apps[which - 1].second)
+                when {
+                    which == 0 -> onClear()
+                    onNoApp != null && which == 1 -> onNoApp()
+                    else -> onPick(apps[which - appOffset].second)
+                }
                 GlassWidgets.refreshAll(this)
                 render()
             }
@@ -285,50 +311,13 @@ class WidgetSettingsActivity : Activity() {
             .show()
     }
 
-    private fun colorCard(): LinearLayout = GlassUi.glassCard(this).apply {
+    private fun themeHint(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Màu chữ widget"))
-        addView(hint("Đổi màu phần trăm âm lượng, nhãn pin và đồng hồ trên widget màn hình chính."))
-        val current = AppPrefs.widgetTextColor(this@WidgetSettingsActivity)
-        val row = LinearLayout(this@WidgetSettingsActivity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(6), 0, dp(4))
-        }
-        SWATCHES.forEach { color ->
-            val dot = android.view.View(this@WidgetSettingsActivity).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(color)
-                    if (color == current) {
-                        setStroke(dp(3), GlassUi.ACCENT)
-                    } else {
-                        setStroke(dp(1), Color.argb(96, 255, 255, 255))
-                    }
-                }
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    AppPrefs.setWidgetTextColor(this@WidgetSettingsActivity, color)
-                    GlassWidgets.refreshAll(this@WidgetSettingsActivity)
-                    render()
-                }
-            }
-            row.addView(dot, LinearLayout.LayoutParams(dp(32), dp(32)).apply {
-                marginEnd = dp(12)
-            })
-        }
-        addView(row)
-        addView(GlassUi.actionButton(this@WidgetSettingsActivity, "Màu tùy chỉnh") {
-            PanelColorPicker.show(
-                this@WidgetSettingsActivity,
-                current,
-                "Màu chữ widget"
-            ) { color ->
-                AppPrefs.setWidgetTextColor(this@WidgetSettingsActivity, color)
-                GlassWidgets.refreshAll(this@WidgetSettingsActivity)
-            }
-        })
-        addView(hint("Mẹo: chọn màu tối khi thanh âm lượng đầy trắng để chữ vẫn rõ."))
+        addView(hint(
+            "Mọi widget dùng chung hệ chữ trắng và icon trắng như ảnh tham chiếu, " +
+                "nên không cần chọn màu thủ công. Đổi bảng màu trong Giao diện để thay " +
+                "màu vệt sáng (accent) của thanh mức âm lượng và độ sáng."
+        ))
     }
 
     private fun assignedLabel(): String {
@@ -375,9 +364,9 @@ class WidgetSettingsActivity : Activity() {
     private fun styleCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Giao diện của widget"))
         addView(hint(
-            "Widget dùng nền kính trong suốt, bo góc mềm; bảng màu chỉ đổi màu nút bấm. " +
-                "Nhấn giữ widget trên màn hình chính để đổi kích thước; thêm tiện ích vào bảng " +
-                "trong Cài đặt → Bảng tiện ích."
+            "Widget dùng kính navy tối, độ loang nhẹ và viền trắng mảnh; bảng màu chỉ đổi " +
+                "vệt accent của thanh mức và nút Play. Nhấn giữ widget trên màn hình chính " +
+                "để đổi kích thước; icon tăng/giảm luôn bám mép ngoài khi kéo dài."
         ))
         addView(GlassUi.actionButton(
             this@WidgetSettingsActivity,
@@ -437,14 +426,4 @@ class WidgetSettingsActivity : Activity() {
     }
 
     private fun dp(value: Int): Int = GlassUi.dp(this, value)
-
-    private companion object {
-        val SWATCHES = intArrayOf(
-            0xFF182434.toInt(),
-            0xFFFFFFFF.toInt(),
-            0xFF7DBCFF.toInt(),
-            0xFFFFC2D9.toInt(),
-            0xFF9BE7C4.toInt()
-        )
-    }
 }

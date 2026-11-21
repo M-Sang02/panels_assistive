@@ -98,5 +98,7 @@ class PanelsApp : Application() {
     override fun onCreate() {
         super.onCreate()
         GlassUi.applyTheme(this)
+        // Realtime redraw of volume/brightness cards after hardware-key changes.
+        WidgetLevelObserver.ensure(this)
     }
 }

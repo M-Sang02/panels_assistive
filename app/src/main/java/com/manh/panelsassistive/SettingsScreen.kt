@@ -144,7 +144,7 @@ class SettingsScreen(private val activity: Activity) {
         addRow(
             icon = "layout-grid",
             title = "Widget",
-            subtitle = "Pin, âm lượng, đồng hồ, nhạc cho màn hình chính"
+            subtitle = "Âm lượng, độ sáng, đồng hồ, nhạc cho màn hình chính"
         ) {
             activity.startActivity(Intent(activity, WidgetSettingsActivity::class.java))
         }
