@@ -20,8 +20,9 @@ import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.KeyEvent
+import android.util.TypedValue
 import android.widget.RemoteViews
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
@@ -37,6 +38,7 @@ object GlassWidgets {
     const val ACTION_MEDIA_PREV = "com.manh.panelsassistive.widget.MEDIA_PREV"
     const val ACTION_MEDIA_TOGGLE = "com.manh.panelsassistive.widget.MEDIA_TOGGLE"
     const val ACTION_MEDIA_NEXT = "com.manh.panelsassistive.widget.MEDIA_NEXT"
+    const val EXTRA_WIDGET_ID = "com.manh.panelsassistive.widget.WIDGET_ID"
 
     val providers = listOf(
         GlassBatteryWidget::class.java,
@@ -76,13 +78,45 @@ object GlassWidgets {
         return (if (width > 0) width else 180) to (if (height > 0) height else 110)
     }
 
-    fun pending(context: Context, cls: Class<*>, action: String, request: Int): PendingIntent =
-        PendingIntent.getBroadcast(
+    enum class MusicSize { COMPACT, WIDE, LARGE }
+
+    /**
+     * The music card picks one of three layouts from the launcher-provided
+     * size: 2x2 compact, 4x2 wide, 4x4 large. Controls live in weighted rows,
+     * so they are always split evenly and simply get smaller when the widget
+     * is shrunk instead of disappearing.
+     */
+    fun musicSize(options: Bundle): MusicSize {
+        val (width, height) = sizeDp(options)
+        return when {
+            width >= 220 && height >= 200 -> MusicSize.LARGE
+            width >= 200 -> MusicSize.WIDE
+            else -> MusicSize.COMPACT
+        }
+    }
+
+    fun musicLayoutId(size: MusicSize): Int = when (size) {
+        MusicSize.COMPACT -> R.layout.widget_music
+        MusicSize.WIDE -> R.layout.widget_music_wide
+        MusicSize.LARGE -> R.layout.widget_music_large
+    }
+
+    fun pending(
+        context: Context,
+        cls: Class<*>,
+        action: String,
+        request: Int,
+        widgetId: Int = -1
+    ): PendingIntent {
+        val intent = Intent(context, cls).setAction(action)
+        if (widgetId >= 0) intent.putExtra(EXTRA_WIDGET_ID, widgetId)
+        return PendingIntent.getBroadcast(
             context,
             request,
-            Intent(context, cls).setAction(action),
+            intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
 
     /** Tap target for widget cards: the assigned app, or Panels when none is set. */
     fun targetPending(context: Context, request: Int): PendingIntent {
@@ -104,13 +138,29 @@ object GlassWidgets {
         )
     }
 
-    /** Tapping the music card opens whichever app is playing right now. */
-    fun mediaSourcePending(context: Context, request: Int): PendingIntent =
+    /**
+     * Tapping the album art / track info opens the app that is playing right
+     * now, or the app assigned to this widget instance when nothing plays.
+     */
+    fun musicTapPending(context: Context, widgetId: Int): PendingIntent =
         PendingIntent.getActivity(
             context,
-            request,
+            widgetId * 16 + 12,
             Intent(context, WidgetLaunchActivity::class.java)
-                .putExtra(WidgetLaunchActivity.EXTRA_OPEN_MEDIA, true)
+                .putExtra(WidgetLaunchActivity.EXTRA_MEDIA_TAP, true)
+                .putExtra(EXTRA_WIDGET_ID, widgetId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    /** Idle play button: opens the assigned app and asks it to start playing. */
+    fun musicPlayNowPending(context: Context, widgetId: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            widgetId * 16 + 13,
+            Intent(context, WidgetLaunchActivity::class.java)
+                .putExtra(WidgetLaunchActivity.EXTRA_PLAY_NOW, true)
+                .putExtra(EXTRA_WIDGET_ID, widgetId)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -137,6 +187,25 @@ object GlassWidgets {
         )
     }
 
+    /** Stronger, milkier glass used by the album-art music card. */
+    fun bindMusicCard(views: RemoteViews, context: Context, options: Bundle) {
+        val (widthDp, heightDp) = sizeDp(options)
+        views.setImageViewBitmap(
+            R.id.widget_bg,
+            cardBitmap(
+                context,
+                dp(context, widthDp).coerceIn(dp(context, 40), dp(context, 900)),
+                dp(context, heightDp).coerceIn(dp(context, 40), dp(context, 900)),
+                bolt = false,
+                fillLevel = -1f,
+                fillVertical = true,
+                glassTopAlpha = 140,
+                glassBottomAlpha = 82,
+                rimAlpha = 150
+            )
+        )
+    }
+
     /** Draws an icon drawable tinted with the theme accent, for RemoteViews buttons. */
     fun tintedBitmap(context: Context, resId: Int, color: Int, sizePx: Int): Bitmap {
         val size = sizePx.coerceAtLeast(2)
@@ -158,13 +227,101 @@ object GlassWidgets {
         return bitmap
     }
 
+    /** Center-crops the album art into a rounded rectangle for RemoteViews. */
+    fun roundedBitmap(
+        source: Bitmap,
+        widthPx: Int,
+        heightPx: Int,
+        radiusPx: Int
+    ): Bitmap {
+        val width = widthPx.coerceAtLeast(2)
+        val height = heightPx.coerceAtLeast(2)
+        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val path = Path().apply {
+            addRoundRect(
+                RectF(0f, 0f, width.toFloat(), height.toFloat()),
+                radiusPx.toFloat(), radiusPx.toFloat(), Path.Direction.CW
+            )
+        }
+        canvas.clipPath(path)
+        val scale = max(width.toFloat() / source.width, height.toFloat() / source.height)
+        val drawWidth = source.width * scale
+        val drawHeight = source.height * scale
+        val left = (width - drawWidth) / 2f
+        val top = (height - drawHeight) / 2f
+        canvas.drawBitmap(
+            source,
+            null,
+            RectF(left, top, left + drawWidth, top + drawHeight),
+            Paint(Paint.FILTER_BITMAP_FLAG)
+        )
+        return output
+    }
+
+    /** Frosted tile with a soft Lucide music glyph while no album art exists. */
+    fun artPlaceholderBitmap(
+        context: Context,
+        widthPx: Int,
+        heightPx: Int,
+        radiusPx: Int,
+        iconColor: Int
+    ): Bitmap {
+        val width = widthPx.coerceAtLeast(2)
+        val height = heightPx.coerceAtLeast(2)
+        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val path = Path().apply {
+            addRoundRect(
+                RectF(0f, 0f, width.toFloat(), height.toFloat()),
+                radiusPx.toFloat(), radiusPx.toFloat(), Path.Direction.CW
+            )
+        }
+        canvas.clipPath(path)
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, height.toFloat(),
+                Color.argb(112, 255, 255, 255),
+                Color.argb(44, 255, 255, 255),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
+        val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = dp(context, 1).toFloat().coerceAtLeast(1f)
+            color = Color.argb(90, 255, 255, 255)
+        }
+        val inset = rim.strokeWidth / 2f
+        canvas.drawRoundRect(
+            RectF(inset, inset, width - inset, height - inset),
+            radiusPx.toFloat(), radiusPx.toFloat(), rim
+        )
+        val glyph = LucideGlyphs.glyph(context, "music")
+        if (glyph.isNotEmpty()) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = LucideGlyphs.typeface(context)
+                textAlign = Paint.Align.CENTER
+                textSize = minOf(width, height) * 0.42f
+                color = (iconColor and 0x00FFFFFF) or 0xB8000000.toInt()
+            }
+            val metrics = paint.fontMetrics
+            val baseline = height / 2f - (metrics.ascent + metrics.descent) / 2f
+            canvas.drawText(glyph, width / 2f, baseline, paint)
+        }
+        return output
+    }
+
     private fun cardBitmap(
         context: Context,
         width: Int,
         height: Int,
         bolt: Boolean,
         fillLevel: Float,
-        fillVertical: Boolean
+        fillVertical: Boolean,
+        glassTopAlpha: Int = 46,
+        glassBottomAlpha: Int = 18,
+        rimAlpha: Int = 96
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -179,18 +336,29 @@ object GlassWidgets {
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
-                Color.argb(46, 238, 246, 255),
-                Color.argb(18, 238, 246, 255),
+                Color.argb(glassTopAlpha, 238, 246, 255),
+                Color.argb(glassBottomAlpha, 238, 246, 255),
                 Shader.TileMode.CLAMP
             )
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
+        if (glassTopAlpha > 80) {
+            val sheen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, 0f, 0f, height * 0.62f,
+                    Color.argb(52, 255, 255, 255),
+                    Color.TRANSPARENT,
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, 0f, width.toFloat(), height * 0.62f, sheen)
+        }
         if (bolt) drawBoltWatermark(canvas, width, height)
         drawLevelFill(canvas, context, width, height, fillLevel, fillVertical)
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = dp(context, 1).toFloat().coerceAtLeast(1f)
-            color = Color.argb(96, 255, 255, 255)
+            color = Color.argb(rimAlpha, 255, 255, 255)
         }
         val inset = rim.strokeWidth / 2f
         canvas.drawRoundRect(
@@ -279,6 +447,14 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
 
     protected open val fillVertical: Boolean = false
 
+    /** Background pane; the music card swaps in a thicker, milkier glass. */
+    protected open fun bindBackground(context: Context, views: RemoteViews, options: Bundle) {
+        GlassWidgets.bindCard(
+            views, context, options, boltWatermark,
+            fillLevel(context, options), fillVertical
+        )
+    }
+
     protected abstract fun bind(
         context: Context,
         views: RemoteViews,
@@ -288,6 +464,10 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
     )
 
     protected open fun handleAction(context: Context, action: String): Boolean = false
+
+    /** Overload for providers that need the widget instance (music assignment). */
+    protected open fun handleAction(context: Context, action: String, widgetId: Int): Boolean =
+        handleAction(context, action)
 
     final override fun onUpdate(
         context: Context,
@@ -309,7 +489,8 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         val action = intent.action ?: return
-        if (!handleAction(context, action)) return
+        val widgetId = intent.getIntExtra(GlassWidgets.EXTRA_WIDGET_ID, -1)
+        if (!handleAction(context, action, widgetId)) return
         val manager = AppWidgetManager.getInstance(context)
         manager.getAppWidgetIds(ComponentName(context, this.javaClass))
             .forEach { render(context, manager, it) }
@@ -319,10 +500,7 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
         val options = manager.getAppWidgetOptions(widgetId)
         val accent = AppThemes.current(context).accent
         val views = RemoteViews(context.packageName, layoutId(context, options))
-        GlassWidgets.bindCard(
-            views, context, options, boltWatermark,
-            fillLevel(context, options), fillVertical
-        )
+        bindBackground(context, views, options)
         bind(context, views, widgetId, options, accent)
         manager.updateAppWidget(widgetId, views)
     }
@@ -487,7 +665,16 @@ class GlassClockWidget : GlassWidgetProvider() {
 }
 
 class GlassMusicWidget : GlassWidgetProvider() {
-    override fun layoutId(context: Context, options: Bundle): Int = R.layout.widget_music
+    override fun layoutId(context: Context, options: Bundle): Int =
+        GlassWidgets.musicLayoutId(GlassWidgets.musicSize(options))
+
+    override fun bindBackground(context: Context, views: RemoteViews, options: Bundle) =
+        GlassWidgets.bindMusicCard(views, context, options)
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        appWidgetIds.forEach { AppPrefs.clearMusicWidgetPackage(context, it) }
+        super.onDeleted(context, appWidgetIds)
+    }
 
     override fun bind(
         context: Context,
@@ -496,92 +683,165 @@ class GlassMusicWidget : GlassWidgetProvider() {
         options: Bundle,
         accent: Int
     ) {
-        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val playing = audio.isMusicActive
+        val size = GlassWidgets.musicSize(options)
+
+        val assigned = AppPrefs.musicWidgetPackage(context, widgetId)
+        val now = WidgetMedia.snapshot(context, assigned)
+        val textColor = AppPrefs.widgetTextColor(context)
+        val muted = (textColor and 0x00FFFFFF) or 0xCC000000.toInt()
+        val assignedLabel = assigned.takeIf { it.isNotEmpty() }?.let {
+            WidgetMedia.label(context, it)
+        }
+        val title = now.title?.takeIf { it.isNotBlank() }
+            ?: when {
+                now.hasSession || now.isPlaying -> "Đang phát nhạc"
+                else -> "Chưa phát nhạc"
+            }
+        val artist = now.artist?.takeIf { it.isNotBlank() }
+            ?: when {
+                now.isPlaying || now.hasSession ->
+                    now.packageName?.let { WidgetMedia.label(context, it) } ?: "Nhạc đang phát"
+                assignedLabel != null -> "Chạm để mở $assignedLabel"
+                else -> "Chạm để mở ứng dụng nhạc"
+            }
+        val titleSp = when (size) {
+            GlassWidgets.MusicSize.COMPACT -> 14f
+            GlassWidgets.MusicSize.WIDE -> 15f
+            GlassWidgets.MusicSize.LARGE -> 19f
+        }
+        val artistSp = when (size) {
+            GlassWidgets.MusicSize.COMPACT -> 11f
+            GlassWidgets.MusicSize.WIDE -> 12f
+            GlassWidgets.MusicSize.LARGE -> 14f
+        }
+        views.setTextViewText(R.id.widget_title, title)
+        views.setTextColor(R.id.widget_title, textColor)
+        views.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, titleSp)
+        views.setTextViewText(R.id.widget_artist, artist)
+        views.setTextColor(R.id.widget_artist, muted)
+        views.setTextViewTextSize(R.id.widget_artist, TypedValue.COMPLEX_UNIT_SP, artistSp)
+
+        val artDp = when (size) {
+            GlassWidgets.MusicSize.COMPACT -> 56
+            GlassWidgets.MusicSize.WIDE -> 88
+            GlassWidgets.MusicSize.LARGE -> 132
+        }
+        val artRadiusDp = when (size) {
+            GlassWidgets.MusicSize.COMPACT -> 16
+            GlassWidgets.MusicSize.WIDE -> 18
+            GlassWidgets.MusicSize.LARGE -> 24
+        }
+        val artPx = GlassWidgets.dp(context, artDp)
+        val artRadius = GlassWidgets.dp(context, artRadiusDp)
+        val art = now.art?.let { GlassWidgets.roundedBitmap(it, artPx, artPx, artRadius) }
+            ?: GlassWidgets.artPlaceholderBitmap(context, artPx, artPx, artRadius, textColor)
+        views.setImageViewBitmap(R.id.widget_art, art)
+
+        val playCircleDp = when (size) {
+            GlassWidgets.MusicSize.COMPACT -> 34
+            GlassWidgets.MusicSize.WIDE -> 38
+            GlassWidgets.MusicSize.LARGE -> 54
+        }
+        val playIconDp = when (size) {
+            GlassWidgets.MusicSize.COMPACT -> 16
+            GlassWidgets.MusicSize.WIDE -> 18
+            GlassWidgets.MusicSize.LARGE -> 24
+        }
+        val skipIconDp = when (size) {
+            GlassWidgets.MusicSize.COMPACT -> 18
+            GlassWidgets.MusicSize.WIDE -> 20
+            GlassWidgets.MusicSize.LARGE -> 26
+        }
         views.setImageViewBitmap(
             R.id.widget_play_bg,
-            GlassWidgets.circleBitmap(context, GlassWidgets.dp(context, 46), accent)
+            GlassWidgets.circleBitmap(
+                context,
+                GlassWidgets.dp(context, playCircleDp) * 2,
+                accent
+            )
         )
-        val iconPx = GlassWidgets.dp(context, 20)
         views.setImageViewBitmap(
             R.id.widget_play,
             GlassWidgets.tintedBitmap(
                 context,
-                if (playing) R.drawable.ic_wg_pause else R.drawable.ic_wg_play,
-                accent,
-                iconPx
+                if (now.isPlaying) R.drawable.ic_wg_pause else R.drawable.ic_wg_play,
+                Color.WHITE,
+                GlassWidgets.dp(context, playIconDp) * 2
             )
         )
         views.setImageViewBitmap(
             R.id.widget_prev,
-            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_prev, accent, iconPx)
+            GlassWidgets.tintedBitmap(
+                context,
+                R.drawable.ic_wg_prev,
+                textColor,
+                GlassWidgets.dp(context, skipIconDp) * 2
+            )
         )
         views.setImageViewBitmap(
             R.id.widget_next,
-            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_next, accent, iconPx)
+            GlassWidgets.tintedBitmap(
+                context,
+                R.drawable.ic_wg_next,
+                textColor,
+                GlassWidgets.dp(context, skipIconDp) * 2
+            )
         )
-        views.setImageViewBitmap(
-            R.id.widget_minus,
-            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_minus, accent, iconPx)
-        )
-        views.setImageViewBitmap(
-            R.id.widget_plus,
-            GlassWidgets.tintedBitmap(context, R.drawable.ic_wg_plus, accent, iconPx)
-        )
+
         views.setOnClickPendingIntent(
             R.id.widget_prev,
-            GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_MEDIA_PREV, widgetId * 16 + 2)
-        )
-        views.setOnClickPendingIntent(
-            R.id.widget_play,
-            GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_MEDIA_TOGGLE, widgetId * 16 + 3)
+            GlassWidgets.pending(
+                context, javaClass, GlassWidgets.ACTION_MEDIA_PREV,
+                widgetId * 16 + 2, widgetId
+            )
         )
         views.setOnClickPendingIntent(
             R.id.widget_next,
-            GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_MEDIA_NEXT, widgetId * 16 + 4)
+            GlassWidgets.pending(
+                context, javaClass, GlassWidgets.ACTION_MEDIA_NEXT,
+                widgetId * 16 + 4, widgetId
+            )
         )
+        // Playing anything → toggle it. Paused → toggle only the assigned app,
+        // otherwise "play now" resumes/opens the card's own app.
+        val toggleSession = now.hasSession &&
+            (now.isPlaying || assigned.isEmpty() || now.packageName == assigned)
         views.setOnClickPendingIntent(
-            R.id.widget_minus,
-            GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_VOLUME_DOWN, widgetId * 16 + 10)
+            R.id.widget_play,
+            if (toggleSession) {
+                GlassWidgets.pending(
+                    context, javaClass, GlassWidgets.ACTION_MEDIA_TOGGLE,
+                    widgetId * 16 + 3, widgetId
+                )
+            } else {
+                GlassWidgets.musicPlayNowPending(context, widgetId)
+            }
         )
-        views.setOnClickPendingIntent(
-            R.id.widget_plus,
-            GlassWidgets.pending(context, javaClass, GlassWidgets.ACTION_VOLUME_UP, widgetId * 16 + 11)
-        )
-        val openTarget = if (AppPrefs.musicWidgetOpensSource(context)) {
-            GlassWidgets.mediaSourcePending(context, widgetId * 16 + 9)
-        } else {
-            GlassWidgets.targetPending(context, widgetId * 16 + 9)
-        }
-        views.setOnClickPendingIntent(R.id.widget_bg, openTarget)
+        val tap = GlassWidgets.musicTapPending(context, widgetId)
+        views.setOnClickPendingIntent(R.id.widget_art, tap)
+        views.setOnClickPendingIntent(R.id.widget_title, tap)
+        views.setOnClickPendingIntent(R.id.widget_artist, tap)
+        views.setOnClickPendingIntent(R.id.widget_root, tap)
     }
 
-    override fun handleAction(context: Context, action: String): Boolean {
-        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        when (action) {
-            GlassWidgets.ACTION_VOLUME_UP -> {
-                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
-                GlassWidgets.refreshSoon(context, javaClass)
-                return true
-            }
-            GlassWidgets.ACTION_VOLUME_DOWN -> {
-                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
-                GlassWidgets.refreshSoon(context, javaClass)
-                return true
-            }
+    override fun handleAction(context: Context, action: String, widgetId: Int): Boolean {
+        if (action != GlassWidgets.ACTION_MEDIA_PREV &&
+            action != GlassWidgets.ACTION_MEDIA_TOGGLE &&
+            action != GlassWidgets.ACTION_MEDIA_NEXT
+        ) {
+            return false
         }
-        val code = when (action) {
-            GlassWidgets.ACTION_MEDIA_PREV -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
-            GlassWidgets.ACTION_MEDIA_TOGGLE -> KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
-            GlassWidgets.ACTION_MEDIA_NEXT -> KeyEvent.KEYCODE_MEDIA_NEXT
-            else -> return false
+        val preferred = if (widgetId >= 0) {
+            AppPrefs.musicWidgetPackage(context, widgetId)
+        } else {
+            AppPrefs.musicWidgetPackage(context)
         }
-        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
-        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
-        // Play/pause state settles asynchronously; refresh once it has.
+        WidgetMedia.send(context, action, preferred)
+        GlassWidgets.refreshSoon(context, javaClass)
+        // The session may settle after the command; refresh once more.
         Handler(Looper.getMainLooper()).postDelayed({
             GlassWidgets.refresh(context, javaClass)
-        }, 450L)
+        }, 700L)
         return true
     }
 }

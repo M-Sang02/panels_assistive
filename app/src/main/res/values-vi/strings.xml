@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">Hỗ trợ Panels</string>
+    <string name="music_listener_label">Điều khiển nhạc</string>
     <string name="brand_name">PANELS ASSISTIVE</string>
     <string name="settings_title">Cài đặt</string>
     <string name="settings_subtitle">Công cụ hỗ trợ, sẵn sàng khi bạn cần.</string>

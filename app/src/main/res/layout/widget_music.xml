@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Compact music card (2x2 / small resize): art + text on top, evenly split controls below. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -12,77 +13,109 @@
         android:contentDescription="@null" />
 
     <LinearLayout
+        android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:padding="6dp">
+        android:orientation="vertical"
+        android:padding="8dp">
 
-        <ImageButton
-            android:id="@+id/widget_minus"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:background="@drawable/widget_button_bg"
-            android:padding="8dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_wg_minus"
-            android:contentDescription="Giảm âm lượng" />
-
-        <ImageButton
-            android:id="@+id/widget_prev"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginStart="6dp"
-            android:background="@drawable/widget_button_bg"
-            android:padding="8dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_wg_prev"
-            android:contentDescription="Bài trước" />
-
-        <FrameLayout
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <ImageView
-                android:id="@+id/widget_play_bg"
-                android:layout_width="46dp"
-                android:layout_height="46dp"
-                android:layout_gravity="center"
-                android:contentDescription="@null" />
+                android:id="@+id/widget_art"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:background="@drawable/widget_art_bg"
+                android:scaleType="centerCrop"
+                android:contentDescription="Ảnh bìa" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="8dp">
+
+                <TextView
+                    android:id="@+id/widget_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="Chưa phát nhạc"
+                    android:textColor="#E6182434"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_artist"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="Chạm để mở ứng dụng nhạc"
+                    android:textColor="#B0182434"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <ImageButton
-                android:id="@+id/widget_play"
-                android:layout_width="46dp"
-                android:layout_height="46dp"
-                android:layout_gravity="center"
+                android:id="@+id/widget_prev"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
                 android:background="@android:color/transparent"
-                android:padding="12dp"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_wg_play"
-                android:contentDescription="Phát hoặc tạm dừng" />
-        </FrameLayout>
+                android:contentDescription="Bài trước"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_wg_prev" />
 
-        <ImageButton
-            android:id="@+id/widget_next"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginEnd="6dp"
-            android:background="@drawable/widget_button_bg"
-            android:padding="8dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_wg_next"
-            android:contentDescription="Bài tiếp theo" />
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1">
 
-        <ImageButton
-            android:id="@+id/widget_plus"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:background="@drawable/widget_button_bg"
-            android:padding="8dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_wg_plus"
-            android:contentDescription="Tăng âm lượng" />
+                <ImageView
+                    android:id="@+id/widget_play_bg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@null"
+                    android:scaleType="fitCenter" />
+
+                <ImageButton
+                    android:id="@+id/widget_play"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="Phát hoặc tạm dừng"
+                    android:padding="9dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_wg_play" />
+            </FrameLayout>
+
+            <ImageButton
+                android:id="@+id/widget_next"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:contentDescription="Bài tiếp theo"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_wg_next" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

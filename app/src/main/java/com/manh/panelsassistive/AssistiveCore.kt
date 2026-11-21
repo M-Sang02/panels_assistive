@@ -121,6 +121,8 @@ object AppPrefs {
     private const val KEY_WIDGET_TEXT_COLOR = "widget_text_color"
     private const val KEY_WIDGET_SHORTCUT = "widget_shortcut"
     private const val KEY_MUSIC_WIDGET_SOURCE = "music_widget_source"
+    private const val KEY_MUSIC_WIDGET_PACKAGE = "music_widget_package"
+    private const val KEY_MUSIC_WIDGET_PACKAGE_ID = "music_widget_package_"
     private const val KEY_EXPANSION_SLIDERS = "expansion_sliders"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
@@ -855,6 +857,42 @@ object AppPrefs {
 
     fun setMusicWidgetOpensSource(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_MUSIC_WIDGET_SOURCE, enabled).apply()
+    }
+
+    /** Default music app used by every music widget unless an instance overrides it. */
+    fun musicWidgetPackage(context: Context): String =
+        store(context).getString(KEY_MUSIC_WIDGET_PACKAGE, null).orEmpty()
+
+    fun setMusicWidgetPackage(context: Context, packageName: String?) {
+        store(context).edit().putString(KEY_MUSIC_WIDGET_PACKAGE, packageName.orEmpty()).apply()
+    }
+
+    /**
+     * Per-widget music app: an explicit instance choice wins, then the shared
+     * default, then the generic widget shortcut's package.
+     */
+    fun musicWidgetPackage(context: Context, widgetId: Int): String {
+        if (widgetId >= 0) {
+            val own = store(context).getString(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId, null)
+            if (!own.isNullOrEmpty()) return own
+        }
+        val shared = musicWidgetPackage(context)
+        if (shared.isNotEmpty()) return shared
+        return widgetShortcut(context).substringBefore('/')
+    }
+
+    fun setMusicWidgetPackage(context: Context, widgetId: Int, packageName: String?) {
+        val editor = store(context).edit()
+        if (packageName.isNullOrEmpty()) {
+            editor.remove(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId)
+        } else {
+            editor.putString(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId, packageName)
+        }
+        editor.apply()
+    }
+
+    fun clearMusicWidgetPackage(context: Context, widgetId: Int) {
+        store(context).edit().remove(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId).apply()
     }
 
     private fun iconOverrideStore(context: Context) =

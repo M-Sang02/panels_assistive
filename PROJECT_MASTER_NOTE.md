@@ -573,3 +573,40 @@
 
 ### Kiểm chứng
 - Chỉ soát mã tĩnh; cổng build là GitHub Actions “Android build”. Trên máy: mở bảng tiện ích rồi tắt “Viền trắng” trong Nền bảng tiện ích — viền biến mất ngay; mở Nền bảng tắt cùng công tắc — bảng mở rộng/thanh sáng cũng mất viền; bật lại thì viền trở về như cũ.
+
+## v31 — Widget nhạc kính mờ, tự co giãn và điều khiển MediaSession
+
+### Yêu cầu
+- Thẻ nhạc phong cách kính mờ: ảnh bìa bên trái, tên bài + nghệ sĩ, hàng nút chia đều; trạng thái chờ đẹp khi không phát nhạc.
+- Chạm vào ảnh bìa/thông tin mở app đang phát; không có app phát thì mở app được gán cho widget.
+- Play/Pause/Prev/Next điều khiển đúng MediaSession đang hoạt động.
+- Gán app nhạc mặc định, gán riêng từng widget ghim, và nút “Phát nhạc ngay”.
+- Widget phải đổi bố cục theo kích thước: 2×2 mặc định, 4×2 kéo dài, 4×4 phóng to; nút chia đều, không bị ẩn khi thu nhỏ.
+
+### Thay đổi trong mã
+- `WidgetMedia.kt` (mới): đọc `MediaSessionManager.getActiveSessions` (sau khi người dùng cấp truy cập thông báo) để lấy tên bài, nghệ sĩ, ảnh bìa và trạng thái phát; gửi lệnh qua `MediaController.TransportControls`, rơi về `AudioManager.dispatchMediaKeyEvent` khi không có session. `MediaNotificationListener` chỉ đánh thức khi thông báo media xuất hiện/đổi/biến mất (không polling) và gọi `GlassWidgets.refreshSoon` + refresh sau 900 ms. `activePackage()` ưu tiên session đang phát, sau đó `activePlaybackConfigurations` (reflection, API 26+).
+- `GlassWidgets.kt`: `MusicSize` + `musicSize(options)` (COMPACT < 200dp rộng, WIDE ≥ 200dp, LARGE ≥ 220×200) chọn 3 layout; `bindMusicCard` dùng kính dày hơn (alpha 140/82, viền 150) có sheen phía trên; `roundedBitmap` cắt ảnh bìa bo góc, `artPlaceholderBitmap` vẽ ô kính + glyph Lucide “music” khi chưa có ảnh; `musicTapPending` / `musicPlayNowPending` mở `WidgetLaunchActivity`; `GlassWidgetProvider.onReceive` chuyển `EXTRA_WIDGET_ID` xuống `handleAction(context, action, widgetId)`; `GlassMusicWidget` đọc snapshot, đổi cỡ chữ/icon theo size, gắn PendingIntent prev/next/toggle (hoặc play-now khi chưa có session), và xoá gán riêng trong `onDeleted`.
+- Layout mới: `widget_music.xml` (2×2, art 56dp + hàng nút 3 ô weight bằng nhau), `widget_music_wide.xml` (4×2, art 88dp bên trái, cột phải chứa text + hàng nút weight), `widget_music_large.xml` (4×4, art 132dp, hàng nút 58dp chia đều), `widget_art_bg.xml` (ô ảnh bìa bo 18dp). Provider `res/xml/glass_widget_music.xml`: min 110×110dp, resize cả hai chiều, target 2×2.
+- `OverlayActivities.kt`: `WidgetLaunchActivity` nhận `EXTRA_MEDIA_TAP` (mở app đang phát → app gán riêng → app “Mở nhanh” → app nhạc hệ thống) và `EXTRA_PLAY_NOW` (resume session của app gán hoặc mở app rồi gửi KEYCODE_MEDIA_PLAY sau 1,5 s).
+- `WidgetSettingsActivity.kt`: thẻ âm thanh mới — trạng thái truy cập thông báo + nút cấp quyền, chọn app nhạc mặc định, “Phát nhạc ngay”, và danh sách widget nhạc đang ghim để gán app riêng từng cái. Bỏ công tắc “Widget nhạc mở app đang phát” (logic mới tự ưu tiên app đang phát).
+- `AssistiveCore.kt`: prefs `music_widget_package` (mặc định) và `music_widget_package_<id>` (riêng từng widget, fallback về mặc định rồi app “Mở nhanh”).
+- Manifest: đăng ký `MediaNotificationListener` với `BIND_NOTIFICATION_LISTENER_SERVICE`; `<queries>` thêm `MediaBrowserService` và `MEDIA_BUTTON`; chuỗi `music_listener_label` (en/vi).
+
+### Quyền / component
+- `NotificationListenerService` chỉ để lấy quyền đọc `MediaSessionManager` (Android 5.1+ yêu cầu người dùng bật trong Cài đặt → Truy cập thông báo). Không có quyền này widget vẫn chạy: hiện “Đang phát nhạc/Chưa phát nhạc” theo `AudioManager.isMusicActive`, điều khiển bằng phím media.
+- `AppWidgetProvider` (`GlassMusicWidget`) + `PendingIntent` broadcast cho nút, `PendingIntent.getActivity` cho vùng chạm (trampoline trong suốt vì Android 10+ chặn khởi chạy activity từ background).
+
+### Tệp thay đổi
+- `app/src/main/java/com/manh/panelsassistive/WidgetMedia.kt` (mới)
+- `app/src/main/java/com/manh/panelsassistive/GlassWidgets.kt`
+- `app/src/main/java/com/manh/panelsassistive/OverlayActivities.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/res/layout/widget_music.xml`, `widget_music_wide.xml`, `widget_music_large.xml`
+- `app/src/main/res/drawable/widget_art_bg.xml`
+- `app/src/main/res/xml/glass_widget_music.xml`
+- `app/src/main/res/values/strings.xml`, `values-vi/strings.xml`
+
+### Kiểm chứng
+- Chỉ soát mã tĩnh; cổng build là GitHub Actions “Android build”. Trên máy: ghim widget nhạc (2×2), kéo thành 4×2 và 4×4 để thấy art/nút phóng to và chia đều; cấp truy cập thông báo rồi mở YouTube Music/Nhaccuatui để thấy tên bài + ảnh bìa, thử pause/next/prev; tắt nhạc rồi chạm Play để kiểm tra “Phát nhạc ngay”; chạm vào thân widget khi đang phát để mở đúng app, khi im lặng để mở app đã gán.

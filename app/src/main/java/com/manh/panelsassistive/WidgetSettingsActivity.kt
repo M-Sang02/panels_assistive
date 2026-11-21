@@ -21,6 +21,11 @@ class WidgetSettingsActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = GlassUi.PAGE_COLOR
         window.navigationBarColor = GlassUi.PAGE_COLOR
+    }
+
+    // Re-render on return so the notification-access status reflects the toggle.
+    override fun onResume() {
+        super.onResume()
         render()
     }
 
@@ -62,11 +67,13 @@ class WidgetSettingsActivity : Activity() {
         ))
         root.addView(widgetCard(
             "music",
-            "Nhạc (3×1)",
-            "Một hàng [ −  ‹  phát/tạm dừng  ›  + ]: chỉnh âm lượng hai bên, " +
-                "nút giữa đổi theo trạng thái phát nhạc, không có chữ.",
+            "Nhạc (2×2 → 4×2 → 4×4)",
+            "Thẻ kính mờ với ảnh bìa, tên bài, nghệ sĩ và hàng nút chia đều. " +
+                "Ghim ở dạng 2×2, kéo rộng thành 4×2 hoặc phóng to 4×4 — nút tự co giãn, " +
+                "không bao giờ bị ẩn khi thu nhỏ.",
             GlassMusicWidget::class.java
         ))
+        root.addView(musicCard())
         root.addView(quickOpenCard())
         root.addView(colorCard())
         root.addView(styleCard())
@@ -99,7 +106,8 @@ class WidgetSettingsActivity : Activity() {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Mở nhanh từ widget"))
         addView(hint(
             "Chạm vào thân widget Pin, Đồng hồ hoặc Âm lượng để mở app được gán. " +
-                "Widget nhạc mặc định mở app đang phát nhạc."
+                "Widget nhạc ưu tiên mở app đang phát; khi im lặng sẽ mở app được gán " +
+                "riêng cho widget đó, rồi mới dùng app dưới đây."
         ))
         addView(LinearLayout(this@WidgetSettingsActivity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -123,26 +131,158 @@ class WidgetSettingsActivity : Activity() {
                 render()
             })
         }
+    }
+
+    /** MediaSession access, default music app, per-instance assignment, play now. */
+    private fun musicCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Ứng dụng nhạc"))
+        addView(hint(
+            "Widget đọc MediaSession để hiện tên bài, ảnh bìa và điều khiển phát/tạm dừng. " +
+                "Cấp truy cập thông báo để điều khiển đúng app đang phát; nếu chưa cấp, " +
+                "widget vẫn hiện trạng thái chờ và vẫn điều khiển bằng phím media."
+        ))
+        val granted = WidgetMedia.notificationAccessEnabled(this@WidgetSettingsActivity)
         addView(LinearLayout(this@WidgetSettingsActivity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(10), 0, 0)
-            addView(LinearLayout(this@WidgetSettingsActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                addView(label("Widget nhạc mở app đang phát", 14, GlassUi.TEXT_PRIMARY))
-                addView(label("Tắt để dùng app đã gán ở trên", 11, GlassUi.TEXT_MUTED).apply {
-                    setPadding(0, dp(2), 0, 0)
-                })
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = GlassUi.glassSurface(this@WidgetSettingsActivity, 14)
+            addView(
+                LucideGlyphView(
+                    this@WidgetSettingsActivity,
+                    "bell",
+                    if (granted) GlassUi.ACCENT else GlassUi.TEXT_MUTED
+                ),
+                LinearLayout.LayoutParams(dp(18), dp(18))
+            )
+            addView(label("Truy cập thông báo", 13, GlassUi.TEXT_PRIMARY).apply {
+                setPadding(dp(10), 0, dp(8), 0)
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(GlassUi.switch(
-                this@WidgetSettingsActivity,
-                AppPrefs.musicWidgetOpensSource(this@WidgetSettingsActivity)
-            ) { on ->
-                AppPrefs.setMusicWidgetOpensSource(this@WidgetSettingsActivity, on)
-                GlassWidgets.refreshAll(this@WidgetSettingsActivity)
-                render()
-            })
+            addView(label(if (granted) "Đã cấp" else "Chưa cấp", 12, GlassUi.TEXT_MUTED))
         })
+        addView(GlassUi.actionButton(
+            this@WidgetSettingsActivity,
+            if (granted) "Mở quyền truy cập thông báo" else "Cấp quyền truy cập thông báo"
+        ) { WidgetMedia.openNotificationAccess(this@WidgetSettingsActivity) })
+
+        addView(GlassUi.divider(this@WidgetSettingsActivity))
+        val shared = AppPrefs.musicWidgetPackage(this@WidgetSettingsActivity)
+        addView(LinearLayout(this@WidgetSettingsActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = GlassUi.glassSurface(this@WidgetSettingsActivity, 14)
+            addView(
+                LucideGlyphView(this@WidgetSettingsActivity, "music", GlassUi.ACCENT),
+                LinearLayout.LayoutParams(dp(18), dp(18))
+            )
+            addView(label("App nhạc mặc định", 13, GlassUi.TEXT_PRIMARY).apply {
+                setPadding(dp(10), 0, dp(8), 0)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(label(
+                if (shared.isEmpty()) "Tự động" else WidgetMedia.label(this@WidgetSettingsActivity, shared),
+                12,
+                GlassUi.TEXT_MUTED
+            ))
+        })
+        addView(GlassUi.actionButton(this@WidgetSettingsActivity, "Chọn app nhạc mặc định") {
+            chooseMusicApp(
+                clearLabel = "Tự động (app đang phát)",
+                onClear = { AppPrefs.setMusicWidgetPackage(this@WidgetSettingsActivity, null) }
+            ) { packageName ->
+                AppPrefs.setMusicWidgetPackage(this@WidgetSettingsActivity, packageName)
+            }
+        })
+        addView(GlassUi.actionButton(
+            this@WidgetSettingsActivity,
+            "Phát nhạc ngay",
+            prominent = true
+        ) {
+            val packageName = AppPrefs.musicWidgetPackage(this@WidgetSettingsActivity)
+            if (packageName.isEmpty()) {
+                chooseMusicApp(
+                    clearLabel = "Tự động (app đang phát)",
+                    onClear = { AppPrefs.setMusicWidgetPackage(this@WidgetSettingsActivity, null) }
+                ) { picked ->
+                    AppPrefs.setMusicWidgetPackage(this@WidgetSettingsActivity, picked)
+                    WidgetMedia.playNow(this@WidgetSettingsActivity, picked)
+                }
+            } else {
+                WidgetMedia.playNow(this@WidgetSettingsActivity, packageName)
+                Toast.makeText(
+                    this@WidgetSettingsActivity,
+                    "Đang mở ${WidgetMedia.label(this@WidgetSettingsActivity, packageName)} và gửi lệnh phát.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        })
+
+        val ids = AppWidgetManager.getInstance(this@WidgetSettingsActivity)
+            .getAppWidgetIds(
+                ComponentName(this@WidgetSettingsActivity, GlassMusicWidget::class.java)
+            )
+        if (ids.isNotEmpty()) {
+            addView(GlassUi.divider(this@WidgetSettingsActivity))
+            addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Gán riêng từng widget"))
+            addView(hint(
+                "Bạn đang ghim ${ids.size} widget nhạc. Chạm vào một dòng để chọn app riêng " +
+                    "cho widget đó, hoặc dùng app mặc định ở trên."
+            ))
+            ids.forEachIndexed { index, id -> addView(instanceRow(index + 1, id)) }
+        }
+    }
+
+    private fun instanceRow(index: Int, widgetId: Int): LinearLayout {
+        val active = AppPrefs.musicWidgetPackage(this, widgetId)
+        val detail = if (active.isNotEmpty()) {
+            WidgetMedia.label(this, active)
+        } else {
+            "Tự động theo app đang phát"
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = GlassUi.glassSurface(this@WidgetSettingsActivity, 14)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                chooseMusicApp(
+                    clearLabel = "Dùng app mặc định",
+                    onClear = { AppPrefs.clearMusicWidgetPackage(this@WidgetSettingsActivity, widgetId) }
+                ) { packageName ->
+                    AppPrefs.setMusicWidgetPackage(this@WidgetSettingsActivity, widgetId, packageName)
+                }
+            }
+            addView(label("Widget nhạc $index", 13, GlassUi.TEXT_PRIMARY),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(label(detail, 12, GlassUi.TEXT_MUTED))
+        }.apply {
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            params.topMargin = dp(6)
+            layoutParams = params
+        }
+    }
+
+    private fun chooseMusicApp(
+        clearLabel: String,
+        onClear: () -> Unit,
+        onPick: (String) -> Unit
+    ) {
+        val apps = WidgetMedia.launcherApps(this)
+        val names = listOf(clearLabel) + apps.map { it.first }
+        AlertDialog.Builder(this)
+            .setTitle("Chọn ứng dụng nhạc")
+            .setItems(names.toTypedArray()) { _, which ->
+                if (which == 0) onClear() else onPick(apps[which - 1].second)
+                GlassWidgets.refreshAll(this)
+                render()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun colorCard(): LinearLayout = GlassUi.glassCard(this).apply {
