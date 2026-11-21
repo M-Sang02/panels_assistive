@@ -33,9 +33,15 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:ellipsize="end"
+            android:ellipsize="marquee"
             android:gravity="center"
-            android:maxLines="2"
+            android:maxLines="1"
+            android:scrollHorizontally="true"
+            android:shadowColor="#66000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="8"
+            android:singleLine="true"
             android:text="Chưa phát nhạc"
             android:textColor="#FFFFFFFF"
             android:textSize="20sp"
@@ -46,10 +52,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:ellipsize="end"
+            android:ellipsize="marquee"
             android:gravity="center"
             android:maxLines="1"
-            android:text="Chạm để mở ứng dụng nhạc"
+            android:scrollHorizontally="true"
+            android:shadowColor="#66000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="8"
+            android:singleLine="true"
+            android:text="Chạm để mở nhạc"
             android:textColor="#D9FFFFFF"
             android:textSize="14sp" />
 
@@ -69,7 +81,7 @@
                 android:contentDescription="Bài trước"
                 android:padding="12dp"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_wg_prev" />
+                android:src="@android:color/transparent" />
 
             <FrameLayout
                 android:layout_width="0dp"
@@ -91,7 +103,7 @@
                     android:contentDescription="Phát hoặc tạm dừng"
                     android:padding="15dp"
                     android:scaleType="fitCenter"
-                    android:src="@drawable/ic_wg_play" />
+                    android:src="@android:color/transparent" />
             </FrameLayout>
 
             <ImageButton
@@ -103,7 +115,7 @@
                 android:contentDescription="Bài tiếp theo"
                 android:padding="12dp"
                 android:scaleType="fitCenter"
-                android:src="@drawable/ic_wg_next" />
+                android:src="@android:color/transparent" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

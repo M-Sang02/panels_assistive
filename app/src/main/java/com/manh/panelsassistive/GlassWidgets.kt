@@ -206,8 +206,8 @@ object GlassWidgets {
         )
     }
 
-    /** Darker music glass with a stronger light bloom behind the round album art. */
-    fun bindMusicCard(views: RemoteViews, context: Context, options: Bundle) {
+    /** Music glass: a soft bloom tinted by the album art when one is available. */
+    fun bindMusicCard(views: RemoteViews, context: Context, options: Bundle, art: Bitmap?) {
         val (widthDp, heightDp) = sizeDp(options)
         views.setImageViewBitmap(
             R.id.widget_bg,
@@ -218,21 +218,61 @@ object GlassWidgets {
                 -1f,
                 true,
                 true,
-                true
+                true,
+                artTint(art)
             )
         )
     }
 
-    /** Draws an icon drawable tinted with the theme accent, for RemoteViews buttons. */
-    fun tintedBitmap(context: Context, resId: Int, color: Int, sizePx: Int): Bitmap {
-        val size = sizePx.coerceAtLeast(2)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val drawable = context.getDrawable(resId) ?: return bitmap
-        drawable.setTint(color)
-        drawable.setBounds(0, 0, size, size)
-        drawable.draw(canvas)
-        return bitmap
+    /**
+     * Average colour of the album art, softened toward white so it reads as a
+     * glow rather than a solid wash. Returns 0 when no usable tint exists.
+     */
+    private fun artTint(art: Bitmap?): Int {
+        if (art == null) return 0
+        val side = 12
+        val small = runCatching { Bitmap.createScaledBitmap(art, side, side, true) }
+            .getOrNull() ?: return 0
+        var red = 0.0
+        var green = 0.0
+        var blue = 0.0
+        var weight = 0.0
+        for (y in 0 until side) {
+            for (x in 0 until side) {
+                val color = small.getPixel(x, y)
+                if (Color.alpha(color) < 200) continue
+                val redPart = Color.red(color)
+                val greenPart = Color.green(color)
+                val bluePart = Color.blue(color)
+                val maxPart = maxOf(redPart, greenPart, bluePart)
+                val minPart = minOf(redPart, greenPart, bluePart)
+                // Prefer vivid pixels so a mostly grey cover still gives an accent.
+                val share = 0.3 + (maxPart - minPart) / 255.0
+                red += redPart * share
+                green += greenPart * share
+                blue += bluePart * share
+                weight += share
+            }
+        }
+        if (small !== art) small.recycle()
+        if (weight <= 0.0) return 0
+        var tint = Color.rgb(
+            (red / weight).roundToInt().coerceIn(0, 255),
+            (green / weight).roundToInt().coerceIn(0, 255),
+            (blue / weight).roundToInt().coerceIn(0, 255)
+        )
+        // Lift dark covers and blend toward white for a soft, airy bloom.
+        tint = blend(tint, Color.WHITE, 0.45f)
+        return blend(tint, Color.WHITE, 0.15f)
+    }
+
+    private fun blend(from: Int, to: Int, amount: Float): Int {
+        val share = amount.coerceIn(0f, 1f)
+        return Color.rgb(
+            (Color.red(from) * (1f - share) + Color.red(to) * share).roundToInt(),
+            (Color.green(from) * (1f - share) + Color.green(to) * share).roundToInt(),
+            (Color.blue(from) * (1f - share) + Color.blue(to) * share).roundToInt()
+        )
     }
 
     fun circleBitmap(context: Context, diameterPx: Int, color: Int): Bitmap {
@@ -253,8 +293,15 @@ object GlassWidgets {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = LucideGlyphs.typeface(context)
             textAlign = Paint.Align.CENTER
-            textSize = size * 0.82f
+            textSize = size * 0.8f
             this.color = color
+            // A soft shadow keeps white glyphs readable on a bright wallpaper.
+            setShadowLayer(
+                dp(context, 2).toFloat(),
+                0f,
+                dp(context, 1) * 0.35f,
+                Color.argb(110, 0, 0, 0)
+            )
         }
         val metrics = paint.fontMetrics
         val baseline = size / 2f - (metrics.ascent + metrics.descent) / 2f
@@ -293,8 +340,8 @@ object GlassWidgets {
             val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
                     0f, 0f, 0f, size.toFloat(),
-                    Color.argb(104, 255, 255, 255),
-                    Color.argb(24, 255, 255, 255),
+                    Color.argb(72, 255, 255, 255),
+                    Color.argb(16, 255, 255, 255),
                     Shader.TileMode.CLAMP
                 )
             }
@@ -315,7 +362,8 @@ object GlassWidgets {
         canvas.restore()
         val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = dp(context, 1).toFloat().coerceAtLeast(1f)
+            strokeWidth = (context.resources.displayMetrics.density * 0.9f)
+                .coerceAtLeast(1f)
             color = ringColor
         }
         canvas.drawCircle(center, center, radius, ring)
@@ -329,11 +377,12 @@ object GlassWidgets {
         fillLevel: Float,
         fillVertical: Boolean,
         glow: Boolean,
-        strong: Boolean
+        strong: Boolean,
+        bloomColor: Int = 0
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val radius = dp(context, 34).toFloat().coerceAtMost(minOf(width, height) / 2f)
+        val radius = dp(context, 32).toFloat().coerceAtMost(minOf(width, height) / 2f)
         val path = Path().apply {
             addRoundRect(
                 RectF(0f, 0f, width.toFloat(), height.toFloat()),
@@ -342,9 +391,9 @@ object GlassWidgets {
         }
         canvas.clipPath(path)
         val accent = AppThemes.current(context).accent
-        // Deep navy frost, like the reference cards against a night sky.
-        val topAlpha = if (strong) 176 else 148
-        val bottomAlpha = if (strong) 124 else 102
+        // Airy frost: the launcher wallpaper must stay visible through the card.
+        val topAlpha = if (strong) 88 else 76
+        val bottomAlpha = if (strong) 52 else 46
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
@@ -354,21 +403,22 @@ object GlassWidgets {
             )
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
-        // Soft top sheen so the pane reads as glass.
+        // Soft top sheen so the pane reads as lit glass.
         val sheen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                0f, 0f, 0f, height * 0.64f,
-                Color.argb(if (strong) 46 else 32, 255, 255, 255),
+                0f, 0f, 0f, height * 0.68f,
+                Color.argb(if (strong) 30 else 22, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height * 0.64f, sheen)
-        // Accent bloom bottom-right; extra white halo for the music card.
+        canvas.drawRect(0f, 0f, width.toFloat(), height * 0.68f, sheen)
+        // Bloom from a corner: album-art tint for music, accent for the rest.
+        val tint = if (bloomColor != 0) bloomColor else accent
         val bloom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
-                width * 0.84f, height * 0.94f, maxOf(width, height) * 0.9f,
-                Color.argb(if (glow) 58 else 36, Color.red(accent), Color.green(accent), Color.blue(accent)),
+                width * 0.84f, height * 0.94f, maxOf(width, height) * 0.95f,
+                Color.argb(if (glow) 64 else 40, Color.red(tint), Color.green(tint), Color.blue(tint)),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
@@ -378,18 +428,29 @@ object GlassWidgets {
             val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = RadialGradient(
                     width * 0.2f, height * 0.08f, maxOf(width, height) * 0.9f,
-                    Color.argb(44, 255, 255, 255),
+                    Color.argb(30, 255, 255, 255),
                     Color.TRANSPARENT,
                     Shader.TileMode.CLAMP
                 )
             }
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), halo)
+            // Gentle bottom scrim keeps white track text legible on white walls.
+            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, height * 0.46f, 0f, height.toFloat(),
+                    Color.TRANSPARENT,
+                    Color.argb(46, 0, 0, 0),
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, height * 0.46f, width.toFloat(), height.toFloat(), scrim)
         }
         drawLevelFill(canvas, context, width, height, fillLevel, fillVertical, accent)
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = dp(context, 1).toFloat().coerceAtLeast(1f)
-            color = Color.argb(92, 255, 255, 255)
+            // 0.9dp hairline, white at ~30% so it reads as a glass edge.
+            strokeWidth = (context.resources.displayMetrics.density * 0.9f).coerceAtLeast(1f)
+            color = Color.argb(76, 255, 255, 255)
         }
         val inset = rim.strokeWidth / 2f
         canvas.drawRoundRect(
@@ -769,8 +830,8 @@ class GlassMusicWidget : GlassWidgetProvider() {
     override fun layoutId(context: Context, options: Bundle): Int =
         GlassWidgets.musicLayoutId(GlassWidgets.musicSize(options))
 
-    override fun bindBackground(context: Context, views: RemoteViews, options: Bundle) =
-        GlassWidgets.bindMusicCard(views, context, options)
+    // The music pane is painted inside bind(), where the album art is known.
+    override fun bindBackground(context: Context, views: RemoteViews, options: Bundle) = Unit
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         appWidgetIds.forEach { AppPrefs.clearMusicWidgetPackage(context, it) }
@@ -789,6 +850,7 @@ class GlassMusicWidget : GlassWidgetProvider() {
         val noApp = AppPrefs.musicWidgetNoApp(context, widgetId)
         val assigned = AppPrefs.musicWidgetPackage(context, widgetId)
         val now = WidgetMedia.snapshot(context, assigned)
+        GlassWidgets.bindMusicCard(views, context, options, now.art)
         val muted = Color.argb(217, 255, 255, 255)
         val assignedLabel = assigned.takeIf { it.isNotEmpty() }?.let {
             WidgetMedia.label(context, it)
@@ -803,18 +865,29 @@ class GlassMusicWidget : GlassWidgetProvider() {
                 now.isPlaying || now.hasSession ->
                     now.packageName?.let { WidgetMedia.label(context, it) } ?: "Nhạc đang phát"
                 noApp -> "Không mở ứng dụng"
-                assignedLabel != null -> "Chạm để mở $assignedLabel"
-                else -> "Chạm để mở ứng dụng nhạc"
+                assignedLabel != null -> "Mở $assignedLabel"
+                else -> "Chạm để mở nhạc"
             }
-        val titleSp = when (size) {
+        val titleBase = when (size) {
             GlassWidgets.MusicSize.COMPACT -> 13f
             GlassWidgets.MusicSize.WIDE -> 15f
             GlassWidgets.MusicSize.LARGE -> 20f
         }
-        val artistSp = when (size) {
+        // Shrink long Vietnamese titles instead of cutting them with “…”.
+        val titleSp = titleBase * when {
+            title.length > 32 -> 0.72f
+            title.length > 24 -> 0.84f
+            else -> 1f
+        }
+        val artistBase = when (size) {
             GlassWidgets.MusicSize.COMPACT -> 11f
             GlassWidgets.MusicSize.WIDE -> 12f
             GlassWidgets.MusicSize.LARGE -> 14f
+        }
+        val artistSp = artistBase * when {
+            artist.length > 32 -> 0.8f
+            artist.length > 24 -> 0.9f
+            else -> 1f
         }
         views.setTextViewText(R.id.widget_title, title)
         views.setTextColor(R.id.widget_title, Color.WHITE)
@@ -822,6 +895,9 @@ class GlassMusicWidget : GlassWidgetProvider() {
         views.setTextViewText(R.id.widget_artist, artist)
         views.setTextColor(R.id.widget_artist, muted)
         views.setTextViewTextSize(R.id.widget_artist, TypedValue.COMPLEX_UNIT_SP, artistSp)
+        // Marquee only runs on selected TextViews inside RemoteViews.
+        views.setBoolean(R.id.widget_title, "setSelected", true)
+        views.setBoolean(R.id.widget_artist, "setSelected", true)
 
         val artDp = when (size) {
             GlassWidgets.MusicSize.COMPACT -> 64
@@ -859,27 +935,27 @@ class GlassMusicWidget : GlassWidgetProvider() {
         )
         views.setImageViewBitmap(
             R.id.widget_play,
-            GlassWidgets.tintedBitmap(
+            GlassWidgets.glyphBitmap(
                 context,
-                if (now.isPlaying) R.drawable.ic_wg_pause else R.drawable.ic_wg_play,
+                if (now.isPlaying) "pause" else "play",
                 Color.WHITE,
                 GlassWidgets.dp(context, playIconDp)
             )
         )
         views.setImageViewBitmap(
             R.id.widget_prev,
-            GlassWidgets.tintedBitmap(
+            GlassWidgets.glyphBitmap(
                 context,
-                R.drawable.ic_wg_prev,
+                "skip-back",
                 Color.WHITE,
                 GlassWidgets.dp(context, skipIconDp)
             )
         )
         views.setImageViewBitmap(
             R.id.widget_next,
-            GlassWidgets.tintedBitmap(
+            GlassWidgets.glyphBitmap(
                 context,
-                R.drawable.ic_wg_next,
+                "skip-forward",
                 Color.WHITE,
                 GlassWidgets.dp(context, skipIconDp)
             )

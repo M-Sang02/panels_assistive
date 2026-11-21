@@ -642,3 +642,23 @@
 ### Kiểm chứng
 - Chỉ soát mã tĩnh (máy không có JDK/Android SDK); cổng build là GitHub Actions “Android build”.
 - Trên máy: bấm nút âm lượng vật lý và xem widget ngang/dọc cập nhật ngay; kéo dài widget để icon +/− bám mép; chạm nửa trái/phải và nửa trên/dưới; cấp quyền “Chỉnh sửa cài đặt hệ thống” cho widget độ sáng; ghim thẻ nhạc 2×2/4×2/4×4 để xem ảnh tròn căn giữa và hàng nút chia đều; chọn “Không mở app” cho một widget nhạc rồi chạm thân thẻ.
+
+## v33 — Chuẩn kính mờ trong suốt nhẹ, loang theo ảnh bìa, chữ trắng có bóng
+
+### Yêu cầu
+- Nền widget chỉ đục khoảng 18–35% để thấy rõ hình nền; thêm gradient/ánh loang mềm (trắng hoặc màu nhẹ từ một góc); viền 0,75–1dp trắng alpha 25–35%; bo góc lớn.
+- Toàn bộ chữ/icon dùng tông trắng; không còn tình trạng đen/trắng lẫn lộn; không để tiêu đề bị cắt cụt bằng “…”.
+- Thẻ nhạc: ảnh bìa tròn căn giữa, tên bài + nghệ sĩ 1 dòng căn giữa, hàng Prev / Play / Next căn giữa; loang lấy tông nhẹ từ ảnh bìa; giữ nguyên mở app đang phát/app gán, điều khiển MediaSession, gán app riêng và “Play music now”.
+- Widget âm lượng/độ sáng giữ thiết kế đồng bộ: ngang mỏng chia đôi trái/phải, dọc chia đôi trên/dưới, icon tăng/giảm bám mép ngoài, không hiện %, cập nhật thời gian thực.
+
+### Thay đổi trong mã (vòng tinh chỉnh này)
+- `GlassWidgets.cardBitmap`: hạ alpha nền navy còn 76→46 (≈30%→18%, thẻ nhạc 88→52 ≈35%→20%); sheen trắng 22/30; bloom RadialGradient góc dưới phải (music 64, thẻ mức 40); halo trắng 30; thêm scrim đen mờ 18% ở nửa dưới thẻ nhạc để chữ trắng rõ trên hình nền sáng; viền trắng 0,9dp alpha 76 (≈30%); bo góc 32dp.
+- `GlassWidgets.artTint(art)`: lấy màu trung bình 12×12 từ ảnh bìa (ưu tiên pixel rực), pha 45% + 15% về trắng để làm quầng loang mềm. `bindMusicCard` nhận thêm `art` và được gọi từ `GlassMusicWidget.bind` (thay cho `bindBackground`).
+- `glyphBitmap`: thêm `setShadowLayer` bóng đen mờ giúp icon trắng đọc được trên kính sáng; dùng glyph Lucide `skip-back/forward/play/pause` cho nút nhạc (bỏ `tintedBitmap` không còn dùng).
+- Chữ nhạc: tự thu nhỏ cỡ chữ khi tiêu đề/nghệ sĩ dài (0,72/0,84 cho tiêu đề; 0,8/0,9 cho nghệ sĩ), `ellipsize="marquee"` + `singleLine` thay cho “…” ở cả 3 layout; thêm `shadow` cho text.
+- `widget_clock.xml`: chữ trắng + bóng mềm; `widget_card_bg.xml`: placeholder kính sáng 35%→18%, viền 0,9dp alpha 30%.
+- Copy trong `WidgetSettingsActivity` cập nhật theo chuẩn kính trong nhẹ.
+
+### Kiểm chứng
+- XML đã parse hợp lệ bằng PowerShell `[xml]`; Kotlin chỉ soát tĩnh (máy không có JDK/SDK) — chạy GitHub Actions để xác nhận biên dịch.
+- Trên máy: đặt widget trên hình nền sáng/tối để kiểm tra độ xuyên thấu và độ rõ chữ; phát nhạc có ảnh bìa màu để xem quầng loang đổi theo bìa; thử tiêu đề dài để xác nhận chữ thu nhỏ, không có dấu “…”; kiểm tra icon +/− bám mép khi kéo dài widget.

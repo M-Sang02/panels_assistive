@@ -364,9 +364,10 @@ class WidgetSettingsActivity : Activity() {
     private fun styleCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Giao diện của widget"))
         addView(hint(
-            "Widget dùng kính navy tối, độ loang nhẹ và viền trắng mảnh; bảng màu chỉ đổi " +
-                "vệt accent của thanh mức và nút Play. Nhấn giữ widget trên màn hình chính " +
-                "để đổi kích thước; icon tăng/giảm luôn bám mép ngoài khi kéo dài."
+            "Widget dùng kính trong nhẹ (nền chỉ đục 18–35%), loang sáng từ một góc, " +
+                "viền trắng 0,9dp và bo góc lớn; chữ/icon trắng có bóng mềm để vẫn rõ trên " +
+                "hình nền sáng. Nhấn giữ widget để đổi kích thước; icon tăng/giảm luôn bám " +
+                "mép ngoài khi kéo dài."
         ))
         addView(GlassUi.actionButton(
             this@WidgetSettingsActivity,
