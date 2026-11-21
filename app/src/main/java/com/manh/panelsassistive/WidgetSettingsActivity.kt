@@ -43,7 +43,7 @@ class WidgetSettingsActivity : Activity() {
             "volume-2",
             "Âm lượng dọc (1×2)",
             "Cột dọc mảnh. Nửa trên tăng, nửa dưới giảm âm lượng; icon loa đổi theo mức " +
-                "và thanh sáng dâng theo thời gian thực.",
+                "và lớp trắng loang nhẹ dâng theo thời gian thực.",
             GlassVolumeVerticalWidget::class.java
         ))
         root.addView(widgetCard(
@@ -70,7 +70,7 @@ class WidgetSettingsActivity : Activity() {
         root.addView(widgetCard(
             "clock",
             "Đồng hồ (2×2)",
-            "Chữ trắng trên nền kính tối giống thẻ nhạc; tự cập nhật theo múi giờ và " +
+            "Chữ trắng trên nền kính trắng mờ giống thẻ nhạc; tự cập nhật theo múi giờ và " +
                 "định dạng 12/24 giờ của máy.",
             GlassClockWidget::class.java
         ))
@@ -327,9 +327,9 @@ class WidgetSettingsActivity : Activity() {
     private fun themeHint(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Màu chữ widget"))
         addView(hint(
-            "Mọi widget dùng chung hệ chữ trắng và icon trắng như ảnh tham chiếu, " +
-                "nên không cần chọn màu thủ công. Đổi bảng màu trong Giao diện để thay " +
-                "màu vệt sáng (accent) của thanh mức âm lượng và độ sáng."
+            "Mọi widget dùng chung kính trắng loang mờ dần thành trong suốt, chữ và icon " +
+                "trắng. Màu chủ đạo của ứng dụng chỉ tô duy nhất nút Play của hai widget nhạc, " +
+                "không pha màu vào nền âm lượng, độ sáng hay đồng hồ."
         ))
     }
 
@@ -377,10 +377,10 @@ class WidgetSettingsActivity : Activity() {
     private fun styleCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Giao diện của widget"))
         addView(hint(
-            "Widget dùng kính trong nhẹ (nền chỉ đục 18–35%), loang sáng từ một góc, " +
-                "viền trắng 0,9dp và bo góc lớn; chữ/icon trắng có bóng mềm để vẫn rõ trên " +
-                "hình nền sáng. Nhấn giữ widget để đổi kích thước; icon tăng/giảm luôn bám " +
-                "mép ngoài khi kéo dài."
+            "Widget dùng kính trắng loang: sáng ở góc trên và mờ dần thành trong suốt, " +
+                "không pha xanh hay màu nhấn. Viền trắng mảnh 0,9dp, bo góc lớn; chữ/icon " +
+                "trắng có bóng mềm. Nhấn giữ widget để đổi kích thước; icon tăng/giảm luôn " +
+                "bám mép ngoài khi kéo dài."
         ))
         addView(GlassUi.actionButton(
             this@WidgetSettingsActivity,

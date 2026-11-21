@@ -16,6 +16,7 @@ import android.os.Looper
 import android.util.TypedValue
 import android.widget.RemoteViews
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * Second, independent music widget. The album art becomes the card itself
@@ -25,6 +26,11 @@ import kotlin.math.max
  * [GlassMusicWidget] but has its own provider, layout and drawables.
  */
 class GlassMusicCoverWidget : GlassWidgetProvider() {
+    companion object {
+        /** Bigger bitmaps make some launchers drop the whole RemoteViews. */
+        private const val COVER_MAX_PX = 384
+    }
+
     override fun layoutId(context: Context, options: Bundle): Int =
         R.layout.widget_music_cover
 
@@ -51,10 +57,14 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
 
         val width = GlassWidgets.dp(context, widthDp.coerceIn(64, 420))
         val height = GlassWidgets.dp(context, heightDp.coerceIn(64, 420))
-        views.setImageViewBitmap(
-            R.id.cover_bg,
-            coverBitmap(context, width, height, now.art, accent)
-        )
+        // Frosted art tolerates up-scaling, so keep the payload small: big
+        // RemoteViews bitmaps are a common cause of "widget can't load".
+        val scale = (COVER_MAX_PX.toFloat() / maxOf(width, height).toFloat()).coerceAtMost(1f)
+        val bitmapWidth = (width * scale).roundToInt().coerceAtLeast(64)
+        val bitmapHeight = (height * scale).roundToInt().coerceAtLeast(64)
+        runCatching { coverBitmap(context, bitmapWidth, bitmapHeight, now.art, scale) }
+            .getOrNull()
+            ?.let { views.setImageViewBitmap(R.id.cover_bg, it) }
 
         val assignedLabel = assigned.takeIf { it.isNotEmpty() }?.let {
             WidgetMedia.label(context, it)
@@ -175,30 +185,26 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         return true
     }
 
-    /** Frosted circle with a transport glyph, drawn at a fixed 34dp size. */
+    /**
+     * White transport disc with a dark glyph, like the reference mock-up.
+     * The Play button stays the only accent-coloured element.
+     */
     private fun sideCircleBitmap(context: Context, glyphName: String, glyphAlpha: Int): Bitmap {
         val size = GlassWidgets.dp(context, 34).coerceAtLeast(12)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val centre = size / 2f
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(46, 255, 255, 255)
+        val disc = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb((glyphAlpha * 0.96f).toInt().coerceIn(0, 255), 255, 255, 255)
         }
-        canvas.drawCircle(centre, centre, centre, fill)
-        val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = GlassWidgets.dp(context, 1).toFloat().coerceAtLeast(1f)
-            color = Color.argb(77, 255, 255, 255)
-        }
-        canvas.drawCircle(centre, centre, centre - ring.strokeWidth / 2f, ring)
+        canvas.drawCircle(centre, centre, centre, disc)
         val glyph = LucideGlyphs.glyph(context, glyphName)
         if (glyph.isEmpty()) return bitmap
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = LucideGlyphs.typeface(context)
             textAlign = Paint.Align.CENTER
             textSize = size * 0.46f
-            color = Color.argb(glyphAlpha, 255, 255, 255)
-            setShadowLayer(GlassWidgets.dp(context, 1).toFloat(), 0f, 0f, Color.argb(80, 0, 0, 0))
+            color = Color.argb(glyphAlpha.coerceIn(0, 255), 22, 26, 34)
         }
         val baseline = centre - (paint.ascent() + paint.descent()) / 2f
         canvas.drawText(glyph, centre, baseline, paint)
@@ -206,21 +212,20 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     }
 
     /**
-     * The card itself: blurred album art, a dark frosted scrim for contrast,
-     * a soft light bloom, a 24dp rounded outline and a hairline white rim.
-     * Without artwork it falls back to the light glass with a music watermark.
+     * The card itself: blurred album art, a frosted scrim for contrast, a
+     * soft white light bloom, a 24dp rounded outline and a hairline white rim.
+     * Without artwork it falls back to the white glass with a music watermark.
      */
     private fun coverBitmap(
         context: Context,
         width: Int,
         height: Int,
         art: Bitmap?,
-        accent: Int
+        scale: Float = 1f
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val radius = GlassWidgets.dp(context, 24).toFloat()
-            .coerceAtMost(minOf(width, height) / 2f)
+        val radius = (GlassWidgets.dp(context, 24) * scale).coerceAtMost(minOf(width, height) / 2f)
         val path = Path().apply {
             addRoundRect(
                 RectF(0f, 0f, width.toFloat(), height.toFloat()),
@@ -254,8 +259,8 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
                     0f, 0f, 0f, height.toFloat(),
-                    Color.argb(150, 26, 46, 74),
-                    Color.argb(108, 10, 21, 38),
+                    Color.argb(104, 255, 255, 255),
+                    Color.argb(36, 255, 255, 255),
                     Shader.TileMode.CLAMP
                 )
             }
@@ -263,7 +268,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             drawMusicWatermark(canvas, context, width, height)
         }
 
-        // Light sheen from the upper edge and a soft tint bloom at the bottom.
+        // Light sheen from the upper edge and a soft white bloom at the bottom.
         val sheen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, height * 0.6f,
@@ -273,11 +278,10 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             )
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height * 0.6f, sheen)
-        val tint = GlassWidgets.artTint(art).takeIf { it != 0 } ?: accent
         val bloom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
                 width * 0.8f, height * 0.92f, max(width, height) * 0.95f,
-                Color.argb(58, Color.red(tint), Color.green(tint), Color.blue(tint)),
+                Color.argb(58, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
@@ -285,7 +289,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bloom)
 
         // Brighter hairline along the top edge: the card catches the light.
-        val edge = GlassWidgets.dp(context, 1).toFloat().coerceAtLeast(1f)
+        val edge = (GlassWidgets.dp(context, 1) * scale).coerceAtLeast(1f)
         val topGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 width * 0.08f, 0f, width * 0.92f, 0f,
@@ -303,7 +307,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth =
-                (context.resources.displayMetrics.density * 0.9f).coerceAtLeast(1f)
+                (context.resources.displayMetrics.density * 0.9f * scale).coerceAtLeast(1f)
             color = Color.argb(88, 255, 255, 255)
         }
         val inset = rim.strokeWidth / 2f

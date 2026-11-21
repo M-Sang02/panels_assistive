@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder only: the runtime card bitmap (airy frost + corner bloom) replaces it. -->
+<!-- Placeholder only: the runtime pane (white frost fading to clear) replaces it. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
         android:angle="270"
-        android:endColor="#2E0A1526"
-        android:startColor="#591A2E4A" />
+        android:endColor="#22FFFFFF"
+        android:startColor="#66FFFFFF" />
     <corners android:radius="32dp" />
     <stroke
         android:width="0.9dp"
-        android:color="#4DFFFFFF" />
+        android:color="#54FFFFFF" />
 </shape>

@@ -29,10 +29,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Home-screen widgets in the dark frosted-glass language of the reference
- * mockup: a navy see-through pane, soft light bloom, thin rim, white icons and
- * an accent-tinted level fill for volume/brightness. Everything is RemoteViews,
- * so third-party launchers can host them too.
+ * Home-screen widgets in the white frosted-glass language of the reference
+ * mockup: a white pane that fades into transparency, a thin rim, white icons
+ * and a soft white level fill. Only the music Play button is accent-tinted.
+ * Everything is RemoteViews, so third-party launchers can host them too.
  */
 object GlassWidgets {
     const val ACTION_VOLUME_UP = "com.manh.panelsassistive.widget.VOLUME_UP"
@@ -43,6 +43,9 @@ object GlassWidgets {
     const val ACTION_MEDIA_TOGGLE = "com.manh.panelsassistive.widget.MEDIA_TOGGLE"
     const val ACTION_MEDIA_NEXT = "com.manh.panelsassistive.widget.MEDIA_NEXT"
     const val EXTRA_WIDGET_ID = "com.manh.panelsassistive.widget.WIDGET_ID"
+
+    /** Largest pane bitmap side; keeps the RemoteViews parcel well under 1 MB. */
+    private const val MAX_CARD_PX = 448
 
     val providers = listOf(
         GlassVolumeVerticalWidget::class.java,
@@ -208,87 +211,36 @@ object GlassWidgets {
         fillVertical: Boolean = true,
         glow: Boolean = false
     ) {
-        val (widthDp, heightDp) = sizeDp(options)
+        val (width, height, scale) = cardPixels(context, options)
         views.setImageViewBitmap(
             R.id.widget_bg,
-            cardBitmap(
-                context,
-                dp(context, widthDp).coerceIn(dp(context, 40), dp(context, 420)),
-                dp(context, heightDp).coerceIn(dp(context, 40), dp(context, 420)),
-                fillLevel,
-                fillVertical,
-                glow,
-                false
-            )
+            cardBitmap(context, width, height, fillLevel, fillVertical, glow, false, scale)
         )
     }
 
-    /** Music glass: a soft bloom tinted by the album art when one is available. */
-    fun bindMusicCard(views: RemoteViews, context: Context, options: Bundle, art: Bitmap?) {
-        val (widthDp, heightDp) = sizeDp(options)
+    /** Music glass: the same neutral white frost, never tinted by the cover. */
+    fun bindMusicCard(views: RemoteViews, context: Context, options: Bundle) {
+        val (width, height, scale) = cardPixels(context, options)
         views.setImageViewBitmap(
             R.id.widget_bg,
-            cardBitmap(
-                context,
-                dp(context, widthDp).coerceIn(dp(context, 40), dp(context, 420)),
-                dp(context, heightDp).coerceIn(dp(context, 40), dp(context, 420)),
-                -1f,
-                true,
-                true,
-                true,
-                artTint(art)
-            )
+            cardBitmap(context, width, height, -1f, true, true, true, scale)
         )
     }
 
     /**
-     * Average colour of the album art, softened toward white so it reads as a
-     * glow rather than a solid wash. Returns 0 when no usable tint exists.
+     * Pixel size for the pane bitmap and the factor it was shrunk by.
+     * Very large widgets would otherwise ship multi-megabyte bitmaps in the
+     * RemoteViews parcel, which some launchers refuse to load.
      */
-    fun artTint(art: Bitmap?): Int {
-        if (art == null) return 0
-        val side = 12
-        val small = runCatching { Bitmap.createScaledBitmap(art, side, side, true) }
-            .getOrNull() ?: return 0
-        var red = 0.0
-        var green = 0.0
-        var blue = 0.0
-        var weight = 0.0
-        for (y in 0 until side) {
-            for (x in 0 until side) {
-                val color = small.getPixel(x, y)
-                if (Color.alpha(color) < 200) continue
-                val redPart = Color.red(color)
-                val greenPart = Color.green(color)
-                val bluePart = Color.blue(color)
-                val maxPart = maxOf(redPart, greenPart, bluePart)
-                val minPart = minOf(redPart, greenPart, bluePart)
-                // Prefer vivid pixels so a mostly grey cover still gives an accent.
-                val share = 0.3 + (maxPart - minPart) / 255.0
-                red += redPart * share
-                green += greenPart * share
-                blue += bluePart * share
-                weight += share
-            }
-        }
-        if (small !== art) small.recycle()
-        if (weight <= 0.0) return 0
-        var tint = Color.rgb(
-            (red / weight).roundToInt().coerceIn(0, 255),
-            (green / weight).roundToInt().coerceIn(0, 255),
-            (blue / weight).roundToInt().coerceIn(0, 255)
-        )
-        // Lift dark covers and blend toward white for a soft, airy bloom.
-        tint = blend(tint, Color.WHITE, 0.45f)
-        return blend(tint, Color.WHITE, 0.15f)
-    }
-
-    private fun blend(from: Int, to: Int, amount: Float): Int {
-        val share = amount.coerceIn(0f, 1f)
-        return Color.rgb(
-            (Color.red(from) * (1f - share) + Color.red(to) * share).roundToInt(),
-            (Color.green(from) * (1f - share) + Color.green(to) * share).roundToInt(),
-            (Color.blue(from) * (1f - share) + Color.blue(to) * share).roundToInt()
+    private fun cardPixels(context: Context, options: Bundle): Triple<Int, Int, Float> {
+        val (widthDp, heightDp) = sizeDp(options)
+        val width = dp(context, widthDp).coerceIn(dp(context, 40), dp(context, 420))
+        val height = dp(context, heightDp).coerceIn(dp(context, 40), dp(context, 420))
+        val scale = (MAX_CARD_PX.toFloat() / maxOf(width, height).toFloat()).coerceAtMost(1f)
+        return Triple(
+            (width * scale).roundToInt().coerceAtLeast(40),
+            (height * scale).roundToInt().coerceAtLeast(40),
+            scale
         )
     }
 
@@ -387,6 +339,11 @@ object GlassWidgets {
         return output
     }
 
+    /**
+     * Neutral frosted pane: white light fading into transparency, a thin white
+     * rim and (for value cards) a slim pill shape with a soft white level fill.
+     * No accent or navy tint is used — only the music Play button stays tinted.
+     */
     private fun cardBitmap(
         context: Context,
         width: Int,
@@ -395,135 +352,144 @@ object GlassWidgets {
         fillVertical: Boolean,
         glow: Boolean,
         strong: Boolean,
-        bloomColor: Int = 0
+        scale: Float = 1f
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val radius = dp(context, 32).toFloat().coerceAtMost(minOf(width, height) / 2f)
+
+        // Value cards keep a margin inside the cell so the pane reads slim.
+        val level = fillLevel >= 0f
+        var left = 0f
+        var top = 0f
+        var right = width.toFloat()
+        var bottom = height.toFloat()
+        if (level) {
+            if (fillVertical) {
+                val inset = width * 0.16f
+                left += inset
+                right -= inset
+            } else {
+                // A wider margin keeps the 2x1 bar slim like the mock-up.
+                val inset = height * 0.24f
+                top += inset
+                bottom -= inset
+            }
+        }
+        val paneW = right - left
+        val paneH = bottom - top
+        val radius = if (level) {
+            minOf(paneW, paneH) / 2f
+        } else {
+            (dp(context, 32) * scale).coerceAtMost(minOf(paneW, paneH) / 2f)
+        }
         val path = Path().apply {
-            addRoundRect(
-                RectF(0f, 0f, width.toFloat(), height.toFloat()),
-                radius, radius, Path.Direction.CW
-            )
+            addRoundRect(RectF(left, top, right, bottom), radius, radius, Path.Direction.CW)
         }
         canvas.clipPath(path)
-        val accent = AppThemes.current(context).accent
-        // Airy frost: the launcher wallpaper must stay visible through the card.
-        val topAlpha = if (strong) 88 else 76
-        val bottomAlpha = if (strong) 52 else 46
+
+        // White frost, denser at the top and almost clear at the bottom.
+        val topAlpha = if (strong) 108 else 92
+        val bottomAlpha = if (strong) 46 else 34
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                0f, 0f, 0f, height.toFloat(),
-                Color.argb(topAlpha, 26, 46, 74),
-                Color.argb(bottomAlpha, 10, 21, 38),
+                left, top, left, bottom,
+                Color.argb(topAlpha, 255, 255, 255),
+                Color.argb(bottomAlpha, 255, 255, 255),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
-        // Soft top sheen so the pane reads as lit glass.
-        val sheen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        canvas.drawRect(left, top, right, bottom, fill)
+        // Diagonal wash: light spreads from the top-left and melts away.
+        val wash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                0f, 0f, 0f, height * 0.68f,
-                Color.argb(if (strong) 30 else 22, 255, 255, 255),
+                left, top, right, bottom,
+                Color.argb(if (strong) 66 else 50, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height * 0.68f, sheen)
-        // Bloom from a corner: album-art tint for music, accent for the rest.
-        val tint = if (bloomColor != 0) bloomColor else accent
+        canvas.drawRect(left, top, right, bottom, wash)
+        // Soft bloom in the opposite corner keeps the pane from looking flat.
         val bloom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
-                width * 0.84f, height * 0.94f, maxOf(width, height) * 0.95f,
-                Color.argb(if (glow) 64 else 40, Color.red(tint), Color.green(tint), Color.blue(tint)),
+                right - paneW * 0.16f, bottom - paneH * 0.1f, maxOf(paneW, paneH) * 0.95f,
+                Color.argb(if (glow) 52 else 34, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bloom)
+        canvas.drawRect(left, top, right, bottom, bloom)
         if (glow) {
-            val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = RadialGradient(
-                    width * 0.2f, height * 0.08f, maxOf(width, height) * 0.9f,
-                    Color.argb(30, 255, 255, 255),
-                    Color.TRANSPARENT,
-                    Shader.TileMode.CLAMP
-                )
-            }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), halo)
-            // Gentle bottom scrim keeps white track text legible on white walls.
+            // Gentle neutral shading under the track text for legibility.
             val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
-                    0f, height * 0.46f, 0f, height.toFloat(),
+                    left, top + paneH * 0.5f, left, bottom,
                     Color.TRANSPARENT,
-                    Color.argb(46, 0, 0, 0),
+                    Color.argb(44, 8, 12, 20),
                     Shader.TileMode.CLAMP
                 )
             }
-            canvas.drawRect(0f, height * 0.46f, width.toFloat(), height.toFloat(), scrim)
+            canvas.drawRect(left, top + paneH * 0.5f, right, bottom, scrim)
         }
-        drawLevelFill(canvas, context, width, height, fillLevel, fillVertical, accent)
+        drawLevelFill(canvas, left, top, right, bottom, fillLevel, fillVertical)
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            // 0.9dp hairline, white at ~30% so it reads as a glass edge.
-            strokeWidth = (context.resources.displayMetrics.density * 0.9f).coerceAtLeast(1f)
-            color = Color.argb(76, 255, 255, 255)
+            // 0.9dp hairline, white at ~33% so it reads as a glass edge.
+            strokeWidth = (context.resources.displayMetrics.density * 0.9f * scale)
+                .coerceAtLeast(1f)
+            color = Color.argb(84, 255, 255, 255)
         }
         val inset = rim.strokeWidth / 2f
         canvas.drawRoundRect(
-            RectF(inset, inset, width - inset, height - inset),
+            RectF(left + inset, top + inset, right - inset, bottom - inset),
             radius, radius, rim
         )
         return bitmap
     }
 
     /**
-     * Accent-tinted level fill with a bright edge, so the current value stays
-     * readable while white icons keep their contrast on top of it.
+     * White level fill with a soft edge: the filled end is a little brighter
+     * and the boundary melts into the glass, without the hard white streak.
      */
     private fun drawLevelFill(
         canvas: Canvas,
-        context: Context,
-        width: Int,
-        height: Int,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
         level: Float,
-        vertical: Boolean,
-        accent: Int
+        vertical: Boolean
     ) {
         if (level < 0f) return
         val fraction = level.coerceIn(0f, 1f)
-        if (fraction < 0.001f) return
-        val red = Color.red(accent)
-        val green = Color.green(accent)
-        val blue = Color.blue(accent)
+        if (fraction < 0.02f) return
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(200, 255, 255, 255)
-        }
-        val edgeWidth = dp(context, 2).toFloat()
         if (vertical) {
-            val top = height * (1f - fraction)
+            val edge = bottom - (bottom - top) * fraction
             paint.shader = LinearGradient(
-                0f, top, 0f, height.toFloat(),
-                Color.argb(96, red, green, blue),
-                Color.argb(156, red, green, blue),
+                0f, edge, 0f, bottom,
+                intArrayOf(
+                    Color.TRANSPARENT,
+                    Color.argb(22, 255, 255, 255),
+                    Color.argb(58, 255, 255, 255)
+                ),
+                floatArrayOf(0f, 0.35f, 1f),
                 Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, top, width.toFloat(), height.toFloat(), paint)
-            canvas.drawRect(0f, top, width.toFloat(), top + edgeWidth, edge)
+            canvas.drawRect(left, edge, right, bottom, paint)
         } else {
-            val right = width * fraction
+            val edge = left + (right - left) * fraction
             paint.shader = LinearGradient(
-                0f, 0f, right, 0f,
-                Color.argb(96, red, green, blue),
-                Color.argb(156, red, green, blue),
+                left, 0f, edge, 0f,
+                intArrayOf(
+                    Color.argb(58, 255, 255, 255),
+                    Color.argb(22, 255, 255, 255),
+                    Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, 0.65f, 1f),
                 Shader.TileMode.CLAMP
             )
-            canvas.drawRect(0f, 0f, right, height.toFloat(), paint)
-            canvas.drawRect(
-                (right - edgeWidth).coerceAtLeast(0f), 0f,
-                right, height.toFloat(), edge
-            )
+            canvas.drawRect(left, top, edge, bottom, paint)
         }
     }
 
@@ -563,7 +529,7 @@ object WidgetLevelObserver {
 abstract class GlassWidgetProvider : AppWidgetProvider() {
     protected abstract fun layoutId(context: Context, options: Bundle): Int
 
-    /** 0..1 draws the accent fill over that share of the card; negative disables it. */
+    /** 0..1 draws the white level fill over that share of the card; negative disables it. */
     protected open fun fillLevel(context: Context, options: Bundle): Float = -1f
 
     protected open val fillVertical: Boolean = false
@@ -623,7 +589,7 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
             bindBackground(context, views, options)
             bind(context, views, widgetId, options, accent)
             manager.updateAppWidget(widgetId, views)
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             // One unsupported action must not leave the card unloadable;
             // fall back to the plain layout rather than the launcher's
             // "Problem loading widget" panel.
@@ -637,7 +603,7 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
 
 /**
  * Shared card for volume and brightness: one white glyph, the whole card split
- * in two tap zones, and an accent fill that shows the current level.
+ * in two tap zones, and a soft white fill that shows the current level.
  */
 abstract class GlassLevelWidget : GlassWidgetProvider() {
     protected abstract val upAction: String
@@ -878,7 +844,7 @@ class GlassMusicWidget : GlassWidgetProvider() {
         val noApp = AppPrefs.musicWidgetNoApp(context, widgetId)
         val assigned = AppPrefs.musicWidgetPackage(context, widgetId)
         val now = WidgetMedia.snapshot(context, assigned)
-        GlassWidgets.bindMusicCard(views, context, options, now.art)
+        GlassWidgets.bindMusicCard(views, context, options)
         val muted = Color.argb(217, 255, 255, 255)
         val assignedLabel = assigned.takeIf { it.isNotEmpty() }?.let {
             WidgetMedia.label(context, it)
