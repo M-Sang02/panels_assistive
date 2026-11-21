@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.util.TypedValue
 import android.widget.RemoteViews
 import kotlin.math.max
@@ -616,10 +617,21 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
     private fun render(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val options = manager.getAppWidgetOptions(widgetId)
         val accent = AppThemes.current(context).accent
-        val views = RemoteViews(context.packageName, layoutId(context, options))
-        bindBackground(context, views, options)
-        bind(context, views, widgetId, options, accent)
-        manager.updateAppWidget(widgetId, views)
+        val layout = layoutId(context, options)
+        val views = RemoteViews(context.packageName, layout)
+        try {
+            bindBackground(context, views, options)
+            bind(context, views, widgetId, options, accent)
+            manager.updateAppWidget(widgetId, views)
+        } catch (error: Exception) {
+            // One unsupported action must not leave the card unloadable;
+            // fall back to the plain layout rather than the launcher's
+            // "Problem loading widget" panel.
+            Log.w("GlassWidget", "render $widgetId failed", error)
+            runCatching {
+                manager.updateAppWidget(widgetId, RemoteViews(context.packageName, layout))
+            }
+        }
     }
 }
 
@@ -911,9 +923,9 @@ class GlassMusicWidget : GlassWidgetProvider() {
         views.setTextViewText(R.id.widget_artist, artist)
         views.setTextColor(R.id.widget_artist, muted)
         views.setTextViewTextSize(R.id.widget_artist, TypedValue.COMPLEX_UNIT_SP, artistSp)
-        // Marquee only runs on selected TextViews inside RemoteViews.
-        views.setBoolean(R.id.widget_title, "setSelected", true)
-        views.setBoolean(R.id.widget_artist, "setSelected", true)
+        // Note: TextView#setSelected is not a @RemotableViewMethod, so a
+        // widget cannot start a marquee. Titles shrink and stay static instead;
+        // calling setSelected here makes the launcher show a loading error.
 
         val artDp = when (size) {
             GlassWidgets.MusicSize.COMPACT -> 64
