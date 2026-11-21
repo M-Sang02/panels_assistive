@@ -235,7 +235,7 @@ class WidgetSettingsActivity : Activity() {
             }
         })
 
-        val rows = mutableListOf<String to Int>()
+        val rows = mutableListOf<Pair<String, Int>>()
         val manager = AppWidgetManager.getInstance(this@WidgetSettingsActivity)
         manager.getAppWidgetIds(
             ComponentName(this@WidgetSettingsActivity, GlassMusicWidget::class.java)
