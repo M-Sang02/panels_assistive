@@ -85,8 +85,9 @@ class WidgetSettingsActivity : Activity() {
         root.addView(widgetCard(
             "disc-album",
             "Nhạc ảnh bìa (2×2)",
-            "Một widget nhạc thứ hai, độc lập: ảnh bìa bài hát phủ lớp kính mờ rất nhẹ " +
-                "làm nền, tên bài và nghệ sĩ ở trên, cụm Previous / Play / Next tròn ở dưới. " +
+            "Một widget nhạc thứ hai, độc lập: ảnh bìa sắc nét (cắt giữa, không làm mờ) " +
+                "làm nền, lớp kính trắng rất nhẹ phía trên và đáy ảnh tan dần vào hình nền; " +
+                "tên bài và nghệ sĩ ở trên, cụm Previous / Play / Next tròn ở dưới. " +
                 "Bo góc 24dp, viền trắng mảnh; dùng chung app nhạc đã gán và " +
                 "\"Play music now\".",
             GlassMusicCoverWidget::class.java

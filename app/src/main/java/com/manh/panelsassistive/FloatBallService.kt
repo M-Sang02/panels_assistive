@@ -190,6 +190,10 @@ class FloatBallService : Service() {
     override fun onCreate() {
         super.onCreate()
         running = true
+        // Keep the level observers alive while the service runs so the volume
+        // and brightness cards follow the hardware keys even after the launcher
+        // stops refreshing them.
+        WidgetLevelObserver.ensure(this)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         torchOn = AppPrefs.flashlightEnabled(this)
         getSystemService(CameraManager::class.java)?.let { cameraManager ->

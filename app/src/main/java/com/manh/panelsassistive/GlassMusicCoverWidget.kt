@@ -7,7 +7,10 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Bundle
@@ -19,8 +22,9 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Second, independent music widget. The album art becomes the card itself
- * under a frosted scrim: title and artist sit on top, a compact
+ * Second, independent music widget. The album art becomes the card itself —
+ * centre-cropped and sharp, under a light glass veil that dissolves into the
+ * wallpaper towards the base: title and artist sit on top, a compact
  * Previous / Play / Next cluster sits at the bottom. It shares the app
  * assignment, "Play music now" and MediaSession paths with
  * [GlassMusicWidget] but has its own provider, layout and drawables.
@@ -28,12 +32,12 @@ import kotlin.math.roundToInt
 class GlassMusicCoverWidget : GlassWidgetProvider() {
     companion object {
         /**
-         * Keep the payload tiny: some launchers drop a whole RemoteViews when
-         * its bitmaps exceed their binder budget, which shows up as
-         * "Problem loading widget". The art is frosted and scaled up anyway,
-         * so a small bitmap is indistinguishable on screen.
+         * Bitmap side for the whole card. A frosted, low-res pane used to turn
+         * the cover into an unrecognisable smear; 256 px keeps the photo sharp
+         * enough while the payload (~260 KB) stays far below the binder budget
+         * that some launchers enforce (about 1 MB per RemoteViews).
          */
-        private const val COVER_MAX_PX = 128
+        private const val COVER_MAX_PX = 256
     }
 
     override fun layoutId(context: Context, options: Bundle): Int =
@@ -222,9 +226,11 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     }
 
     /**
-     * The card itself: blurred album art, a frosted scrim for contrast, a
-     * soft white light bloom, a 24dp rounded outline and a hairline white rim.
-     * Without artwork it falls back to the white glass with a music watermark.
+     * The card itself: the album art centre-cropped at full sharpness, a light
+     * frosted veil, a soft scrim behind the track text, a 24dp rounded outline,
+     * a hairline rim and a bottom fade that dissolves the art into the
+     * wallpaper. Without artwork it falls back to the white glass with a music
+     * watermark.
      */
     private fun coverBitmap(
         context: Context,
@@ -245,34 +251,36 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         canvas.clipPath(path)
 
         if (art != null) {
+            // Draw the original pixels at this card's resolution instead of a
+            // heavily downscaled copy: the reference keeps the photo readable.
             canvas.drawBitmap(
-                blurredArt(art, width, height),
-                null,
+                art,
+                centreCrop(art, width, height),
                 RectF(0f, 0f, width.toFloat(), height.toFloat()),
                 Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
             )
-            // A light haze over the art, then a subdued vignette at the bottom
-            // so the transport row stays readable without turning the card dark.
+            // A light haze over the art, then a subdued scrim behind the text
+            // band so white type stays readable without turning the card dark.
             val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 isDither = true
                 shader = LinearGradient(
                     0f, 0f, 0f, height.toFloat(),
-                    Color.argb(12, 255, 255, 255),
+                    Color.argb(24, 255, 255, 255),
                     Color.argb(4, 255, 255, 255),
                     Shader.TileMode.CLAMP
                 )
             }
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), haze)
-            val shade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 isDither = true
                 shader = LinearGradient(
-                    0f, height * 0.55f, 0f, height.toFloat(),
+                    0f, height * 0.38f, 0f, height * 0.78f,
                     Color.TRANSPARENT,
-                    Color.argb(92, 6, 10, 18),
+                    Color.argb(66, 6, 10, 18),
                     Shader.TileMode.CLAMP
                 )
             }
-            canvas.drawRect(0f, height * 0.55f, width.toFloat(), height.toFloat(), shade)
+            canvas.drawRect(0f, height * 0.38f, width.toFloat(), height * 0.78f, scrim)
         } else {
             val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 isDither = true
@@ -336,30 +344,38 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             RectF(inset, inset, width - inset, height - inset),
             radius, radius, rim
         )
+
+        // Bottom fade: the base of the card dissolves into the wallpaper,
+        // matching the way the white glass cards fade out towards their base.
+        // It stops at ~20% alpha so the transport row still has some artwork
+        // behind it instead of floating on bare wallpaper.
+        val fade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isDither = true
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            shader = LinearGradient(
+                0f, height * 0.64f, 0f, height.toFloat(),
+                Color.TRANSPARENT,
+                Color.argb(200, 0, 0, 0),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, height * 0.64f, width.toFloat(), height.toFloat(), fade)
         return bitmap
     }
 
-    /** Centre-cropped downscale: cheap and enough to read as a frosted blur. */
-    private fun blurredArt(art: Bitmap, width: Int, height: Int): Bitmap {
-        val sampleW = (width / 14).coerceIn(6, 48)
-        val sampleH = (height / 14).coerceIn(6, 48)
-        val small = Bitmap.createBitmap(sampleW, sampleH, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(small)
-        val scale = max(
-            sampleW.toFloat() / art.width.coerceAtLeast(1),
-            sampleH.toFloat() / art.height.coerceAtLeast(1)
-        )
-        val drawW = art.width * scale
-        val drawH = art.height * scale
-        val left = (sampleW - drawW) / 2f
-        val top = (sampleH - drawH) / 2f
-        canvas.drawBitmap(
-            art,
-            null,
-            RectF(left, top, left + drawW, top + drawH),
-            Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
-        )
-        return small
+    /** Centre crop that keeps the artwork's aspect ratio without distortion. */
+    private fun centreCrop(art: Bitmap, width: Int, height: Int): Rect {
+        val target = width.toFloat() / height.coerceAtLeast(1)
+        val aspect = art.width.toFloat() / art.height.coerceAtLeast(1)
+        return if (aspect > target) {
+            val w = (art.height * target).roundToInt().coerceAtMost(art.width)
+            val left = (art.width - w) / 2
+            Rect(left, 0, left + w, art.height)
+        } else {
+            val h = (art.width / target).roundToInt().coerceAtMost(art.height)
+            val top = (art.height - h) / 2
+            Rect(0, top, art.width, top + h)
+        }
     }
 
     /** Large translucent note so the waiting card is not an empty pane. */

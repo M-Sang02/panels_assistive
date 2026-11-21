@@ -3,9 +3,11 @@ package com.manh.panelsassistive
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -18,6 +20,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -91,6 +94,11 @@ object GlassWidgets {
     /** Called by the settings observers whenever volume or brightness changes. */
     fun refreshLevelWidgets(context: Context) {
         levelProviders.forEach { refresh(context, it) }
+    }
+
+    /** Repaints every level card twice, so they never drift out of step. */
+    fun refreshLevelSoon(context: Context) {
+        levelProviders.forEach { refreshSoon(context, it) }
     }
 
     fun refresh(context: Context, provider: Class<*>) {
@@ -415,12 +423,13 @@ object GlassWidgets {
         var bottom = height.toFloat()
         if (level) {
             if (fillVertical) {
-                val inset = width * 0.16f
+                val inset = width * 0.10f
                 left += inset
                 right -= inset
             } else {
-                // A wider margin keeps the 2x1 bar slim like the mock-up.
-                val inset = height * 0.24f
+                // A modest margin keeps the 2x1 bar a slim capsule while still
+                // leaving room for the fill to be clearly visible.
+                val inset = height * 0.18f
                 top += inset
                 bottom -= inset
             }
@@ -499,8 +508,10 @@ object GlassWidgets {
     }
 
     /**
-     * White level fill with a soft edge: the filled end is a little brighter
-     * and the boundary melts into the glass, without the hard white streak.
+     * Level fill like the reference "Volume" bars: a clearly readable white
+     * wash over the filled share of the capsule, with only a narrow soft edge
+     * (a few percent of the bar) so the boundary never looks like a hard
+     * streak across the middle of the card.
      */
     private fun drawLevelFill(
         canvas: Canvas,
@@ -521,10 +532,10 @@ object GlassWidgets {
                 0f, edge, 0f, bottom,
                 intArrayOf(
                     Color.TRANSPARENT,
-                    Color.argb(12, 255, 255, 255),
-                    Color.argb(36, 255, 255, 255)
+                    Color.argb(70, 255, 255, 255),
+                    Color.argb(84, 255, 255, 255)
                 ),
-                floatArrayOf(0f, 0.35f, 1f),
+                floatArrayOf(0f, 0.10f, 1f),
                 Shader.TileMode.CLAMP
             )
             canvas.drawRect(left, edge, right, bottom, paint)
@@ -533,11 +544,11 @@ object GlassWidgets {
             paint.shader = LinearGradient(
                 left, 0f, edge, 0f,
                 intArrayOf(
-                    Color.argb(36, 255, 255, 255),
-                    Color.argb(12, 255, 255, 255),
+                    Color.argb(84, 255, 255, 255),
+                    Color.argb(70, 255, 255, 255),
                     Color.TRANSPARENT
                 ),
-                floatArrayOf(0f, 0.65f, 1f),
+                floatArrayOf(0f, 0.90f, 1f),
                 Shader.TileMode.CLAMP
             )
             canvas.drawRect(left, top, edge, bottom, paint)
@@ -550,19 +561,36 @@ object GlassWidgets {
 
 /**
  * Keeps volume/brightness cards in step with the hardware keys and the Quick
- * Settings sliders. It only wakes on an actual settings write, never polls.
+ * Settings sliders. It only wakes on an actual settings write or a volume
+ * broadcast, never polls.
  */
 object WidgetLevelObserver {
     @Volatile private var started = false
+    private val handler = Handler(Looper.getMainLooper())
+    private var pendingRefresh: Runnable? = null
+
+    /**
+     * Holding a volume key fires a burst of changes. Coalesce them into one
+     * repaint shortly after the last step, so the cards end on the exact value
+     * without flooding the launcher with binder traffic.
+     */
+    private fun scheduleRefresh(app: Context) {
+        pendingRefresh?.let { handler.removeCallbacks(it) }
+        val runnable = Runnable {
+            pendingRefresh = null
+            GlassWidgets.refreshLevelWidgets(app)
+        }
+        pendingRefresh = runnable
+        handler.postDelayed(runnable, 120L)
+    }
 
     fun ensure(context: Context) {
         if (started) return
         started = true
         val app = context.applicationContext
-        val handler = Handler(Looper.getMainLooper())
         val observer = object : ContentObserver(handler) {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
-                GlassWidgets.refreshLevelWidgets(app)
+                scheduleRefresh(app)
             }
         }
         runCatching {
@@ -573,6 +601,24 @@ object WidgetLevelObserver {
             resolver.registerContentObserver(
                 Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS), false, observer
             )
+        }
+        // Some OEM builds (MIUI/HyperOS) throttle the settings callback for the
+        // media stream, which leaves the percentage on screen stale. The
+        // framework's own volume broadcast is a cheap backup that fires even
+        // when the settings row is batched.
+        runCatching {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    scheduleRefresh(app)
+                }
+            }
+            val filter = IntentFilter(AudioManager.VOLUME_CHANGED_ACTION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                app.registerReceiver(receiver, filter)
+            }
         }
     }
 }
@@ -730,7 +776,10 @@ abstract class GlassLevelWidget : GlassWidgetProvider() {
             return true
         }
         adjust(context, up)
-        GlassWidgets.refreshSoon(context, javaClass)
+        // Every volume/brightness card shows the same stream, so repaint all of
+        // them — otherwise the card that was not tapped keeps a stale value.
+        GlassWidgets.refreshLevelWidgets(context)
+        GlassWidgets.refreshLevelSoon(context)
         return true
     }
 }

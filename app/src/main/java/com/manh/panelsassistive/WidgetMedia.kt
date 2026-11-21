@@ -306,6 +306,7 @@ object WidgetMedia {
 class MediaNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
+        WidgetLevelObserver.ensure(applicationContext)
         GlassWidgets.refreshMusicWidgets(applicationContext)
     }
 
