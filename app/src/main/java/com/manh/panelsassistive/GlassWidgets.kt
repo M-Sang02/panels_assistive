@@ -565,6 +565,12 @@ object GlassWidgets {
  * broadcast, never polls.
  */
 object WidgetLevelObserver {
+    /**
+     * "android.media.VOLUME_CHANGED_ACTION". The framework constant is not part
+     * of the public SDK, so the documented action string is used directly.
+     */
+    private const val ACTION_VOLUME_CHANGED = "android.media.VOLUME_CHANGED_ACTION"
+
     @Volatile private var started = false
     private val handler = Handler(Looper.getMainLooper())
     private var pendingRefresh: Runnable? = null
@@ -612,7 +618,7 @@ object WidgetLevelObserver {
                     scheduleRefresh(app)
                 }
             }
-            val filter = IntentFilter(AudioManager.VOLUME_CHANGED_ACTION)
+            val filter = IntentFilter(ACTION_VOLUME_CHANGED)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
