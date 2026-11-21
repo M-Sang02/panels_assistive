@@ -662,3 +662,27 @@
 ### Kiểm chứng
 - XML đã parse hợp lệ bằng PowerShell `[xml]`; Kotlin chỉ soát tĩnh (máy không có JDK/SDK) — chạy GitHub Actions để xác nhận biên dịch.
 - Trên máy: đặt widget trên hình nền sáng/tối để kiểm tra độ xuyên thấu và độ rõ chữ; phát nhạc có ảnh bìa màu để xem quầng loang đổi theo bìa; thử tiêu đề dài để xác nhận chữ thu nhỏ, không có dấu “…”; kiểm tra icon +/− bám mép khi kéo dài widget.
+
+## v34 — Widget nhạc thứ 2: ảnh bìa phủ kính mờ (provider độc lập)
+
+### Yêu cầu
+- Thêm một widget nhạc hoàn toàn tách biệt, không sửa/ghi đè widget nhạc cũ: ảnh bìa làm nền trong thẻ kính mờ, tên bài (1 dòng, trắng đậm, cắt “…”) và nghệ sĩ (1 dòng, trắng nhạt) ở trên, hàng Previous / nút tròn Play–Pause / Next ở dưới.
+- Bo góc 22–26dp, viền mảnh 0,75–1dp có bắt sáng ở mép trên; lớp phủ đủ tương phản để chữ/icon không chìm vào ảnh bìa.
+- Trạng thái chờ khi chưa có nhạc/chưa cấp quyền: kính mờ gọn, tiêu đề chờ + gợi ý chạm mở app nhạc, nút điều khiển mờ; không báo lỗi, không lẫn đen/trắng.
+- Chạm thân thẻ/thông tin mở app đang phát hoặc app đã gán; các nút điều khiển MediaSession; dùng chung hệ thống gán app riêng và “Play music now”.
+- Tách provider, file appwidget-provider, layout và drawable riêng; khai báo manifest.
+
+### Thay đổi trong mã
+- `GlassMusicCoverWidget.kt` (mới): provider thứ hai. `coverBitmap()` vẽ thẻ 24dp bo góc trên `Bitmap`: ảnh bìa thu nhỏ 1/14 rồi phóng lên (mờ mịn, center-crop), scrim navy 3 điểm dừng (52%/29%/69% ở đỉnh/giữa/đáy), sheen trắng 11%, bloom RadialGradient lấy tông từ bìa (fallback accent), vệt sáng trắng dọc mép trên, viền 0,9dp trắng alpha 88. Không có bìa → nền kính navy + glyph “music” mờ 15% làm watermark.
+- `sideCircleBitmap()`: nút Previous/Next là đĩa 34dp (nền trắng 18%, viền 1dp trắng 30%) có glyph skip-back/forward, alpha 178 khi chờ và 245 khi phát; nút giữa dùng `circleBitmap` 46dp tô accent (alpha B3 chờ / E6 phát) + glyph play/pause trắng.
+- `bind()`: lấy snapshot MediaSession với app gán của chính widget; tiêu đề “Chưa phát nhạc”/“Đang phát nhạc” và gợi ý “Chạm để mở ứng dụng nhạc”/“Chạm để mở <app>”/“Không mở ứng dụng”; cỡ chữ co theo kích thước (15,5–19sp tiêu đề, 12–14sp nghệ sĩ). Click: prev/next/toggle qua `GlassWidgets.pending`, Play khi chờ dùng `musicPlayNowPending`, chạm thân/thông tin dùng `musicTapPending`; `onDeleted` xoá gán riêng.
+- `handleAction()`: gửi lệnh MediaSession với app gán, sau đó `refreshMusicSoon` + `refreshMusicWidgets` để cả hai thẻ nhạc đồng bộ.
+- `GlassWidgets.kt`: thêm `GlassMusicCoverWidget` vào `providers`; thêm `musicProviders`, `refreshMusicWidgets()`, `refreshMusicSoon()`; mở `artTint()` để thẻ mới dùng chung.
+- `WidgetMedia.kt`: mọi lần refresh nhạc (notification listener, playNow, resume) chuyển sang refresh cả hai provider.
+- `BootReceiver.kt`: refresh cả hai widget nhạc sau khởi động.
+- `WidgetSettingsActivity.kt`: thêm thẻ “Nhạc ảnh bìa (2×2)” để ghim; mục “Gán riêng từng widget” liệt kê widget của cả hai kiểu (“Widget nhạc N”, “Widget nhạc ảnh bìa N”).
+- Tài nguyên mới: `res/layout/widget_music_cover.xml` (FrameLayout + ảnh nền, tiêu đề/nghệ sĩ căn giữa, spacer weight, hàng prev/play/next dùng weight + centerInside), `res/xml/glass_widget_music_cover.xml` (2×2, resize cả hai chiều, minResize 120×110dp, update 30 phút), `res/drawable/widget_music_cover_bg.xml`, `res/drawable/widget_music_cover_play_bg.xml`; manifest thêm receiver `.GlassMusicCoverWidget` nhãn “Nhạc ảnh bìa”.
+
+### Kiểm chứng
+- Toàn bộ XML parse hợp lệ; Kotlin chỉ soát tĩnh (không có JDK/SDK trên máy) — chạy GitHub Actions “Android build”.
+- Trên máy: ghim cả hai widget nhạc rồi phát một bài có ảnh bìa màu — thẻ mới phải mờ nền theo bìa, chữ trắng rõ, nút giữa đổi play/pause; thử tiêu đề dài (cắt “…”, không tràn), trạng thái chưa phát (kính mờ + gợi ý), chạm thân thẻ mở đúng app, gán app riêng cho từng widget và “Phát nhạc ngay”; kiểm tra hai thẻ cùng cập nhật khi bấm prev/next.

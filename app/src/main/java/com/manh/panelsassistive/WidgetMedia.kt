@@ -184,9 +184,9 @@ object WidgetMedia {
     fun playNow(context: Context, packageName: String) {
         if (packageName.isEmpty()) return
         if (resume(context, packageName)) {
-            GlassWidgets.refreshSoon(context, GlassMusicWidget::class.java)
+            GlassWidgets.refreshMusicSoon(context)
             Handler(Looper.getMainLooper()).postDelayed({
-                GlassWidgets.refresh(context, GlassMusicWidget::class.java)
+                GlassWidgets.refreshMusicWidgets(context)
             }, 800L)
             return
         }
@@ -194,10 +194,10 @@ object WidgetMedia {
         val handler = Handler(Looper.getMainLooper())
         handler.postDelayed({
             dispatchKey(context, KeyEvent.KEYCODE_MEDIA_PLAY)
-            GlassWidgets.refreshSoon(context, GlassMusicWidget::class.java)
+            GlassWidgets.refreshMusicSoon(context)
         }, 1500L)
         handler.postDelayed({
-            GlassWidgets.refresh(context, GlassMusicWidget::class.java)
+            GlassWidgets.refreshMusicWidgets(context)
         }, 2600L)
     }
 
@@ -306,7 +306,7 @@ object WidgetMedia {
 class MediaNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
-        GlassWidgets.refresh(applicationContext, GlassMusicWidget::class.java)
+        GlassWidgets.refreshMusicWidgets(applicationContext)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -325,9 +325,9 @@ class MediaNotificationListener : NotificationListenerService() {
 
     private fun scheduleRefresh() {
         val context = applicationContext
-        GlassWidgets.refreshSoon(context, GlassMusicWidget::class.java)
+        GlassWidgets.refreshMusicSoon(context)
         Handler(Looper.getMainLooper()).postDelayed({
-            GlassWidgets.refresh(context, GlassMusicWidget::class.java)
+            GlassWidgets.refreshMusicWidgets(context)
         }, 900L)
     }
 }

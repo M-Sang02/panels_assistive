@@ -49,7 +49,14 @@ object GlassWidgets {
         GlassBrightnessVerticalWidget::class.java,
         GlassBrightnessHorizontalWidget::class.java,
         GlassClockWidget::class.java,
-        GlassMusicWidget::class.java
+        GlassMusicWidget::class.java,
+        GlassMusicCoverWidget::class.java
+    )
+
+    /** Every music card, so media notifications repaint both variants. */
+    val musicProviders = listOf(
+        GlassMusicWidget::class.java,
+        GlassMusicCoverWidget::class.java
     )
 
     val levelProviders = listOf(
@@ -61,6 +68,15 @@ object GlassWidgets {
 
     fun refreshAll(context: Context) {
         providers.forEach { refresh(context, it) }
+    }
+
+    /** Repaints both music cards after a session or assignment change. */
+    fun refreshMusicWidgets(context: Context) {
+        musicProviders.forEach { refresh(context, it) }
+    }
+
+    fun refreshMusicSoon(context: Context) {
+        musicProviders.forEach { refreshSoon(context, it) }
     }
 
     /** Called by the settings observers whenever volume or brightness changes. */
@@ -228,7 +244,7 @@ object GlassWidgets {
      * Average colour of the album art, softened toward white so it reads as a
      * glow rather than a solid wash. Returns 0 when no usable tint exists.
      */
-    private fun artTint(art: Bitmap?): Int {
+    fun artTint(art: Bitmap?): Int {
         if (art == null) return 0
         val side = 12
         val small = runCatching { Bitmap.createScaledBitmap(art, side, side, true) }

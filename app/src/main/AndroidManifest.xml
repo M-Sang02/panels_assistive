@@ -132,6 +132,17 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/glass_widget_music" />
         </receiver>
+        <receiver
+            android:name=".GlassMusicCoverWidget"
+            android:exported="false"
+            android:label="Nhạc ảnh bìa">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glass_widget_music_cover" />
+        </receiver>
         <activity
             android:name=".MainActivity"
             android:exported="true">

@@ -82,6 +82,15 @@ class WidgetSettingsActivity : Activity() {
                 "to 4×4 — nút tự co giãn, không bao giờ bị ẩn khi thu nhỏ.",
             GlassMusicWidget::class.java
         ))
+        root.addView(widgetCard(
+            "disc-album",
+            "Nhạc ảnh bìa (2×2)",
+            "Một widget nhạc thứ hai, độc lập: ảnh bìa bài hát phủ kính mờ làm nền, " +
+                "tên bài và nghệ sĩ ở trên, cụm Previous / Play / Next tròn ở dưới. " +
+                "Bo góc 24dp, viền trắng mảnh; dùng chung app nhạc đã gán và " +
+                "\"Play music now\".",
+            GlassMusicCoverWidget::class.java
+        ))
         root.addView(musicCard())
         root.addView(quickOpenCard())
         root.addView(themeHint())
@@ -226,22 +235,26 @@ class WidgetSettingsActivity : Activity() {
             }
         })
 
-        val ids = AppWidgetManager.getInstance(this@WidgetSettingsActivity)
-            .getAppWidgetIds(
-                ComponentName(this@WidgetSettingsActivity, GlassMusicWidget::class.java)
-            )
-        if (ids.isNotEmpty()) {
+        val rows = mutableListOf<String to Int>()
+        val manager = AppWidgetManager.getInstance(this@WidgetSettingsActivity)
+        manager.getAppWidgetIds(
+            ComponentName(this@WidgetSettingsActivity, GlassMusicWidget::class.java)
+        ).forEachIndexed { index, id -> rows.add("Widget nhạc ${index + 1}" to id) }
+        manager.getAppWidgetIds(
+            ComponentName(this@WidgetSettingsActivity, GlassMusicCoverWidget::class.java)
+        ).forEachIndexed { index, id -> rows.add("Widget nhạc ảnh bìa ${index + 1}" to id) }
+        if (rows.isNotEmpty()) {
             addView(GlassUi.divider(this@WidgetSettingsActivity))
             addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Gán riêng từng widget"))
             addView(hint(
-                "Bạn đang ghim ${ids.size} widget nhạc. Chạm vào một dòng để chọn app riêng " +
-                    "cho widget đó, hoặc dùng app mặc định ở trên."
+                "Bạn đang ghim ${rows.size} widget nhạc (cả hai kiểu). Chạm vào một dòng " +
+                    "để chọn app riêng cho widget đó, hoặc dùng app mặc định ở trên."
             ))
-            ids.forEachIndexed { index, id -> addView(instanceRow(index + 1, id)) }
+            rows.forEach { (label, id) -> addView(instanceRow(label, id)) }
         }
     }
 
-    private fun instanceRow(index: Int, widgetId: Int): LinearLayout {
+    private fun instanceRow(rowLabel: String, widgetId: Int): LinearLayout {
         val active = AppPrefs.musicWidgetPackage(this, widgetId)
         val detail = when {
             AppPrefs.musicWidgetNoApp(this, widgetId) -> "Không mở app"
@@ -270,7 +283,7 @@ class WidgetSettingsActivity : Activity() {
                     AppPrefs.setMusicWidgetPackage(this@WidgetSettingsActivity, widgetId, packageName)
                 }
             }
-            addView(label("Widget nhạc $index", 13, GlassUi.TEXT_PRIMARY),
+            addView(label(rowLabel, 13, GlassUi.TEXT_PRIMARY),
                 LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             addView(label(detail, 12, GlassUi.TEXT_MUTED))
         }.apply {
