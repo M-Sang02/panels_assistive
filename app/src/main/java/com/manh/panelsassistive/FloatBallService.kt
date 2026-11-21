@@ -1312,7 +1312,9 @@ class FloatBallService : Service() {
         val alpha = opacity.coerceIn(0, 100) * 255 / 100
         setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
         cornerRadius = dp(corner).toFloat()
-        setStroke(dp(1), Color.argb(65, 225, 238, 250))
+        if (AppPrefs.panelBorderEnabled(this@FloatBallService)) {
+            setStroke(dp(1), Color.argb(65, 225, 238, 250))
+        }
     }
 
     private fun sliderTileBackground() = GradientDrawable().apply {

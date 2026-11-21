@@ -377,6 +377,28 @@ class WidgetPanelSettingsActivity : Activity() {
                 override fun onStopTrackingTouch(bar: SeekBar?) = Unit
             })
         })
+        addView(GlassUi.divider(this@WidgetPanelSettingsActivity))
+        addView(LinearLayout(this@WidgetPanelSettingsActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                text("Viền trắng", 14, foreground, true),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(GlassUi.switch(
+                this@WidgetPanelSettingsActivity,
+                AppPrefs.panelBorderEnabled(this@WidgetPanelSettingsActivity)
+            ) { enabled ->
+                AppPrefs.setPanelBorderEnabled(this@WidgetPanelSettingsActivity, enabled)
+                updatePreviewBackground()
+                refreshPopupSurface()
+            }.apply { contentDescription = "Bật tắt viền trắng" })
+        })
+        addView(text(
+            "Tắt để bảng tiện ích không còn đường viền sáng quanh nền.",
+            12,
+            GlassUi.TEXT_MUTED
+        ))
         addView(widgetBlurSection())
     }
 
@@ -476,7 +498,9 @@ class WidgetPanelSettingsActivity : Activity() {
         previewGrid.background = GradientDrawable().apply {
             setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
             cornerRadius = dp(AppPrefs.popupPanelCorner(this@WidgetPanelSettingsActivity)).toFloat()
-            setStroke(dp(1), Color.argb(65, 225, 238, 250))
+            if (AppPrefs.panelBorderEnabled(this@WidgetPanelSettingsActivity)) {
+                setStroke(dp(1), Color.argb(65, 225, 238, 250))
+            }
         }
         updatePopupChips(color)
     }

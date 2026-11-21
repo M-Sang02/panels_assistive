@@ -110,6 +110,7 @@ object AppPrefs {
     private const val KEY_POPUP_PANEL_COLOR = "popup_panel_color"
     private const val KEY_POPUP_PANEL_OPACITY = "popup_panel_opacity"
     private const val KEY_POPUP_PANEL_CORNER = "popup_panel_corner"
+    private const val KEY_PANEL_BORDER = "panel_border_enabled"
     private const val KEY_TAB_TRANSITION = "tab_transition"
     private const val KEY_PANEL_FREE_MODE = "panel_free_mode"
     private const val KEY_FREEFORM_APPS = "freeform_apps"
@@ -763,6 +764,12 @@ object AppPrefs {
         store(context).getInt(KEY_POPUP_PANEL_CORNER, sharedPanelCorner(context)).coerceIn(0, 48)
     fun setPopupPanelCorner(context: Context, value: Int) {
         store(context).edit().putInt(KEY_POPUP_PANEL_CORNER, value.coerceIn(0, 48)).apply()
+    }
+
+    // One shared switch for the light 1dp rim drawn around every overlay panel.
+    fun panelBorderEnabled(context: Context) = store(context).getBoolean(KEY_PANEL_BORDER, true)
+    fun setPanelBorderEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_PANEL_BORDER, enabled).apply()
     }
 
     fun tabTransition(context: Context): String {

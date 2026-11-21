@@ -553,3 +553,23 @@
 - `createPanelShortcut` nhận `tileWidthDp`/`tileHeightDp`; icon = `min(tileW, tileH) - 18dp` (kẹp 18..320) nên ô 2x3 hiển thị icon cỡ 2x2, ô 1x1 icon cỡ 1x1.
 - `createPopupItem`, grid của bảng nổi và `previewTile` trong trình biên tập truyền span đã kẹp theo số cột/hàng, nên icon phóng to/thu nhỏ đúng ô thực tế.
 - Lối tắt ở bảng mở rộng giữ nguyên cỡ cũ (tile 52dp → icon 40dp).
+
+## v30.1 — Công tắc viền trắng cho nền bảng
+
+### Yêu cầu
+- Thêm nút bật/tắt viền trắng trong bảng tiện ích và Nền bảng; khi gạt tắt, nền bảng mất hẳn đường viền sáng (trong suốt).
+
+### Thay đổi trong mã
+- `AppPrefs.panelBorderEnabled` / `setPanelBorderEnabled` (mặc định bật, khóa `panel_border_enabled`) là một công tắc dùng chung cho mọi bảng nổi.
+- `FloatBallService.panelBackground()` chỉ gọi `setStroke(1dp, argb(65,225,238,250))` khi công tắc bật, nên bảng tiện ích, bảng mở rộng và thanh độ sáng cùng mất viền khi tắt.
+- `BackgroundSettingsActivity` (“Nền bảng”) và `WidgetPanelSettingsActivity` (thẻ “Nền bảng tiện ích”) có hàng “Viền trắng” + `GlassUi.switch`; bật/tắt cập nhật ngay phần xem trước và gọi `refreshPopupAppearance` / `refreshPopupSurface` để vẽ lại bảng đang mở.
+- Preview của cả hai màn hình cũng chỉ vẽ stroke khi công tắc bật.
+
+### Tệp thay đổi
+- `app/src/main/java/com/manh/panelsassistive/AssistiveCore.kt`
+- `app/src/main/java/com/manh/panelsassistive/FloatBallService.kt`
+- `app/src/main/java/com/manh/panelsassistive/BackgroundSettingsActivity.kt`
+- `app/src/main/java/com/manh/panelsassistive/WidgetPanelSettingsActivity.kt`
+
+### Kiểm chứng
+- Chỉ soát mã tĩnh; cổng build là GitHub Actions “Android build”. Trên máy: mở bảng tiện ích rồi tắt “Viền trắng” trong Nền bảng tiện ích — viền biến mất ngay; mở Nền bảng tắt cùng công tắc — bảng mở rộng/thanh sáng cũng mất viền; bật lại thì viền trở về như cũ.

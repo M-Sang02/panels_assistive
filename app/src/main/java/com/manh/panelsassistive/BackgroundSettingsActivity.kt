@@ -68,6 +68,31 @@ class BackgroundSettingsActivity : Activity() {
             }, ::refreshPanels))
         })
 
+        root.addView(GlassUi.glassCard(this).apply {
+            val borderRow = LinearLayout(this@BackgroundSettingsActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(
+                    body("Viền trắng", 14f, GlassUi.TEXT_PRIMARY, bold = true),
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                )
+                addView(GlassUi.switch(
+                    this@BackgroundSettingsActivity,
+                    AppPrefs.panelBorderEnabled(this@BackgroundSettingsActivity)
+                ) { enabled ->
+                    AppPrefs.setPanelBorderEnabled(this@BackgroundSettingsActivity, enabled)
+                    renderPreview()
+                    refreshPanels()
+                }.apply { contentDescription = "Bật tắt viền trắng" })
+            }
+            addView(borderRow)
+            addView(body(
+                "Tắt để nền bảng không còn đường viền sáng 1dp. Áp dụng cho mọi bảng nổi.",
+                12f,
+                GlassUi.TEXT_MUTED
+            ))
+        })
+
         preview = TextView(this).apply {
             text = "Xem trước bảng"
             gravity = Gravity.CENTER
@@ -184,7 +209,9 @@ class BackgroundSettingsActivity : Activity() {
         preview.background = GradientDrawable().apply {
             setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
             cornerRadius = dp(AppPrefs.sharedPanelCorner(this@BackgroundSettingsActivity)).toFloat()
-            setStroke(dp(1), Color.argb(65, 225, 238, 250))
+            if (AppPrefs.panelBorderEnabled(this@BackgroundSettingsActivity)) {
+                setStroke(dp(1), Color.argb(65, 225, 238, 250))
+            }
         }
         colorChips.forEach { (chipColor, chip) ->
             (chip.background as? GradientDrawable)?.setStroke(
