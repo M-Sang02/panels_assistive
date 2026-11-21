@@ -89,8 +89,6 @@ object WidgetMedia {
             }
         } catch (error: Exception) {
             Log.w(TAG, "Unable to read the media session", error)
-        } finally {
-            sessions.forEach { release(it) }
         }
         val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val playing = audio?.isMusicActive == true
@@ -107,11 +105,7 @@ object WidgetMedia {
     /** Package of the app that is actually playing audio right now. */
     fun activePackage(context: Context): String? {
         val sessions = activeSessions(context)
-        try {
-            sessions.firstOrNull { isPlaying(it) }?.let { return it.packageName }
-        } finally {
-            sessions.forEach { release(it) }
-        }
+        sessions.firstOrNull { isPlaying(it) }?.let { return it.packageName }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
         return try {
             val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -157,11 +151,7 @@ object WidgetMedia {
                 return true
             } catch (error: Exception) {
                 Log.w(TAG, "MediaSession command failed: $action", error)
-            } finally {
-                sessions.forEach { release(it) }
             }
-        } else {
-            sessions.forEach { release(it) }
         }
         val key = when (action) {
             GlassWidgets.ACTION_MEDIA_PREV -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
@@ -184,8 +174,6 @@ object WidgetMedia {
         } catch (error: Exception) {
             Log.w(TAG, "Unable to resume $packageName", error)
             return false
-        } finally {
-            sessions.forEach { release(it) }
         }
     }
 
@@ -275,10 +263,6 @@ object WidgetMedia {
     private fun isPlaying(controller: MediaController): Boolean {
         val state = controller.playbackState?.state
         return state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
-    }
-
-    private fun release(controller: MediaController) {
-        runCatching { controller.release() }
     }
 
     private fun artwork(context: Context, metadata: MediaMetadata?): Bitmap? {

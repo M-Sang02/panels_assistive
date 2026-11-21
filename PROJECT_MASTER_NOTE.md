@@ -610,3 +610,6 @@
 
 ### Kiểm chứng
 - Chỉ soát mã tĩnh; cổng build là GitHub Actions “Android build”. Trên máy: ghim widget nhạc (2×2), kéo thành 4×2 và 4×4 để thấy art/nút phóng to và chia đều; cấp truy cập thông báo rồi mở YouTube Music/Nhaccuatui để thấy tên bài + ảnh bìa, thử pause/next/prev; tắt nhạc rồi chạm Play để kiểm tra “Phát nhạc ngay”; chạm vào thân widget khi đang phát để mở đúng app, khi im lặng để mở app đã gán.
+
+### Follow-up CI fix (v31)
+- GitHub Actions: `WidgetMedia.kt:281 Unresolved reference 'release'` — `android.media.session.MediaController` không có `release()` trong SDK công khai (chỉ `MediaBrowser` mới có `disconnect()`); đã bỏ hàm `release()` và mọi lời gọi `sessions.forEach { release(it) }` trong `snapshot`/`activePackage`/`send`/`resume`. Controller do framework quản lý, không cần giải phóng thủ công.
