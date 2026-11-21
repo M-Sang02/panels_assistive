@@ -7,8 +7,16 @@ import android.provider.Settings
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
-            intent.action != Intent.ACTION_LOCKED_BOOT_COMPLETED
+        val action = intent.action
+        if (action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            // After an update, re-send every card so a launcher that cached a
+            // "problem loading widget" panel gets fresh RemoteViews at once.
+            WidgetLevelObserver.ensure(context.applicationContext)
+            GlassWidgets.refreshAll(context.applicationContext)
+            return
+        }
+        if (action != Intent.ACTION_BOOT_COMPLETED &&
+            action != Intent.ACTION_LOCKED_BOOT_COMPLETED
         ) {
             return
         }

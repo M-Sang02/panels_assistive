@@ -27,8 +27,13 @@ import kotlin.math.roundToInt
  */
 class GlassMusicCoverWidget : GlassWidgetProvider() {
     companion object {
-        /** Bigger bitmaps make some launchers drop the whole RemoteViews. */
-        private const val COVER_MAX_PX = 384
+        /**
+         * Keep the payload tiny: some launchers drop a whole RemoteViews when
+         * its bitmaps exceed their binder budget, which shows up as
+         * "Problem loading widget". The art is frosted and scaled up anyway,
+         * so a small bitmap is indistinguishable on screen.
+         */
+        private const val COVER_MAX_PX = 128
     }
 
     override fun layoutId(context: Context, options: Bundle): Int =
@@ -57,14 +62,19 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
 
         val width = GlassWidgets.dp(context, widthDp.coerceIn(64, 420))
         val height = GlassWidgets.dp(context, heightDp.coerceIn(64, 420))
-        // Frosted art tolerates up-scaling, so keep the payload small: big
-        // RemoteViews bitmaps are a common cause of "widget can't load".
+        // Two native pixels are enough per dp for a frosted blur; the payload
+        // stays far below the RemoteViews binder budget.
         val scale = (COVER_MAX_PX.toFloat() / maxOf(width, height).toFloat()).coerceAtMost(1f)
-        val bitmapWidth = (width * scale).roundToInt().coerceAtLeast(64)
-        val bitmapHeight = (height * scale).roundToInt().coerceAtLeast(64)
+        val bitmapWidth = (width * scale).roundToInt().coerceAtLeast(48)
+        val bitmapHeight = (height * scale).roundToInt().coerceAtLeast(48)
         runCatching { coverBitmap(context, bitmapWidth, bitmapHeight, now.art, scale) }
             .getOrNull()
-            ?.let { views.setImageViewBitmap(R.id.cover_bg, it) }
+            ?.let {
+                views.setImageViewBitmap(R.id.cover_bg, it)
+                // Drop the placeholder drawable so the painted pane is the only
+                // frost; otherwise the two layers stack into a milky card.
+                views.setInt(R.id.cover_bg, "setBackgroundColor", Color.TRANSPARENT)
+            }
 
         val assignedLabel = assigned.takeIf { it.isNotEmpty() }?.let {
             WidgetMedia.label(context, it)
@@ -87,18 +97,18 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             R.id.cover_title,
             TypedValue.COMPLEX_UNIT_SP,
             when {
-                big -> 19f
-                wide -> 17f
-                else -> 15.5f
+                big -> 18f
+                wide -> 16f
+                else -> 14f
             }
         )
         views.setTextViewTextSize(
             R.id.cover_artist,
             TypedValue.COMPLEX_UNIT_SP,
             when {
-                big -> 14f
-                wide -> 13f
-                else -> 12f
+                big -> 13f
+                wide -> 12f
+                else -> 11f
             }
         )
 
@@ -241,26 +251,35 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 RectF(0f, 0f, width.toFloat(), height.toFloat()),
                 Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
             )
-            // Darker towards the top and bottom so both text and controls read.
-            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            // A light haze over the art, then a subdued vignette at the bottom
+            // so the transport row stays readable without turning the card dark.
+            val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                isDither = true
                 shader = LinearGradient(
                     0f, 0f, 0f, height.toFloat(),
-                    intArrayOf(
-                        Color.argb(132, 6, 12, 24),
-                        Color.argb(74, 6, 12, 24),
-                        Color.argb(176, 4, 8, 16)
-                    ),
-                    floatArrayOf(0f, 0.52f, 1f),
+                    Color.argb(12, 255, 255, 255),
+                    Color.argb(4, 255, 255, 255),
                     Shader.TileMode.CLAMP
                 )
             }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
+            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), haze)
+            val shade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                isDither = true
+                shader = LinearGradient(
+                    0f, height * 0.55f, 0f, height.toFloat(),
+                    Color.TRANSPARENT,
+                    Color.argb(92, 6, 10, 18),
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, height * 0.55f, width.toFloat(), height.toFloat(), shade)
         } else {
             val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                isDither = true
                 shader = LinearGradient(
                     0f, 0f, 0f, height.toFloat(),
-                    Color.argb(104, 255, 255, 255),
-                    Color.argb(36, 255, 255, 255),
+                    Color.argb(20, 255, 255, 255),
+                    Color.argb(6, 255, 255, 255),
                     Shader.TileMode.CLAMP
                 )
             }
@@ -270,18 +289,20 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
 
         // Light sheen from the upper edge and a soft white bloom at the bottom.
         val sheen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isDither = true
             shader = LinearGradient(
                 0f, 0f, 0f, height * 0.6f,
-                Color.argb(28, 255, 255, 255),
+                Color.argb(14, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height * 0.6f, sheen)
         val bloom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isDither = true
             shader = RadialGradient(
                 width * 0.8f, height * 0.92f, max(width, height) * 0.95f,
-                Color.argb(58, 255, 255, 255),
+                Color.argb(20, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
@@ -295,7 +316,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 width * 0.08f, 0f, width * 0.92f, 0f,
                 intArrayOf(
                     Color.TRANSPARENT,
-                    Color.argb(76, 255, 255, 255),
+                    Color.argb(56, 255, 255, 255),
                     Color.TRANSPARENT
                 ),
                 floatArrayOf(0f, 0.5f, 1f),
@@ -308,7 +329,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             style = Paint.Style.STROKE
             strokeWidth =
                 (context.resources.displayMetrics.density * 0.9f * scale).coerceAtLeast(1f)
-            color = Color.argb(88, 255, 255, 255)
+            color = Color.argb(50, 255, 255, 255)
         }
         val inset = rim.strokeWidth / 2f
         canvas.drawRoundRect(
@@ -349,7 +370,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             typeface = LucideGlyphs.typeface(context)
             textAlign = Paint.Align.CENTER
             textSize = minOf(width, height) * 0.48f
-            color = Color.argb(38, 255, 255, 255)
+            color = Color.argb(30, 255, 255, 255)
         }
         val baseline = height / 2f - (paint.ascent() + paint.descent()) / 2f
         canvas.drawText(glyph, width / 2f, baseline, paint)

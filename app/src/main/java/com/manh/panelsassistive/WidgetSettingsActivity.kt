@@ -42,36 +42,36 @@ class WidgetSettingsActivity : Activity() {
         root.addView(widgetCard(
             "volume-2",
             "Âm lượng dọc (1×2)",
-            "Cột dọc mảnh. Nửa trên tăng, nửa dưới giảm âm lượng; icon loa đổi theo mức " +
-                "và lớp trắng loang nhẹ dâng theo thời gian thực.",
+            "Cột dọc mảnh, kính trắng gần như trong suốt. Nửa trên tăng, nửa dưới giảm; " +
+                "nhãn \"Âm lượng\" và % ở giữa, dấu +/− ở hai đầu.",
             GlassVolumeVerticalWidget::class.java
         ))
         root.addView(widgetCard(
             "audio-lines",
             "Âm lượng ngang (2×1)",
-            "Thanh ngang mảnh, chỉ có icon loa (không hiện %). Chạm nửa trái để giảm, " +
-                "nửa phải để tăng — cập nhật ngay cả khi bạn bấm nút âm lượng vật lý.",
+            "Thanh ngang mảnh dạng viên thuốc. Chạm nửa trái để giảm, nửa phải để tăng — " +
+                "cập nhật ngay cả khi bạn bấm nút âm lượng vật lý.",
             GlassVolumeHorizontalWidget::class.java
         ))
         root.addView(widgetCard(
             "sun",
             "Độ sáng dọc (1×2)",
-            "Cột dọc tăng/giảm độ sáng màn hình. Cần cấp quyền Chỉnh sửa cài đặt hệ thống " +
-                "ở lần chạm đầu tiên.",
+            "Cột dọc tăng/giảm độ sáng màn hình, kèm nhãn \"Độ sáng\" và %. Cần cấp quyền " +
+                "Chỉnh sửa cài đặt hệ thống ở lần chạm đầu tiên.",
             GlassBrightnessVerticalWidget::class.java
         ))
         root.addView(widgetCard(
             "sun-medium",
             "Độ sáng ngang (2×1)",
-            "Thanh ngang tăng/giảm độ sáng, icon mặt trời đổi theo mức, không hiện %. " +
-                "Chạm nửa trái để giảm, nửa phải để tăng.",
+            "Thanh ngang tăng/giảm độ sáng, nhãn và % ở giữa. Chạm nửa trái để giảm, " +
+                "nửa phải để tăng.",
             GlassBrightnessHorizontalWidget::class.java
         ))
         root.addView(widgetCard(
             "clock",
             "Đồng hồ (2×2)",
-            "Chữ trắng trên nền kính trắng mờ giống thẻ nhạc; tự cập nhật theo múi giờ và " +
-                "định dạng 12/24 giờ của máy.",
+            "Chữ trắng trên nền kính trắng rất trong giống thẻ nhạc; tự cập nhật theo múi " +
+                "giờ và định dạng 12/24 giờ của máy.",
             GlassClockWidget::class.java
         ))
         root.addView(widgetCard(
@@ -85,8 +85,8 @@ class WidgetSettingsActivity : Activity() {
         root.addView(widgetCard(
             "disc-album",
             "Nhạc ảnh bìa (2×2)",
-            "Một widget nhạc thứ hai, độc lập: ảnh bìa bài hát phủ kính mờ làm nền, " +
-                "tên bài và nghệ sĩ ở trên, cụm Previous / Play / Next tròn ở dưới. " +
+            "Một widget nhạc thứ hai, độc lập: ảnh bìa bài hát phủ lớp kính mờ rất nhẹ " +
+                "làm nền, tên bài và nghệ sĩ ở trên, cụm Previous / Play / Next tròn ở dưới. " +
                 "Bo góc 24dp, viền trắng mảnh; dùng chung app nhạc đã gán và " +
                 "\"Play music now\".",
             GlassMusicCoverWidget::class.java
@@ -327,9 +327,10 @@ class WidgetSettingsActivity : Activity() {
     private fun themeHint(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Màu chữ widget"))
         addView(hint(
-            "Mọi widget dùng chung kính trắng loang mờ dần thành trong suốt, chữ và icon " +
-                "trắng. Màu chủ đạo của ứng dụng chỉ tô duy nhất nút Play của hai widget nhạc, " +
-                "không pha màu vào nền âm lượng, độ sáng hay đồng hồ."
+            "Mọi widget dùng chung kính trắng gần như trong suốt: sáng nhẹ ở góc trên rồi " +
+                "tan vào hình nền, viền trắng mảnh 0,9dp, chữ và icon trắng. Màu chủ đạo chỉ " +
+                "tô duy nhất nút Play của hai widget nhạc — không pha màu vào nền âm lượng, " +
+                "độ sáng hay đồng hồ."
         ))
     }
 
@@ -377,10 +378,10 @@ class WidgetSettingsActivity : Activity() {
     private fun styleCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Giao diện của widget"))
         addView(hint(
-            "Widget dùng kính trắng loang: sáng ở góc trên và mờ dần thành trong suốt, " +
-                "không pha xanh hay màu nhấn. Viền trắng mảnh 0,9dp, bo góc lớn; chữ/icon " +
-                "trắng có bóng mềm. Nhấn giữ widget để đổi kích thước; icon tăng/giảm luôn " +
-                "bám mép ngoài khi kéo dài."
+            "Widget dùng kính trắng rất trong: sáng nhẹ ở góc trên và tan nhanh thành trong " +
+                "suốt, không pha xanh hay màu nhấn. Viền trắng mảnh 0,9dp, bo góc lớn; " +
+                "chữ/icon trắng có bóng mềm. Nhấn giữ widget để đổi kích thước; icon tăng/giảm " +
+                "luôn bám mép ngoài khi kéo dài."
         ))
         addView(GlassUi.actionButton(
             this@WidgetSettingsActivity,
