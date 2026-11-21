@@ -382,7 +382,7 @@ class WidgetPanelSettingsActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(
-                text("Viền trắng", 14, foreground, true),
+                text("Viền trắng", 14, this@WidgetPanelSettingsActivity.foreground, true),
                 LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             )
             addView(GlassUi.switch(
