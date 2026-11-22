@@ -163,6 +163,7 @@
     <string name="create_widget_title">Thêm tiện ích này?</string>
     <string name="create_widget_permission_message">Panels Assistive sẽ tạo “%1$s”. Android có thể yêu cầu bạn cho phép thêm và hiển thị tiện ích này.</string>
     <string name="create_widget_action">Tạo và cho phép</string>
+    <string name="create_widget_skip">Không hiện lần sau</string>
     <string name="widget_permission_not_granted">Bạn chưa cấp quyền thêm tiện ích.</string>
     <string name="widget_bind_failed">Không thể thêm tiện ích này.</string>
     <string name="widget_host_unavailable">Không thể khởi động trình quản lý tiện ích.</string>

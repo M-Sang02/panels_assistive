@@ -163,6 +163,7 @@
     <string name="create_widget_title">Add this widget?</string>
     <string name="create_widget_permission_message">Panels Assistive will create “%1$s”. Android may ask you to allow this app to add and display the widget.</string>
     <string name="create_widget_action">Create and allow</string>
+    <string name="create_widget_skip">Don’t ask again</string>
     <string name="widget_permission_not_granted">Widget permission was not granted.</string>
     <string name="widget_bind_failed">Could not add this widget.</string>
     <string name="widget_host_unavailable">Widget hosting could not start.</string>

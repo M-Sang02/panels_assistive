@@ -357,7 +357,7 @@ class WidgetSettingsActivity : Activity() {
         val items = buildList {
             add(GlassDialogs.Item(
                 id = "",
-                label = "Chưa gán",
+                label = "Không gán",
                 caption = "Chạm đồng hồ chỉ mở bảng điều khiển",
                 glyph = "ban",
                 selected = current.isEmpty()

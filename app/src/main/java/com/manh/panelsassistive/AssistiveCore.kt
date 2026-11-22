@@ -184,6 +184,7 @@ object AppPrefs {
     private const val KEY_ICON_OVERRIDES = "icon_overrides"
     private const val KEY_WIDGET_ACCENT = "widget_accent_color"
     private const val KEY_WIDGET_SHORTCUT = "widget_shortcut"
+    private const val KEY_WIDGET_CONFIRM = "widget_confirm_before_add"
     private const val KEY_MUSIC_WIDGET_SOURCE = "music_widget_source"
     private const val KEY_MUSIC_WIDGET_PACKAGE = "music_widget_package"
 
@@ -961,6 +962,18 @@ object AppPrefs {
         store(context).edit().putString(KEY_WIDGET_SHORTCUT, value.orEmpty()).apply()
     }
 
+    /**
+     * Ask before a widget is pinned. Turning this off ("Không hiện lần sau")
+     * makes later pins create and allow the widget immediately; Advanced
+     * settings can switch the question back on.
+     */
+    fun widgetConfirmEnabled(context: Context) =
+        store(context).getBoolean(KEY_WIDGET_CONFIRM, true)
+
+    fun setWidgetConfirmEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_WIDGET_CONFIRM, enabled).apply()
+    }
+
     /** Music card: true opens the playing app, false opens the assigned shortcut. */
     fun musicWidgetOpensSource(context: Context) =
         store(context).getBoolean(KEY_MUSIC_WIDGET_SOURCE, true)
@@ -1653,7 +1666,13 @@ class AccessibilityActionService : AccessibilityService() {
 
 }
 
-class PanelsVoiceInteractionService : VoiceInteractionService()
+class PanelsVoiceInteractionService : VoiceInteractionService() {
+    override fun onReady() {
+        super.onReady()
+        // Useful when the ROM silently swaps the assistant back to Google.
+        Log.i("PanelsAssistant", "VoiceInteractionService bound and ready")
+    }
+}
 
 class PanelsRecognitionService : RecognitionService() {
     override fun onStartListening(recognizerIntent: Intent, listener: Callback) {
@@ -1675,10 +1694,21 @@ private class PanelsVoiceInteractionSession(private val appContext: Context) :
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         Handler(Looper.getMainLooper()).post {
-            if (AppPrefs.assistantReplacementEnabled(appContext)) {
-                ActionDispatcher.dispatch(appContext, AppPrefs.assistantReplacementAction(appContext))
+            // A throwing action (for example a foreground-service start that the
+            // system refuses) must never crash the session process: a crashed
+            // assistant makes the system fall back to Google on later gestures.
+            try {
+                if (AppPrefs.assistantReplacementEnabled(appContext)) {
+                    ActionDispatcher.dispatch(
+                        appContext,
+                        AppPrefs.assistantReplacementAction(appContext)
+                    )
+                }
+            } catch (error: Exception) {
+                Log.e("PanelsAssistant", "Assistant action failed", error)
+            } finally {
+                hide()
             }
-            hide()
         }
     }
 }

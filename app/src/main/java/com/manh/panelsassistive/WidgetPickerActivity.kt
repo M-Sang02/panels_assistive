@@ -1,7 +1,6 @@
 package com.manh.panelsassistive
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
@@ -20,6 +19,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -461,15 +461,86 @@ class WidgetPickerActivity : Activity() {
             provider.loadLabel(packageManager).toString()
         }
 
+    /**
+     * Short glass confirmation: the widget name, a "Không hiện lần sau"
+     * switch and two round buttons — ✕ cancels, ✓ creates and allows. Once the
+     * switch is used the question is skipped and Advanced settings can bring
+     * it back.
+     */
     private fun confirmWidget(provider: AppWidgetProviderInfo) {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.create_widget_title)
-            .setMessage(getString(R.string.create_widget_permission_message, providerLabel(provider)))
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.create_widget_action) { _, _ ->
-                bindWidget(provider.provider)
+        if (!AppPrefs.widgetConfirmEnabled(this)) {
+            bindWidget(provider.provider)
+            return
+        }
+        val sheet = GlassDialogs.sheet(
+            this,
+            getString(R.string.create_widget_title),
+            providerLabel(provider),
+            cancelLabel = null
+        )
+        var hideNextTime = false
+        sheet.content.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(2))
+            addView(TextView(this@WidgetPickerActivity).apply {
+                text = getString(R.string.create_widget_skip)
+                textSize = 13f
+                setTextColor(secondary)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(GlassUi.switch(this@WidgetPickerActivity, false) { hideNextTime = it })
+        })
+        sheet.content.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            setPadding(0, dp(10), 0, dp(6))
+            addView(
+                dialogIconButton("x", prominent = false) { sheet.dismiss() },
+                LinearLayout.LayoutParams(dp(46), dp(46))
+            )
+            addView(
+                dialogIconButton("check", prominent = true) {
+                    if (hideNextTime) {
+                        AppPrefs.setWidgetConfirmEnabled(this@WidgetPickerActivity, false)
+                    }
+                    sheet.dismiss()
+                    bindWidget(provider.provider)
+                },
+                LinearLayout.LayoutParams(dp(46), dp(46)).apply { marginStart = dp(12) }
+            )
+        })
+        sheet.show()
+    }
+
+    private fun dialogIconButton(
+        glyph: String,
+        prominent: Boolean,
+        onClick: () -> Unit
+    ): FrameLayout = FrameLayout(this).apply {
+        background = if (prominent) {
+            GradientDrawable().apply {
+                setColor(GlassUi.ACCENT)
+                cornerRadius = dp(23).toFloat()
             }
-            .show()
+        } else {
+            GlassUi.glassSurface(this@WidgetPickerActivity, 23)
+        }
+        isClickable = true
+        isFocusable = true
+        contentDescription = if (prominent) {
+            getString(R.string.create_widget_action)
+        } else {
+            getString(android.R.string.cancel)
+        }
+        addView(
+            LucideGlyphView(
+                this@WidgetPickerActivity,
+                glyph,
+                if (prominent) Color.rgb(6, 18, 31) else GlassUi.TEXT_SECONDARY
+            ),
+            FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER)
+        )
+        setOnClickListener { onClick() }
     }
 
     private fun renderAppActivities(query: String) {

@@ -54,18 +54,23 @@ object GlassDialogs {
     }
 
     /** Opens an empty sheet; callers append their own controls to [Sheet.content]. */
-    fun sheet(context: Context, title: String, subtitle: String? = null): Sheet =
-        build(context, title, subtitle, Dialog(context))
+    fun sheet(
+        context: Context,
+        title: String,
+        subtitle: String? = null,
+        cancelLabel: String? = "Huỷ"
+    ): Sheet = build(context, title, subtitle, Dialog(context), cancelLabel)
 
     /** Sheet hosted by a floating-panel overlay window instead of an activity. */
     fun sheetOverlay(context: Context, title: String, subtitle: String? = null): Sheet =
-        build(context, title, subtitle, Dialog(context, R.style.GlassOverlayDialog))
+        build(context, title, subtitle, Dialog(context, R.style.GlassOverlayDialog), "Huỷ")
 
     private fun build(
         activity: Context,
         title: String,
         subtitle: String?,
-        dialog: Dialog
+        dialog: Dialog,
+        cancelLabel: String?
     ): Sheet {
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         dialog.window?.apply {
@@ -102,17 +107,19 @@ object GlassDialogs {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(activity, 8) })
-        root.addView(TextView(activity).apply {
-            text = "Huỷ"
-            textSize = 14f
-            setTextColor(GlassUi.ACCENT)
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            includeFontPadding = false
-            isClickable = true
-            isFocusable = true
-            setPadding(dp(activity, 4), dp(activity, 14), dp(activity, 4), dp(activity, 8))
-            setOnClickListener { dialog.dismiss() }
-        })
+        if (cancelLabel != null) {
+            root.addView(TextView(activity).apply {
+                text = cancelLabel
+                textSize = 14f
+                setTextColor(GlassUi.ACCENT)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                includeFontPadding = false
+                isClickable = true
+                isFocusable = true
+                setPadding(dp(activity, 4), dp(activity, 14), dp(activity, 4), dp(activity, 8))
+                setOnClickListener { dialog.dismiss() }
+            })
+        }
         dialog.setContentView(root)
         dialog.setCanceledOnTouchOutside(true)
         return Sheet(dialog, content)

@@ -139,3 +139,26 @@ class VolumeApplyActivity : Activity() {
         }
     }
 }
+
+/**
+ * Catches the plain `android.intent.action.ASSIST` intent some launchers send
+ * when the active VoiceInteractionService is not bound yet (right after a
+ * reboot, an app update or when the process was killed by the ROM). Without a
+ * handler in this app that fallback lands on Google Assistant, even though
+ * Panels still owns the assistant role. Here the configured assistant action
+ * runs exactly like it does from the voice session.
+ */
+class AssistFallbackActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (AppPrefs.assistantReplacementEnabled(this)) {
+            try {
+                ActionDispatcher.dispatch(this, AppPrefs.assistantReplacementAction(this))
+            } catch (error: Exception) {
+                Log.e("PanelsAssistant", "Assistant fallback action failed", error)
+            }
+        }
+        finish()
+        overridePendingTransition(0, 0)
+    }
+}

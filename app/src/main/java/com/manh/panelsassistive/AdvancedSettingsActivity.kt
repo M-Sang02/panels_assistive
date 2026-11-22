@@ -126,6 +126,7 @@ class AdvancedSettingsActivity : Activity() {
         root.addView(permissionsCard())
         root.addView(freeformCard())
         root.addView(tilesCard())
+        root.addView(widgetPromptCard())
         root.addView(backupCard())
         root.addView(statusCard())
         setContentView(ScrollView(this).apply { addView(root) })
@@ -280,6 +281,27 @@ class AdvancedSettingsActivity : Activity() {
                 QuickSettingsTiles.requestAdd(this@AdvancedSettingsActivity, accessibilityTile = true)
             }
         ))
+    }
+
+    /** Re-enables the short "Add this widget?" question after it was skipped. */
+    private fun widgetPromptCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        val activity = this@AdvancedSettingsActivity
+        addView(cardHeader("layout-grid", "Widget màn hình chính"))
+        addView(label(
+            "Hỏi một câu ngắn trước khi tạo widget và xin quyền hiển thị. " +
+                "Tắt để lần sau bấm Thêm là tạo và cho phép luôn.",
+            13,
+            GlassUi.TEXT_SECONDARY
+        ).apply { setPadding(0, dp(8), 0, dp(6)) })
+        addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(label("Hỏi trước khi thêm tiện ích", 14, GlassUi.TEXT_PRIMARY),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(GlassUi.switch(activity, AppPrefs.widgetConfirmEnabled(activity)) { on ->
+                AppPrefs.setWidgetConfirmEnabled(activity, on)
+            })
+        })
     }
 
     private fun backupCard(): LinearLayout = GlassUi.glassCard(this).apply {

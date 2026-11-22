@@ -113,23 +113,35 @@ class GestureSettingsActivity : Activity() {
     private fun assistantCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@GestureSettingsActivity, getString(R.string.assistant_replacement_section)))
         addView(hint(getString(R.string.assistant_replacement_description)))
+        val held = isAssistantRoleHeld()
+        val replacementEnabled = AppPrefs.assistantReplacementEnabled(this@GestureSettingsActivity)
         addView(label(
             getString(
-                if (isAssistantRoleHeld()) R.string.assistant_is_default
+                if (held) R.string.assistant_is_default
                 else R.string.assistant_not_default
             ),
             12,
             GlassUi.ACCENT
         ).apply { setPadding(0, dp(4), 0, dp(2)) })
+        if (replacementEnabled && !held) {
+            addView(hint(
+                "Hệ thống đang trả cử chỉ trợ lý về Google dù cài đặt vẫn hiện Panels. " +
+                    "Thường gặp sau khi khởi động lại, cập nhật ứng dụng hoặc khi ROM tối ưu " +
+                    "pin. Bấm Khôi phục để gán lại Panels làm trợ lý mặc định."
+            ))
+            addView(GlassUi.actionButton(
+                this@GestureSettingsActivity,
+                "Khôi phục trợ lý",
+                prominent = true
+            ) { requestAssistantRole() })
+        }
         addView(GlassUi.actionButton(
             this@GestureSettingsActivity,
             getString(R.string.open_default_assistant_settings)
         ) { ActionDispatcher.openAssistantSettings(this@GestureSettingsActivity) })
         val assistantControls = LinearLayout(this@GestureSettingsActivity).apply {
             orientation = LinearLayout.VERTICAL
-            visibility = if (AppPrefs.assistantReplacementEnabled(this@GestureSettingsActivity)) {
-                View.VISIBLE
-            } else View.GONE
+            visibility = if (replacementEnabled) View.VISIBLE else View.GONE
         }
         assistantControls.addView(label(getString(R.string.assistant_replacement_action), 14, GlassUi.TEXT_PRIMARY, true).apply {
             setPadding(0, dp(10), 0, dp(4))
@@ -144,7 +156,7 @@ class GestureSettingsActivity : Activity() {
         })
         addView(GlassUi.switch(
             this@GestureSettingsActivity,
-            AppPrefs.assistantReplacementEnabled(this@GestureSettingsActivity)
+            replacementEnabled
         ) { enabled ->
             AppPrefs.setAssistantReplacementEnabled(this@GestureSettingsActivity, enabled)
             assistantControls.visibility = if (enabled) View.VISIBLE else View.GONE

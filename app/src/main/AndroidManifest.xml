@@ -200,6 +200,19 @@
             android:taskAffinity="${applicationId}.volume"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
+            android:name=".AssistFallbackActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity="${applicationId}.assist"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".AdvancedSettingsActivity"
             android:exported="false" />
         <activity
