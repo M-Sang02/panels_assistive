@@ -100,6 +100,16 @@ class SettingsScreen(private val activity: Activity) {
         }
 
         addRow(
+            icon = "scan-search",
+            title = "Khoanh vùng tìm kiếm",
+            subtitle = "Gọi Circle to Search qua MiCTS; ẩn bảng trước khi quét"
+        ) {
+            if (!MiCts.isInstalled(activity) || !MiCts.openSettings(activity)) {
+                MiCts.openGithub(activity)
+            }
+        }
+
+        addRow(
             icon = "square-stack",
             title = "Bảng tiện ích",
             subtitle = "Bố cục, kích thước ô và nền riêng",

@@ -111,10 +111,7 @@ object FloatingApps {
         longPress: Boolean = false,
         trigger: PointF? = null
     ): Boolean {
-        val intent = Intent(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_LAUNCHER)
-            .setComponent(component)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+        val intent = launchIntent(component)
         if (!shouldUseFreeform(context, longPress)) {
             context.startActivity(intent)
             return true
@@ -124,6 +121,29 @@ object FloatingApps {
         context.startActivity(intent)
         return true
     }
+
+    /**
+     * Always opens [component] in a freeform window, ignoring the tap policy.
+     * Used by the expansion panel's long press. Returns false when freeform is
+     * disabled so the caller can explain how to enable it.
+     */
+    fun openFreeform(
+        context: Context,
+        component: ComponentName,
+        trigger: PointF? = null
+    ): Boolean {
+        if (!AppPrefs.freeformApps(context)) return false
+        val intent = launchIntent(component)
+        if (launchFreeform(context, intent, component, trigger)) return true
+        if (shizukuReady() && launchWithShizuku(context, component)) return true
+        context.startActivity(intent)
+        return true
+    }
+
+    private fun launchIntent(component: ComponentName): Intent = Intent(Intent.ACTION_MAIN)
+        .addCategory(Intent.CATEGORY_LAUNCHER)
+        .setComponent(component)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
 
     fun shizukuInstalled(context: Context): Boolean = try {
         context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)

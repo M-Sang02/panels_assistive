@@ -19,6 +19,7 @@ class ActionGlyphView(
             ActionDispatcher.BRIGHTNESS_SLIDER -> "sun"
             ActionDispatcher.MEDIA_VOLUME -> "volume-2"
             ActionDispatcher.AUTO_ROTATION -> "smartphone"
+            ActionDispatcher.CIRCLE_SEARCH -> "scan-search"
             ActionDispatcher.NOTIFICATION_PANEL -> "bell"
             ActionDispatcher.NAV_BACK -> "arrow-left"
             ActionDispatcher.NAV_HOME -> "house"

@@ -81,6 +81,8 @@ class FloatBallService : Service() {
     private var popupAddButton: View? = null
     private var popupTemporarilyHidden = false
     private var popupEditMode = false
+    /** True between hiding the overlays and MiCTS taking its screenshot. */
+    private var screenSearchActive = false
     private var widgetHostListening = false
     private var crossWindowBlurListener: Consumer<Boolean>? = null
     private var brightnessPermissionPrompted = false
@@ -287,6 +289,10 @@ class FloatBallService : Service() {
             }
             ACTION_SHOW_BRIGHTNESS_SLIDER -> {
                 showBrightnessSlider()
+                return START_STICKY
+            }
+            ACTION_SCREEN_SEARCH -> {
+                showScreenSearch()
                 return START_STICKY
             }
             ACTION_RECORDING_STARTED -> {
@@ -1135,7 +1141,7 @@ class FloatBallService : Service() {
                     gravity = Gravity.CENTER
                     if (rowIndex > 0) setPadding(0, dp(4), 0, 0)
                 }
-                rowShortcuts.forEach { (index, shortcut) ->
+                rowShortcuts.forEach { (_, shortcut) ->
                     val cell = FrameLayout(this).apply {
                         background = sliderTileBackground()
                         val shortcutView = createPanelShortcut(
@@ -1148,10 +1154,34 @@ class FloatBallService : Service() {
                             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
                         ))
                         contentDescription = shortcut.label
+                        // Long press forces a freeform window; removing shortcuts
+                        // stays in Cài đặt → Bản mở rộng.
                         shortcutView.setOnLongClickListener {
-                            AppPrefs.setExpansionShortcut(this@FloatBallService, index, null)
-                            Toast.makeText(this@FloatBallService, R.string.panel_item_removed, Toast.LENGTH_SHORT).show()
-                            showExpansionPanel()
+                            if (shortcut.type == PanelItemType.APP) {
+                                val component = ComponentName.unflattenFromString(shortcut.value)
+                                val opened = component != null && FloatingApps.openFreeform(
+                                    this@FloatBallService,
+                                    component,
+                                    launchTriggerPoint()
+                                )
+                                if (opened) {
+                                    // Always close: the float window lives behind
+                                    // the panel, not inside it.
+                                    handler.postDelayed({ removePopup() }, 180)
+                                } else {
+                                    Toast.makeText(
+                                        this@FloatBallService,
+                                        R.string.expansion_freeform_disabled,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            } else {
+                                Toast.makeText(
+                                    this@FloatBallService,
+                                    R.string.expansion_freeform_apps_only,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                             true
                         }
                     }
@@ -1203,6 +1233,69 @@ class FloatBallService : Service() {
             windowBackground = sharedPanelBackground(),
             surface = OverlaySurface.EXPANSION
         )
+    }
+
+    /**
+     * Circle to Search: every Panels overlay is removed first so MiCTS captures
+     * a clean screen, then MiCTS is launched immediately. The ball comes back
+     * once the scan has had time to take its screenshot.
+     */
+    private fun showScreenSearch() {
+        screenSearchActive = true
+        removePopup(stopIfEmpty = false)
+        removeFloatBall()
+        handler.postDelayed({
+            if (!MiCts.isInstalled(this)) {
+                showMiCtsMissingSheet()
+                return@postDelayed
+            }
+            MiCts.launch(this)
+            if (AppPrefs.floatBallEnabled(this)) {
+                handler.postDelayed({
+                    screenSearchActive = false
+                    if (floatBall == null && popup == null) showFloatBall()
+                }, SCREEN_SEARCH_RESTORE_DELAY_MS)
+            } else {
+                screenSearchActive = false
+                if (!BackgroundRecordingService.isActive) stopSelf()
+            }
+        }, SCREEN_SEARCH_HIDE_DELAY_MS)
+    }
+
+    /** MiCTS is required for this action; offer the download inside the panel theme. */
+    private fun showMiCtsMissingSheet() {
+        val sheet = GlassDialogs.sheetOverlay(
+            this,
+            getString(R.string.micts_required_title),
+            getString(R.string.micts_required_message)
+        )
+        sheet.onDismiss = {
+            screenSearchActive = false
+            if (AppPrefs.floatBallEnabled(this)) {
+                showFloatBall()
+            } else if (!BackgroundRecordingService.isActive) {
+                stopSelf()
+            }
+        }
+        sheet.content.addView(GlassUi.actionButton(
+            this,
+            getString(R.string.micts_download_github),
+            prominent = true
+        ) {
+            sheet.dismiss()
+            MiCts.openGithub(this)
+        })
+        try {
+            sheet.show(overlayWindowType())
+        } catch (error: Exception) {
+            Log.w(TAG, "Unable to show the MiCTS reminder", error)
+            screenSearchActive = false
+            if (AppPrefs.floatBallEnabled(this)) {
+                showFloatBall()
+            } else if (!BackgroundRecordingService.isActive) {
+                stopSelf()
+            }
+        }
     }
 
     private fun showBrightnessSlider() {
@@ -2244,6 +2337,8 @@ class FloatBallService : Service() {
 
 
     private fun keepFloatBallAvailable() {
+        // While MiCTS is about to scan, nothing may reappear on screen.
+        if (screenSearchActive) return
         if (AppPrefs.floatBallEnabled(this) && Settings.canDrawOverlays(this)) {
             showFloatBall()
         } else if (!BackgroundRecordingService.isActive) {
@@ -2751,6 +2846,10 @@ class FloatBallService : Service() {
         const val ACTION_UPDATE_POPUP_APPEARANCE =
             "com.manh.panelsassistive.action.UPDATE_POPUP_APPEARANCE"
         private const val MEDIA_VOLUME_RELEASE_DELAY_MS = 500L
+        /** Small pause so the removed overlay windows are gone before MiCTS scans. */
+        private const val SCREEN_SEARCH_HIDE_DELAY_MS = 120L
+        /** MiCTS shoots its screenshot right after launch; restore the ball afterwards. */
+        private const val SCREEN_SEARCH_RESTORE_DELAY_MS = 2200L
         const val ACTION_SHOW_BRIGHTNESS_SLIDER = "com.manh.panelsassistive.action.SHOW_BRIGHTNESS_SLIDER"
         private const val ACTION_RECORDING_STARTED = "com.manh.panelsassistive.action.RECORDING_STARTED"
         private const val ACTION_RECORDING_STOPPED = "com.manh.panelsassistive.action.RECORDING_STOPPED"
@@ -2764,6 +2863,7 @@ class FloatBallService : Service() {
             private set
 
         const val ACTION_SHOW_EXPANSION_PANEL = "com.manh.panelsassistive.action.SHOW_EXPANSION_PANEL"
+        const val ACTION_SCREEN_SEARCH = "com.manh.panelsassistive.action.SCREEN_SEARCH"
         const val EXTRA_PANEL_ID = "com.manh.panelsassistive.extra.PANEL_ID"
 
         fun start(context: Context, action: String? = null, panelId: String? = null) {

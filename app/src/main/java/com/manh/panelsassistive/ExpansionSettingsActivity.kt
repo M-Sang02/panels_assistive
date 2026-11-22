@@ -90,7 +90,7 @@ class ExpansionSettingsActivity : Activity() {
 
     private fun shortcutCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(cardHeader("corner-up-right", "Lối tắt"))
-        addView(hint("Thêm, đổi hoặc xoá lối tắt hiển thị dưới các thanh. Bảng tự thu gọn khi không có lối tắt."))
+        addView(hint("Thêm, đổi hoặc xoá lối tắt tại đây. Nhấn giữ lối tắt ứng dụng trong bảng để mở cửa sổ nổi; bảng tự thu gọn khi không có lối tắt."))
         val shortcuts = AppPrefs.expansionShortcuts(this@ExpansionSettingsActivity)
         val grid = LinearLayout(this@ExpansionSettingsActivity).apply {
             orientation = LinearLayout.VERTICAL

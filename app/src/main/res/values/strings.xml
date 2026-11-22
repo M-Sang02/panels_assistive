@@ -195,6 +195,17 @@
     <string name="action_nav_home">Navigation: Home (Accessibility)</string>
     <string name="action_call_assistant">Call system assistant (Accessibility)</string>
     <string name="action_auto_rotation">Toggle auto-rotate</string>
+    <string name="action_circle_search">Circle to Search (MiCTS)</string>
+    <string name="micts_required_title">MiCTS is required</string>
+    <string name="micts_required_message">Circle to Search uses MiCTS to start the scan. Panels only hides its panels and opens MiCTS; scanning, delay and vibration are handled inside MiCTS.</string>
+    <string name="micts_download_github">Download MiCTS on GitHub</string>
+    <string name="micts_assign_anyway">Assign anyway</string>
+    <string name="micts_assign_later">Not now</string>
+    <string name="micts_close">Close</string>
+    <string name="micts_launch_failed">Could not open MiCTS.</string>
+    <string name="micts_browser_unavailable">No browser available to download MiCTS.</string>
+    <string name="expansion_freeform_disabled">Turn on Freeform windows in Advanced settings to open apps in a floating window with a long press.</string>
+    <string name="expansion_freeform_apps_only">Only app shortcuts can open in a floating window.</string>
     <string name="action_none">Do nothing</string>
     <string name="auto_rotation_permission_required">Allow Panels Assistive to change system settings to toggle auto-rotate.</string>
     <string name="volume_update_failed">Could not change this volume level.</string>

@@ -217,7 +217,7 @@ class WidgetPickerActivity : Activity() {
     }
 
     private fun renderActions(query: String) {
-        val actions = ActionDispatcher.quickActions(this).filter {
+        val actions = ActionDispatcher.selectableActions(this).filter {
             it.label.contains(query, ignoreCase = true)
         }
         if (actions.isEmpty()) {
@@ -243,23 +243,25 @@ class WidgetPickerActivity : Activity() {
                     setPadding(dp(12), 0, 0, 0)
                 })
                 setOnClickListener {
-                    val slot = expansionSlot
-                    if (slot >= 0) {
-                        AppPrefs.setExpansionShortcut(
-                            this@WidgetPickerActivity,
-                            slot,
-                            ExpansionShortcut(PanelItemType.ACTION, action.id, action.label)
-                        )
-                    } else {
-                        AppPrefs.addPanelItem(
-                            this@WidgetPickerActivity,
-                            landscapeLayout,
-                            panelId,
-                            PanelItem(PanelItemType.ACTION, action.id, action.label, targetPosition),
-                            allowOverlap = AppPrefs.panelFreeMode(this@WidgetPickerActivity)
-                        )
+                    MiCts.remindIfNeeded(this@WidgetPickerActivity, action.id) {
+                        val slot = expansionSlot
+                        if (slot >= 0) {
+                            AppPrefs.setExpansionShortcut(
+                                this@WidgetPickerActivity,
+                                slot,
+                                ExpansionShortcut(PanelItemType.ACTION, action.id, action.label)
+                            )
+                        } else {
+                            AppPrefs.addPanelItem(
+                                this@WidgetPickerActivity,
+                                landscapeLayout,
+                                panelId,
+                                PanelItem(PanelItemType.ACTION, action.id, action.label, targetPosition),
+                                allowOverlap = AppPrefs.panelFreeMode(this@WidgetPickerActivity)
+                            )
+                        }
+                        finishPicking()
                     }
-                    finishPicking()
                 }
             }
             row.layoutParams = LinearLayout.LayoutParams(

@@ -1481,6 +1481,7 @@ object ActionDispatcher {
     const val OPEN_SELECTED_APP = "open_selected_app"
     const val OPEN_SELECTED_SHORTCUT = "open_selected_shortcut"
     const val AUTO_ROTATION = "auto_rotation"
+    const val CIRCLE_SEARCH = "circle_search"
     const val NONE = "none"
 
     fun quickActions(context: Context, includeAssistant: Boolean = true): List<ActionChoice> = buildList {
@@ -1488,6 +1489,7 @@ object ActionDispatcher {
         add(ActionChoice(BACKGROUND_RECORDING, context.getString(R.string.action_background_recording)))
         add(ActionChoice(WIDGET_POPUP, context.getString(R.string.action_widget_popup)))
         add(ActionChoice(AUTO_ROTATION, context.getString(R.string.action_auto_rotation)))
+        add(ActionChoice(CIRCLE_SEARCH, context.getString(R.string.action_circle_search)))
         add(ActionChoice(NOTIFICATION_PANEL, context.getString(R.string.action_notification_panel), true))
         add(ActionChoice(NAV_BACK, context.getString(R.string.action_nav_back), true))
         add(ActionChoice(NAV_HOME, context.getString(R.string.action_nav_home), true))
@@ -1500,6 +1502,21 @@ object ActionDispatcher {
             ))
         }
     }
+
+    /**
+     * Every action that can run on its own (no app/shortcut picker needed).
+     * Used by the expansion-panel action list, which shows the same choices as
+     * the gesture pickers.
+     */
+    fun selectableActions(context: Context, includeAssistant: Boolean = true): List<ActionChoice> =
+        quickActions(context, includeAssistant) + listOf(
+            ActionChoice(EXPANSION_PANEL, context.getString(R.string.action_expansion_panel)),
+            ActionChoice(BRIGHTNESS_SLIDER, context.getString(R.string.action_brightness_slider)),
+            ActionChoice(MEDIA_VOLUME, context.getString(R.string.action_media_volume)),
+            ActionChoice(TOGGLE_FLOAT_BALL, context.getString(R.string.action_toggle_float_ball)),
+            ActionChoice(ACCESSIBILITY_SETTINGS, context.getString(R.string.action_accessibility_settings)),
+            ActionChoice(OPEN_APP, context.getString(R.string.action_open_settings))
+        )
 
     fun openAssistantSettings(context: Context) {
         val actions = listOf(
@@ -1622,6 +1639,7 @@ object ActionDispatcher {
                     }
                 }
             }
+            CIRCLE_SEARCH -> MiCts.trigger(context)
             TOGGLE_FLOAT_BALL -> {
                 if (FloatBallService.running && AppPrefs.floatBallEnabled(context)) {
                     FloatBallService.stop(context)

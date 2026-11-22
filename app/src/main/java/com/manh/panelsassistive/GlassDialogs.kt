@@ -41,9 +41,14 @@ object GlassDialogs {
         private val dialog: Dialog,
         val content: LinearLayout
     ) {
+        /** Runs after the sheet closes, however it was dismissed. */
+        var onDismiss: (() -> Unit)? = null
+
         /** [windowType] is only set for service overlay sheets, never for activities. */
         fun show(windowType: Int? = null) {
             if (windowType != null) dialog.window?.setType(windowType)
+            val dismissAction = onDismiss
+            if (dismissAction != null) dialog.setOnDismissListener { dismissAction() }
             dialog.show()
             val metrics = dialog.context.resources.displayMetrics
             val width = minOf((metrics.widthPixels * 0.92f).toInt(), dp(dialog.context, 560))
