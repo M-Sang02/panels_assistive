@@ -203,18 +203,17 @@ class AdvancedSettingsActivity : Activity() {
         val activity = this@AdvancedSettingsActivity
         addView(cardHeader("app-window", "Cửa sổ tự do"))
         addView(label(
-            "Mở app từ bảng tiện ích trong cửa sổ nổi thay vì toàn màn hình. " +
-                "Chỉ dùng Shizuku khi bạn bật tính năng này.",
+            "Mở app từ bảng trong cửa sổ nổi. Bên trong có kiểu mở, chế độ OEM cho " +
+                "ColorOS / HarmonyOS / OriginOS / FlymeOS và chỉnh kích thước, vị trí.",
             13,
             GlassUi.TEXT_SECONDARY
-        ).apply { setPadding(0, dp(8), 0, dp(4)) })
-        val enabled = AppPrefs.freeformApps(activity)
+        ).apply { setPadding(0, dp(8), 0, dp(6)) })
         addView(LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(label("Bật cửa sổ tự do", 14, GlassUi.TEXT_PRIMARY),
                 LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(GlassUi.switch(activity, enabled) { on ->
+            addView(GlassUi.switch(activity, AppPrefs.freeformApps(activity)) { on ->
                 AppPrefs.setFreeformApps(activity, on)
                 if (on) {
                     FloatingApps.enableFreeformSupport()
@@ -225,44 +224,20 @@ class AdvancedSettingsActivity : Activity() {
                 render()
             })
         })
-        if (!enabled) return@apply
-        when {
-            FloatingApps.shizukuReady() -> addView(label(
-                "Shizuku đã kết nối — cửa sổ nổi chạy ổn định. Lần đầu bật có thể cần khởi động lại máy.",
-                12,
-                GlassUi.ACCENT
-            ).apply { setPadding(0, dp(8), 0, 0) })
-            FloatingApps.shizukuInstalled(activity) -> {
-                addView(label(
-                    "Shizuku đã cài nhưng chưa cấp quyền cho Panels.",
-                    12,
-                    GlassUi.TEXT_MUTED
-                ).apply { setPadding(0, dp(8), 0, 0) })
-                addView(GlassUi.actionButton(activity, "Cấp quyền Shizuku") {
-                    FloatingApps.requestShizukuPermission(activity)
-                    render()
-                })
+        addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(12), 0, dp(4))
+            isClickable = true
+            isFocusable = true
+            addView(label("Cài đặt cửa sổ tự do", 14, GlassUi.TEXT_PRIMARY),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(LucideGlyphView(activity, "chevron-right", GlassUi.TEXT_MUTED),
+                LinearLayout.LayoutParams(dp(18), dp(18)))
+            setOnClickListener {
+                startActivity(Intent(activity, FreeformSettingsActivity::class.java))
             }
-            else -> {
-                addView(label(
-                    "Chưa cài Shizuku. App sẽ thử mở cửa sổ nổi trực tiếp; nếu ROM bỏ qua, " +
-                        "cài Shizuku (giống XGesture) để chạy chắc chắn.",
-                    12,
-                    GlassUi.TEXT_MUTED
-                ).apply { setPadding(0, dp(8), 0, 0) })
-                addView(GlassUi.actionButton(activity, "Cài Shizuku") {
-                    val uri = Uri.parse("market://details?id=${FloatingApps.SHIZUKU_PACKAGE}")
-                    val intent = Intent(Intent.ACTION_VIEW, uri)
-                    if (intent.resolveActivity(packageManager) != null) {
-                        startActivity(intent)
-                    } else {
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(
-                            "https://play.google.com/store/apps/details?id=${FloatingApps.SHIZUKU_PACKAGE}"
-                        )))
-                    }
-                })
-            }
-        }
+        })
     }
 
     private fun tilesCard(): LinearLayout = GlassUi.glassCard(this).apply {

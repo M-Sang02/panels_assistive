@@ -492,11 +492,11 @@ class WidgetPickerActivity : Activity() {
         })
         sheet.content.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
-            setPadding(0, dp(10), 0, dp(6))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, dp(10))
             addView(
                 dialogIconButton("x", prominent = false) { sheet.dismiss() },
-                LinearLayout.LayoutParams(dp(46), dp(46))
+                LinearLayout.LayoutParams(0, dp(52), 1f)
             )
             addView(
                 dialogIconButton("check", prominent = true) {
@@ -506,7 +506,7 @@ class WidgetPickerActivity : Activity() {
                     sheet.dismiss()
                     bindWidget(provider.provider)
                 },
-                LinearLayout.LayoutParams(dp(46), dp(46)).apply { marginStart = dp(12) }
+                LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginStart = dp(10) }
             )
         })
         sheet.show()
@@ -538,7 +538,7 @@ class WidgetPickerActivity : Activity() {
                 glyph,
                 if (prominent) Color.rgb(6, 18, 31) else GlassUi.TEXT_SECONDARY
             ),
-            FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER)
+            FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER)
         )
         setOnClickListener { onClick() }
     }

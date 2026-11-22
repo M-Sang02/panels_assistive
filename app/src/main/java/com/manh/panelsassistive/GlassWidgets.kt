@@ -171,18 +171,18 @@ object GlassWidgets {
         )
     }
 
-    /** Tap target for widget cards: the assigned app, or Panels when none is set. */
-    fun targetPending(context: Context, request: Int): PendingIntent {
+    /**
+     * Tap target for widget cards: the assigned app, or null when none is set —
+     * an unassigned card stays purely informational and opens nothing.
+     */
+    fun targetPending(context: Context, request: Int): PendingIntent? {
         val assigned = AppPrefs.widgetShortcut(context)
             .takeIf { it.isNotEmpty() }
             ?.let { ComponentName.unflattenFromString(it) }
-        val intent = if (assigned != null) {
-            Intent(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_LAUNCHER)
-                .setComponent(assigned)
-        } else {
-            Intent(context, MainActivity::class.java)
-        }
+            ?: return null
+        val intent = Intent(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .setComponent(assigned)
         return PendingIntent.getActivity(
             context,
             request,
@@ -928,6 +928,7 @@ class GlassClockWidget : GlassWidgetProvider() {
         // hour and keeps it in sync without any app-side polling.
         views.setTextViewText(R.id.widget_lunar, LunarCalendar.todayLabel())
         val openTarget = GlassWidgets.targetPending(context, widgetId * 16 + 8)
+        // No assignment: clear any previous target so the card opens nothing.
         views.setOnClickPendingIntent(R.id.widget_value, openTarget)
         views.setOnClickPendingIntent(R.id.widget_label, openTarget)
         views.setOnClickPendingIntent(R.id.widget_lunar, openTarget)

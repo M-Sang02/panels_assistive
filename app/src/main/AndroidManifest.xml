@@ -48,6 +48,11 @@
             <action android:name="com.smartlauncher.THEME" />
         </intent>
         <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="com.android.vending" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application
@@ -214,6 +219,10 @@
         </activity>
         <activity
             android:name=".AdvancedSettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".FreeformSettingsActivity"
+            android:configChanges="orientation|screenSize"
             android:exported="false" />
         <activity
             android:name=".WidgetPanelSettingsActivity"

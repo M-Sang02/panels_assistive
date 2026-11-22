@@ -178,6 +178,11 @@ object AppPrefs {
     private const val KEY_TAB_TRANSITION = "tab_transition"
     private const val KEY_PANEL_FREE_MODE = "panel_free_mode"
     private const val KEY_FREEFORM_APPS = "freeform_apps"
+    private const val KEY_FREEFORM_POLICY = "freeform_launch_policy"
+    private const val KEY_FREEFORM_MODE = "freeform_oem_mode"
+    private const val KEY_FREEFORM_FOLLOW = "freeform_follow_trigger"
+    private const val KEY_FREEFORM_PORTRAIT = "freeform_layout_portrait"
+    private const val KEY_FREEFORM_LANDSCAPE = "freeform_layout_landscape"
     private const val KEY_ICON_PACK_ENABLED = "icon_pack_enabled"
     private const val KEY_ICON_PACK_PACKAGE = "icon_pack_package"
     private const val KEY_ICON_MASK_ENABLED = "icon_mask_enabled"
@@ -904,6 +909,64 @@ object AppPrefs {
 
     fun setFreeformApps(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_FREEFORM_APPS, enabled).apply()
+    }
+
+    /** One orientation's freeform geometry; every value is a percent of the screen. */
+    data class FreeformLayout(
+        val width: Int,
+        val height: Int,
+        val left: Int,
+        val top: Int
+    )
+
+    /** 0 = always fullscreen … 3 = freeform, long-press fullscreen (see FloatingApps.Policy). */
+    fun freeformPolicy(context: Context) =
+        store(context).getInt(KEY_FREEFORM_POLICY, 1)
+
+    fun setFreeformPolicy(context: Context, id: Int) {
+        store(context).edit().putInt(KEY_FREEFORM_POLICY, id).apply()
+    }
+
+    /** Chosen OEM windowing mode; -1 auto-detects from the manufacturer. */
+    fun freeformMode(context: Context) =
+        store(context).getInt(KEY_FREEFORM_MODE, -1)
+
+    fun setFreeformMode(context: Context, id: Int) {
+        store(context).edit().putInt(KEY_FREEFORM_MODE, id).apply()
+    }
+
+    fun freeformFollowTrigger(context: Context) =
+        store(context).getBoolean(KEY_FREEFORM_FOLLOW, false)
+
+    fun setFreeformFollowTrigger(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_FREEFORM_FOLLOW, enabled).apply()
+    }
+
+    fun freeformLayout(context: Context, landscape: Boolean): FreeformLayout {
+        val fallback = if (landscape) {
+            FreeformLayout(width = 68, height = 40, left = 16, top = 25)
+        } else {
+            FreeformLayout(width = 80, height = 55, left = 10, top = 20)
+        }
+        val raw = store(context).getString(
+            if (landscape) KEY_FREEFORM_LANDSCAPE else KEY_FREEFORM_PORTRAIT,
+            null
+        ) ?: return fallback
+        val parts = raw.split(',').mapNotNull { it.trim().toIntOrNull() }
+        if (parts.size != 4) return fallback
+        return FreeformLayout(
+            width = parts[0].coerceIn(35, 95),
+            height = parts[1].coerceIn(35, 90),
+            left = parts[2].coerceIn(0, 65),
+            top = parts[3].coerceIn(0, 65)
+        )
+    }
+
+    fun setFreeformLayout(context: Context, landscape: Boolean, layout: FreeformLayout) {
+        store(context).edit().putString(
+            if (landscape) KEY_FREEFORM_LANDSCAPE else KEY_FREEFORM_PORTRAIT,
+            "${layout.width},${layout.height},${layout.left},${layout.top}"
+        ).apply()
     }
 
     fun iconPackEnabled(context: Context) =

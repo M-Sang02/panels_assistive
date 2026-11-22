@@ -24,6 +24,7 @@ import android.graphics.Color
 import android.graphics.Movie
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Drawable
@@ -1809,6 +1810,15 @@ class FloatBallService : Service() {
             launchPanelItem(item)
             scheduleCloseAfterTap()
         }
+        // Long press only matters to panels that ask for it: "…, long-press
+        // freeform/fullscreen" launch policies.
+        if (item.type == PanelItemType.APP && FloatingApps.longPressLaunchEnabled(this)) {
+            cell.setOnLongClickListener {
+                launchPanelItem(item, longPress = true)
+                scheduleCloseAfterTap()
+                true
+            }
+        }
         cell.setOnTouchListener { view, event ->
             if (touchObserver?.invoke(view, event) == true) return@setOnTouchListener true
             panelSwipeListener.onTouch(view, event)
@@ -1819,7 +1829,7 @@ class FloatBallService : Service() {
 
 
 
-    private fun launchPanelItem(item: PanelItem) {
+    private fun launchPanelItem(item: PanelItem, longPress: Boolean = false) {
         try {
             if (item.type == PanelItemType.ACTION) {
                 ActionDispatcher.dispatch(this, item.value)
@@ -1828,7 +1838,7 @@ class FloatBallService : Service() {
             if (item.type == PanelItemType.APP) {
                 val component = ComponentName.unflattenFromString(item.value)
                     ?: throw IllegalArgumentException("Invalid app component")
-                FloatingApps.open(this, component)
+                FloatingApps.open(this, component, longPress, launchTriggerPoint())
                 return
             }
             val intent = when (item.type) {
@@ -1842,6 +1852,15 @@ class FloatBallService : Service() {
             Log.e(TAG, "Unable to launch panel item", error)
             Toast.makeText(this, R.string.panel_item_launch_failed, Toast.LENGTH_SHORT).show()
         }
+    }
+
+
+
+    /** Centre of the floating ball: the anchor for "follow trigger position". */
+    private fun launchTriggerPoint(): PointF? {
+        val params = floatBallParams ?: return null
+        val size = dp(AppPrefs.floatBallSize(this))
+        return PointF(params.x + size / 2f, params.y + size / 2f)
     }
 
 

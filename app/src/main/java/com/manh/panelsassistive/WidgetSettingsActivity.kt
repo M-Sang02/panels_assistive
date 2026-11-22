@@ -76,7 +76,7 @@ class WidgetSettingsActivity : Activity() {
             "Đồng hồ (2×2)",
             "Chữ trắng trên nền kính trắng rất trong giống thẻ nhạc; tự cập nhật theo múi " +
                 "giờ và định dạng 12/24 giờ của máy, kèm ngày âm lịch Việt Nam. Chạm vào " +
-                "widget sẽ mở app được gán bên phải tên widget.",
+                "widget sẽ mở app được gán bên phải tên widget; không gán thì không mở gì.",
             GlassClockWidget::class.java,
             assignedPackage = AppPrefs.widgetShortcut(this).substringBefore('/'),
             badgeGlyph = "clock",
@@ -358,7 +358,7 @@ class WidgetSettingsActivity : Activity() {
             add(GlassDialogs.Item(
                 id = "",
                 label = "Không gán",
-                caption = "Chạm đồng hồ chỉ mở bảng điều khiển",
+                caption = "Chạm đồng hồ không mở ứng dụng nào",
                 glyph = "ban",
                 selected = current.isEmpty()
             ))
