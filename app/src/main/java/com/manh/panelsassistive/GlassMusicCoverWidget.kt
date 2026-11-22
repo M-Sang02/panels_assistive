@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
@@ -227,12 +229,11 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     }
 
     /**
-     * The card itself: the album art centre-cropped at full sharpness under a
-     * soft frosted veil — milkiest at the top edge, clearing steadily downwards
-     * until it is fully transparent at the base — plus a gentle white wash that
-     * bleeds in from the right edge and fades out towards the left, a 24dp
-     * rounded outline and a faint, even hairline rim. Without artwork it falls
-     * back to the white glass with a music watermark.
+     * The card itself: the album art centre-cropped at full sharpness, dissolving
+     * into the glass towards the base so the wallpaper shows through the lower
+     * edge, a gentle white bloom that bleeds in from the right side and fades
+     * towards the left, a 24dp rounded outline and a faint, even hairline rim.
+     * Without artwork it falls back to the white glass with a music watermark.
      */
     private fun coverBitmap(
         context: Context,
@@ -275,34 +276,49 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             drawMusicWatermark(canvas, context, width, height)
         }
 
-        // Frost matching the reference pane: milkier at the top, clearing in a
-        // steady line-free ramp and reaching full transparency at the bottom
-        // edge, so the artwork breathes again where the card meets its rim.
-        val frost = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // The cover itself dissolves towards the base: a DST_OUT ramp erases
+        // the artwork (and only what has been drawn so far) so the photo fades
+        // away down the card and the wallpaper shows through, exactly like the
+        // reference. The pane and the rim are painted afterwards, so neither
+        // is eaten by the erase.
+        val dissolve = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
             shader = LinearGradient(
-                0f, 0f, 0f, height.toFloat(),
+                0f, height * 0.52f, 0f, height.toFloat(),
                 intArrayOf(
-                    Color.argb(40, 255, 255, 255),
-                    Color.argb(26, 255, 255, 255),
-                    Color.argb(13, 255, 255, 255),
-                    Color.argb(5, 255, 255, 255),
                     Color.TRANSPARENT,
-                    Color.TRANSPARENT
+                    Color.argb(150, 0, 0, 0),
+                    Color.argb(225, 0, 0, 0),
+                    Color.BLACK
                 ),
-                floatArrayOf(0f, 0.10f, 0.28f, 0.50f, 0.72f, 1f),
+                floatArrayOf(0f, 0.45f, 0.78f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), frost)
+        canvas.drawRect(0f, height * 0.52f, width.toFloat(), height.toFloat(), dissolve)
 
-        // Soft light bleeding in from the right edge and melting to
-        // transparent towards the left. A wide radial falloff is used on
-        // purpose — a straight gradient read as a white band.
+        // Glass left behind once the photo is gone: a whisper of white that
+        // grows towards the base, plus a wide bloom bleeding in from the right
+        // edge and melting to transparent towards the left.
+        val pane = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            isDither = true
+            shader = LinearGradient(
+                0f, height * 0.45f, 0f, height.toFloat(),
+                intArrayOf(
+                    Color.TRANSPARENT,
+                    Color.argb(5, 255, 255, 255),
+                    Color.argb(10, 255, 255, 255)
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, height * 0.45f, width.toFloat(), height.toFloat(), pane)
         val loang = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
-                width * 1.04f, height * 0.18f, width * 0.95f,
-                Color.argb(24, 255, 255, 255),
+                width * 1.04f, height * 0.72f, width * 0.72f,
+                Color.argb(26, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
