@@ -398,8 +398,7 @@ class WidgetSettingsActivity : Activity() {
         addView(hint(
             "Widget dùng kính trắng rất trong: sáng nhẹ ở góc trên và tan nhanh thành trong " +
                 "suốt, không pha màu nền. Viền trắng mảnh 0,9dp, bo góc lớn; chữ/icon trắng " +
-                "có bóng mềm. Màu nhấn chỉ tô nút phát/tạm dừng của widget nhạc — đổi ở thẻ " +
-                "Màu của widget phía trên. Nhấn giữ widget để đổi kích thước."
+                "có bóng mềm. Nhấn giữ widget để đổi kích thước."
         ))
         addView(GlassUi.actionButton(
             this@WidgetSettingsActivity,

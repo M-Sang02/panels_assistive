@@ -56,6 +56,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.util.function.Consumer
+import kotlin.math.ceil
 
 class FloatBallService : Service() {
     private lateinit var windowManager: WindowManager
@@ -821,7 +822,7 @@ class FloatBallService : Service() {
         val rows = maxOf(
             page.rows.coerceIn(1, 30),
             page.items.maxOfOrNull {
-                (it.position.coerceAtLeast(0) / columns) + it.spanY.coerceIn(1, 10)
+                (it.position.coerceAtLeast(0) / columns) + it.occupiedRows.coerceAtMost(10)
             } ?: 1
         ).coerceIn(1, 30)
         val viewportWidthDp = PanelViewportMetrics.widthDp(page.areaColumns, page.cellWidthDp)
@@ -910,7 +911,7 @@ class FloatBallService : Service() {
         }
         val columns = page.columns.coerceIn(2, 20)
         val maxRowExclusive = page.items.maxOfOrNull { item ->
-            (item.position.coerceAtLeast(0) / columns) + item.spanY.coerceIn(1, 10)
+            (item.position.coerceAtLeast(0) / columns) + item.occupiedRows.coerceAtMost(10)
         } ?: 1
         val rows = maxOf(page.rows.coerceIn(1, 30), maxRowExclusive).coerceIn(1, 30)
         grid.rowCount = rows
@@ -919,24 +920,39 @@ class FloatBallService : Service() {
             val position = item.position.coerceAtLeast(0)
             val row = position / columns
             val column = position % columns
-            val spanX = item.spanX.coerceIn(1, columns - column)
-            val spanY = item.spanY.coerceIn(1, 10)
-            for (dy in 0 until spanY) for (dx in 0 until spanX) {
+            // Fractional spans draw at their exact size but reserve whole cells
+            // (ceil), so neighbours keep clear of the half cell. In free mode
+            // collisions are not checked, matching the panel preview.
+            val spanX = item.spanX.coerceIn(1f, (columns - column).toFloat())
+            val spanY = item.spanY.coerceIn(1f, 10f)
+            val occupiedX = ceil(spanX).toInt().coerceAtLeast(1)
+            val occupiedY = ceil(spanY).toInt().coerceAtLeast(1)
+            for (dy in 0 until occupiedY) for (dx in 0 until occupiedX) {
                 occupied.add((row + dy) * columns + column + dx)
             }
             val child = createPopupItem(item, page.cellWidthDp, page.rowHeightDp, spanX, spanY)
+            // The holder takes the whole reserved (ceil) slot so GridLayout keeps
+            // exact whole-cell rows/columns; the item itself is drawn at the
+            // fractional size at the top-start, leaving the half cell empty.
+            val holder = FrameLayout(this).apply {
+                addView(child, FrameLayout.LayoutParams(
+                    PanelViewportMetrics.spanPx(this@FloatBallService, page.cellWidthDp, spanX),
+                    PanelViewportMetrics.spanPx(this@FloatBallService, page.rowHeightDp, spanY),
+                    Gravity.TOP or Gravity.START
+                ))
+            }
             val params = GridLayout.LayoutParams(
-                GridLayout.spec(row, spanY),
-                GridLayout.spec(column, spanX)
+                GridLayout.spec(row, occupiedY),
+                GridLayout.spec(column, occupiedX)
             ).apply {
                 // Exact slot span: n cells plus the (n - 1) inner gaps. Using
                 // dp(cell * span) made spanned widgets narrower than the slots
                 // they covered, which is what made them drift from the grid.
-                width = PanelViewportMetrics.spanPx(this@FloatBallService, page.cellWidthDp, spanX)
-                height = PanelViewportMetrics.spanPx(this@FloatBallService, page.rowHeightDp, spanY)
+                width = PanelViewportMetrics.spanPx(this@FloatBallService, page.cellWidthDp, occupiedX)
+                height = PanelViewportMetrics.spanPx(this@FloatBallService, page.rowHeightDp, occupiedY)
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             }
-            grid.addView(child, params)
+            grid.addView(holder, params)
         }
         val slotCount = maxOf(rows, page.rows.coerceIn(1, 30)) * columns
         for (position in 0 until slotCount) {
@@ -977,8 +993,8 @@ class FloatBallService : Service() {
         item: PanelItem,
         cellWidthDp: Int,
         rowHeightDp: Int,
-        spanX: Int = item.spanX,
-        spanY: Int = item.spanY
+        spanX: Float = item.spanX,
+        spanY: Float = item.spanY
     ): View {
         val wrapper = FrameLayout(this).apply {
             clipChildren = false
@@ -1615,15 +1631,18 @@ class FloatBallService : Service() {
             current.spanY,
             (page.columns - column).coerceAtLeast(1)
         ) { spanX, spanY ->
+            val row = current.position.coerceAtLeast(0) / page.columns
+            val occupiedX = ceil(spanX).toInt().coerceAtLeast(1)
+            val occupiedY = ceil(spanY).toInt().coerceAtLeast(1)
             val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
                 if (other.id == current.id) return@any false
                 val otherPosition = other.position.coerceAtLeast(0)
                 val otherColumn = otherPosition % page.columns
                 val otherRow = otherPosition / page.columns
-                column < otherColumn + other.spanX &&
-                    column + spanX > otherColumn &&
-                    current.position / page.columns < otherRow + other.spanY &&
-                    current.position / page.columns + spanY > otherRow
+                column < otherColumn + other.occupiedColumns &&
+                    column + occupiedX > otherColumn &&
+                    row < otherRow + other.occupiedRows &&
+                    row + occupiedY > otherRow
             }
             if (overlaps) return@showSize false
             val items = page.items.map {
@@ -1642,8 +1661,10 @@ class FloatBallService : Service() {
         val source = current.position.coerceAtLeast(0)
         val sourceColumn = source % columns
         val sourceRow = source / columns
-        val targetColumn = (sourceColumn + dx).coerceIn(0, (columns - current.spanX).coerceAtLeast(0))
-        val targetRow = (sourceRow + dy).coerceIn(0, 19 - current.spanY.coerceAtLeast(1))
+        val occupiedX = ceil(current.spanX).toInt().coerceAtLeast(1)
+        val occupiedY = ceil(current.spanY).toInt().coerceAtLeast(1)
+        val targetColumn = (sourceColumn + dx).coerceIn(0, (columns - occupiedX).coerceAtLeast(0))
+        val targetRow = (sourceRow + dy).coerceIn(0, (19 - occupiedY).coerceAtLeast(0))
         val destination = targetRow * columns + targetColumn
         if (destination == source) return
         val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
@@ -1651,10 +1672,10 @@ class FloatBallService : Service() {
             val otherPosition = other.position.coerceAtLeast(0)
             val otherColumn = otherPosition % columns
             val otherRow = otherPosition / columns
-            targetColumn < otherColumn + other.spanX &&
-                targetColumn + current.spanX > otherColumn &&
-                targetRow < otherRow + other.spanY &&
-                targetRow + current.spanY > otherRow
+            targetColumn < otherColumn + other.occupiedColumns &&
+                targetColumn + occupiedX > otherColumn &&
+                targetRow < otherRow + other.occupiedRows &&
+                targetRow + occupiedY > otherRow
         }
         if (overlaps) {
             Toast.makeText(this, R.string.panel_move_blocked, Toast.LENGTH_SHORT).show()

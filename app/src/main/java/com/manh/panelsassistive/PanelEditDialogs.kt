@@ -25,6 +25,7 @@ import android.widget.GridLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.util.WeakHashMap
+import kotlin.math.roundToInt
 
 internal object PanelEditDialogs {
     private val noticeHandler = Handler(Looper.getMainLooper())
@@ -32,10 +33,10 @@ internal object PanelEditDialogs {
 
     fun showSize(
         context: Context,
-        width: Int,
-        height: Int,
+        width: Float,
+        height: Float,
         maxWidth: Int,
-        onApply: (Int, Int) -> Boolean
+        onApply: (Float, Float) -> Boolean
     ) {
         val dialog = Dialog(context)
         val root = LinearLayout(context).apply {
@@ -51,7 +52,7 @@ internal object PanelEditDialogs {
             setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             hint = context.getString(R.string.panel_size_hint)
-            setText("${width}x$height")
+            setText("${formatSpan(width)}x${formatSpan(height)}")
             setSelectAllOnFocus(true)
             setTextColor(Color.WHITE)
             setHintTextColor(Color.LTGRAY)
@@ -75,11 +76,15 @@ internal object PanelEditDialogs {
             marginEnd = context.dp(8)
         })
         buttons.addView(actionButton(context, context.getString(R.string.panel_apply), emphasized = true) {
-            val match = SIZE_PATTERN.matchEntire(input.text.toString().trim())
-            val parsedWidth = match?.groupValues?.getOrNull(1)?.toIntOrNull()
-            val parsedHeight = match?.groupValues?.getOrNull(2)?.toIntOrNull()
+            // Commas and dots both mean a decimal separator here, so "2,4x3"
+            // and "2.4x3" are the same size. The value is rounded to one
+            // decimal to keep the grid maths readable.
+            val match = SIZE_PATTERN.matchEntire(input.text.toString().trim().replace(',', '.'))
+            val parsedWidth = match?.groupValues?.getOrNull(1)?.toFloatOrNull()?.let(::roundSpan)
+            val parsedHeight = match?.groupValues?.getOrNull(2)?.toFloatOrNull()?.let(::roundSpan)
             if (parsedWidth == null || parsedHeight == null ||
-                parsedWidth !in 1..maxWidth || parsedHeight !in 1..10
+                parsedWidth < 1f || parsedWidth > maxWidth.toFloat() ||
+                parsedHeight < 1f || parsedHeight > 10f
             ) {
                 input.error = context.getString(R.string.panel_size_invalid, maxWidth)
                 return@actionButton
@@ -424,6 +429,15 @@ internal object PanelEditDialogs {
             (value * resources.displayMetrics.density).toInt()
     }
 
-    private val SIZE_PATTERN = Regex("(\\d{1,2})\\s*[xX×]\\s*(\\d{1,2})")
+    private val SIZE_PATTERN = Regex("(\\d{1,3}(?:\\.\\d{1,2})?)\\s*[xX×]\\s*(\\d{1,3}(?:\\.\\d{1,2})?)")
+
+    /** Keeps fractional spans readable: "2.4" stays, "2.0" becomes "2". */
+    private fun formatSpan(value: Float): String =
+        if (value == value.toInt().toFloat()) value.toInt().toString()
+        else String.format(java.util.Locale.US, "%.1f", value)
+
+    /** One decimal is enough for a panel item and keeps the grid maths exact. */
+    private fun roundSpan(value: Float): Float =
+        (value * 10f).roundToInt() / 10f
     private const val UNDO_DURATION_MS = 3_000L
 }

@@ -3,7 +3,9 @@ package com.manh.panelsassistive
 import android.app.Activity
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -414,5 +416,59 @@ object GlassUi {
             )
         )
         layoutParams = LinearLayout.LayoutParams(dp(context, sizeDp), dp(context, sizeDp))
+    }
+
+    /**
+     * Float-ball row icon: same tinted tile as [iconTile], with a halo-ring
+     * glyph that echoes the ball's default artwork.
+     */
+    fun floatBallTile(context: Context, sizeDp: Int = 40, glyphDp: Int = 22): FrameLayout =
+        FrameLayout(context).apply {
+            background = GradientDrawable().apply {
+                setColor(Color.argb(38, 124, 190, 255))
+                cornerRadius = dp(context, 12).toFloat()
+            }
+            addView(
+                HaloGlyphView(context),
+                FrameLayout.LayoutParams(
+                    dp(context, glyphDp),
+                    dp(context, glyphDp),
+                    Gravity.CENTER
+                )
+            )
+            layoutParams = LinearLayout.LayoutParams(dp(context, sizeDp), dp(context, sizeDp))
+        }
+
+    /** Ring with a soft outer halo, drawn on a 24-unit grid like the Lucide set. */
+    private class HaloGlyphView(context: Context) : View(context) {
+        private val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.6f
+            color = (ACCENT and 0x00FFFFFF) or 0x38000000
+        }
+        private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.9f
+            strokeCap = Paint.Cap.ROUND
+            color = ACCENT
+        }
+        private val glintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = ACCENT
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val scale = minOf(width, height) / 24f
+            if (scale <= 0f) return
+            canvas.save()
+            canvas.translate((width - scale * 24f) / 2f, (height - scale * 24f) / 2f)
+            canvas.scale(scale, scale)
+            canvas.drawCircle(12f, 12f, 8.7f, haloPaint)
+            canvas.drawCircle(12f, 12f, 7.3f, ringPaint)
+            canvas.drawCircle(12f, 4.7f, 1.1f, glintPaint)
+            canvas.drawCircle(18.4f, 15.6f, 1.0f, glintPaint)
+            canvas.restore()
+        }
     }
 }

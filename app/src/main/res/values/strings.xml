@@ -89,8 +89,8 @@
     <string name="remove_panel_item">Remove</string>
     <string name="edit_panel_size_title">Set item size</string>
     <string name="panel_apply">Apply</string>
-    <string name="panel_size_hint">Columns x rows, for example 2x2</string>
-    <string name="panel_size_invalid">Enter columns and rows, up to %1$d columns and 10 rows.</string>
+    <string name="panel_size_hint">Columns x rows, for example 2x2 or 2.4x3</string>
+    <string name="panel_size_invalid">Enter columns and rows (. or , for decimals), up to %1$d columns and 10 rows.</string>
     <string name="panel_size_overlap">This size would overlap another item.</string>
     <string name="move_dialog_drag_handle">Move controls. Drag this title to reposition.</string>
     <string name="panel_item_removed">Item removed</string>

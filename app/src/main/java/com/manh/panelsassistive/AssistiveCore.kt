@@ -27,17 +27,29 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.UUID
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 data class PanelItem(
     val type: String,
     val value: String,
     val label: String,
     val position: Int = -1,
-    val spanX: Int = 1,
-    val spanY: Int = 1,
+    /** Column span; fractional values (2.4) are allowed and drawn exactly. */
+    val spanX: Float = 1f,
+    /** Row span; fractional values (3.5) are allowed and drawn exactly. */
+    val spanY: Float = 1f,
     val instanceId: String = "$type:$value:${UUID.randomUUID()}"
 ) {
     val id: String get() = instanceId
+
+    /**
+     * Grid cells reserved for this item. A 2×3.5 item still occupies four
+     * rows: neighbours keep clear of the whole cells, so the remaining half
+     * row stays empty below the item instead of being overlapped.
+     */
+    val occupiedColumns: Int get() = ceil(spanX).toInt().coerceAtLeast(1)
+    val occupiedRows: Int get() = ceil(spanY).toInt().coerceAtLeast(1)
 }
 
 data class ExpansionShortcut(
@@ -105,12 +117,27 @@ internal object PanelViewportMetrics {
     }
 
     /**
+     * Fractional span (for example 2.4 columns): cells are drawn exactly and
+     * the last cell is only partially covered, so its trailing gap is
+     * proportional too.
+     */
+    fun spanPx(context: Context, sizeDp: Int, span: Float): Int {
+        val slots = span.coerceAtLeast(1f)
+        return (sizePx(context, sizeDp) * slots + gapPx(context) * (slots - 1f))
+            .roundToInt()
+            .coerceAtLeast(1)
+    }
+
+    /**
      * The spanned slot width converted back to dp with the same rounding used
      * to build the view. RemoteViews sizes are compared against this value, so
      * reporting `sizeDp * span + 6 * (span - 1)` overestimated wide widgets and
      * cropped their right/bottom edge. At one cell the two are identical.
      */
     fun spanDp(context: Context, sizeDp: Int, span: Int): Int =
+        (spanPx(context, sizeDp, span) / context.resources.displayMetrics.density).toInt()
+
+    fun spanDp(context: Context, sizeDp: Int, span: Float): Int =
         (spanPx(context, sizeDp, span) / context.resources.displayMetrics.density).toInt()
 }
 
@@ -506,8 +533,8 @@ object AppPrefs {
                                     jsonItem.optString("value"),
                                     jsonItem.optString("label"),
                                     jsonItem.optInt("position", itemIndex).coerceAtLeast(-1),
-                                    jsonItem.optInt("spanX", 1).coerceIn(1, 20),
-                                    jsonItem.optInt("spanY", 1).coerceIn(1, 10),
+                                    jsonItem.optDouble("spanX", 1.0).toFloat().coerceIn(1f, 20f),
+                                    jsonItem.optDouble("spanY", 1.0).toFloat().coerceIn(1f, 10f),
                                     jsonItem.optString(
                                         "id",
                                         "${jsonItem.optString("type")}:${jsonItem.optString("value")}:$itemIndex"
@@ -566,8 +593,8 @@ object AppPrefs {
                         .put("value", item.value)
                         .put("label", item.label)
                         .put("position", item.position)
-                        .put("spanX", item.spanX.coerceIn(1, 20))
-                        .put("spanY", item.spanY.coerceIn(1, 10))
+                        .put("spanX", item.spanX.coerceIn(1f, 20f).toDouble())
+                        .put("spanY", item.spanY.coerceIn(1f, 10f).toDouble())
                         .put("id", item.id)
                 )
             }
@@ -652,8 +679,8 @@ object AppPrefs {
             val start = existing.position.coerceAtLeast(0)
             val row = start / columns
             val column = start % columns
-            (0 until existing.spanY.coerceIn(1, maxRows)).flatMap { dy ->
-                (0 until existing.spanX.coerceIn(1, columns - column)).map { dx ->
+            (0 until existing.occupiedRows.coerceAtMost(maxRows)).flatMap { dy ->
+                (0 until existing.occupiedColumns.coerceAtMost(columns - column)).map { dx ->
                     (row + dy) * columns + column + dx
                 }
             }
@@ -661,10 +688,10 @@ object AppPrefs {
         val startPosition = item.position.coerceAtLeast(0)
         fun fits(position: Int): Boolean {
             val column = position % columns
-            val spanX = item.spanX.coerceIn(1, columns - column)
+            val spanColumns = item.occupiedColumns.coerceAtMost(columns - column)
             val row = position / columns
-            return (0 until item.spanY.coerceIn(1, maxRows)).all { dy ->
-                (0 until spanX).all { dx -> (row + dy) * columns + column + dx !in occupied }
+            return (0 until item.occupiedRows.coerceAtMost(maxRows)).all { dy ->
+                (0 until spanColumns).all { dx -> (row + dy) * columns + column + dx !in occupied }
             }
         }
         val position = if (allowOverlap) {
@@ -675,7 +702,7 @@ object AppPrefs {
                 .firstOrNull(::fits) ?: startPosition
         }
         val column = position % columns
-        val spanX = item.spanX.coerceIn(1, columns - column)
+        val spanX = item.spanX.coerceIn(1f, (columns - column).toFloat())
         savePanelPages(
             context,
             landscape,
@@ -684,7 +711,7 @@ object AppPrefs {
                     page.copy(items = page.items + item.copy(
                         position = position,
                         spanX = spanX,
-                        spanY = item.spanY.coerceIn(1, maxRows)
+                        spanY = item.spanY.coerceIn(1f, maxRows.toFloat())
                     ))
                 } else page
             },

@@ -704,8 +704,8 @@ class WidgetPickerActivity : Activity() {
                 pendingWidgetId.toString(),
                 info?.loadLabel(packageManager)?.toString().orEmpty(),
                 position = targetPosition,
-                spanX = spanX,
-                spanY = spanY
+                spanX = spanX.toFloat(),
+                spanY = spanY.toFloat()
             ),
             allowOverlap = AppPrefs.panelFreeMode(this)
         )

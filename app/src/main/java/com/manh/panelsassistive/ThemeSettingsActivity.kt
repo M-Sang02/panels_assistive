@@ -56,26 +56,21 @@ class ThemeSettingsActivity : Activity() {
         ))
     }
 
-    /** Free accent picker: swatches for quick picks plus a draggable HSV palette. */
+    /** Only the palette tile stays here: tap it to pick any custom accent. */
     private fun accentPicker(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
         setPadding(0, dp(10), 0, 0)
-        addView(GlassUi.divider(this@ThemeSettingsActivity))
-        addView(label("Màu nhấn tùy chỉnh", 14, GlassUi.TEXT_PRIMARY, true))
-        addView(hint(
-            "Chạm một ô màu bên dưới, hoặc mở bảng màu để kéo chọn bất kỳ màu nào " +
-                "— giống bảng chọn màu của bảng tiện ích."
-        ))
-        val activeCustom =
-            AppPrefs.themeKey(this@ThemeSettingsActivity) == AppThemes.CUSTOM_KEY
+        addView(GlassUi.divider(this@ThemeSettingsActivity),
+            LinearLayout.LayoutParams(0, dp(1).coerceAtLeast(1), 1f).apply {
+                marginEnd = dp(14)
+            })
         val accent = AppThemes.current(this@ThemeSettingsActivity).accent
-        addView(GlassUi.paletteRow(
+        addView(GlassUi.paletteButton(
             this@ThemeSettingsActivity,
-            AppThemes.ACCENT_PALETTE,
-            if (activeCustom) accent else 0,
-            "Màu nhấn tùy chỉnh",
-            initial = accent
-        ) { color -> applyAccent(color) })
+            accent,
+            "Màu nhấn tùy chỉnh"
+        ) { color -> applyAccent(color) }, LinearLayout.LayoutParams(dp(40), dp(40)))
     }
 
     private fun applyAccent(color: Int) {

@@ -89,8 +89,8 @@
     <string name="remove_panel_item">Xóa</string>
     <string name="edit_panel_size_title">Đặt kích thước mục</string>
     <string name="panel_apply">Áp dụng</string>
-    <string name="panel_size_hint">Số cột x số hàng, ví dụ 2x2</string>
-    <string name="panel_size_invalid">Nhập số cột và hàng, tối đa %1$d cột và 10 hàng.</string>
+    <string name="panel_size_hint">Số cột x số hàng, ví dụ 2x2 hoặc 2,4x3</string>
+    <string name="panel_size_invalid">Nhập số cột và hàng (dấu , hoặc . cho phần lẻ), tối đa %1$d cột và 10 hàng.</string>
     <string name="panel_size_overlap">Kích thước này sẽ chồng lên mục khác.</string>
     <string name="move_dialog_drag_handle">Bảng điều hướng. Kéo tiêu đề để di chuyển.</string>
     <string name="panel_item_removed">Đã xóa mục</string>

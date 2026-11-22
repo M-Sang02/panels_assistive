@@ -36,6 +36,7 @@ import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.math.ceil
 
 class WidgetPanelSettingsActivity : Activity() {
     private val foreground = GlassUi.TEXT_PRIMARY
@@ -749,7 +750,7 @@ class WidgetPanelSettingsActivity : Activity() {
         updatePreviewBackground()
         val columns = page.columns.coerceIn(2, 20)
         val rows = maxOf(page.rows, page.items.maxOfOrNull {
-            (it.position.coerceAtLeast(0) / columns) + it.spanY
+            (it.position.coerceAtLeast(0) / columns) + it.occupiedRows
         } ?: 1).coerceIn(1, 30)
         val grid = GridLayout(this).apply {
             columnCount = columns
@@ -772,27 +773,43 @@ class WidgetPanelSettingsActivity : Activity() {
             val row = position / columns
             val column = position % columns
             if (row >= rows) return@forEach
-            val spanX = item.spanX.coerceIn(1, columns - column)
-            val spanY = item.spanY.coerceIn(1, rows - row)
-            for (dy in 0 until spanY) {
-                for (dx in 0 until spanX) {
+            val spanX = item.spanX.coerceIn(1f, (columns - column).toFloat())
+            val spanY = item.spanY.coerceIn(1f, (rows - row).toFloat())
+            // Fractional sizes draw exactly but reserve whole cells for the grid
+            // so neighbouring tiles keep clear of the half cell.
+            val occupiedX = ceil(spanX).toInt().coerceAtLeast(1)
+            val occupiedY = ceil(spanY).toInt().coerceAtLeast(1)
+            for (dy in 0 until occupiedY) {
+                for (dx in 0 until occupiedX) {
                     occupied.add((row + dy) * columns + column + dx)
                 }
             }
             val tile = previewTile(item, position, spanX, spanY)
+            // The holder reserves the full (ceil) slot; the tile is drawn at the
+            // exact fractional size at the top-start so the half cell stays clear.
+            val holder = FrameLayout(this).apply {
+                addView(tile, FrameLayout.LayoutParams(
+                    PanelViewportMetrics.spanPx(
+                        this@WidgetPanelSettingsActivity, page.cellWidthDp, spanX
+                    ),
+                    PanelViewportMetrics.spanPx(
+                        this@WidgetPanelSettingsActivity, page.rowHeightDp, spanY
+                    )
+                ))
+            }
             val params = GridLayout.LayoutParams(
-                GridLayout.spec(row, spanY),
-                GridLayout.spec(column, spanX)
+                GridLayout.spec(row, occupiedY),
+                GridLayout.spec(column, occupiedX)
             ).apply {
                 width = PanelViewportMetrics.spanPx(
-                    this@WidgetPanelSettingsActivity, page.cellWidthDp, spanX
+                    this@WidgetPanelSettingsActivity, page.cellWidthDp, occupiedX
                 )
                 height = PanelViewportMetrics.spanPx(
-                    this@WidgetPanelSettingsActivity, page.rowHeightDp, spanY
+                    this@WidgetPanelSettingsActivity, page.rowHeightDp, occupiedY
                 )
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             }
-            grid.addView(tile, params)
+            grid.addView(holder, params)
         }
         for (position in 0 until rows * columns) {
             if (position in occupied) continue
@@ -880,8 +897,8 @@ class WidgetPanelSettingsActivity : Activity() {
     private fun previewTile(
         item: PanelItem,
         position: Int,
-        spanX: Int = item.spanX,
-        spanY: Int = item.spanY
+        spanX: Float = item.spanX,
+        spanY: Float = item.spanY
     ): View {
         val page = selectedPage()
         val tile = FrameLayout(this)
@@ -918,8 +935,8 @@ class WidgetPanelSettingsActivity : Activity() {
                 gravity = Gravity.CENTER
                 setPadding(dp(6), dp(6), dp(6), dp(6))
             }
-            val iconDp = (minOf(page.cellWidthDp * spanX, page.rowHeightDp * spanY) - 18)
-                .coerceIn(18, 320)
+            val iconDp = (minOf(page.cellWidthDp * spanX, page.rowHeightDp * spanY) - 18f)
+                .coerceIn(18f, 320f).toInt()
             val iconSize = dp(iconDp)
             if (item.type == PanelItemType.ACTION) {
                 cell.addView(
@@ -1083,15 +1100,18 @@ class WidgetPanelSettingsActivity : Activity() {
             current.spanY,
             (page.columns - column).coerceAtLeast(1)
         ) { spanX, spanY ->
+            val row = current.position.coerceAtLeast(0) / page.columns
+            val occupiedX = ceil(spanX).toInt().coerceAtLeast(1)
+            val occupiedY = ceil(spanY).toInt().coerceAtLeast(1)
             val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
                 if (other.id == current.id) return@any false
                 val otherPosition = other.position.coerceAtLeast(0)
                 val otherColumn = otherPosition % page.columns
                 val otherRow = otherPosition / page.columns
-                column < otherColumn + other.spanX &&
-                    column + spanX > otherColumn &&
-                    current.position / page.columns < otherRow + other.spanY &&
-                    current.position / page.columns + spanY > otherRow
+                column < otherColumn + other.occupiedColumns &&
+                    column + occupiedX > otherColumn &&
+                    row < otherRow + other.occupiedRows &&
+                    row + occupiedY > otherRow
             }
             if (overlaps) return@showSize false
             val items = page.items.map {
@@ -1110,9 +1130,11 @@ class WidgetPanelSettingsActivity : Activity() {
         val source = current.position.coerceAtLeast(0)
         val sourceColumn = source % columns
         val sourceRow = source / columns
-        val targetColumn = (sourceColumn + dx).coerceIn(0, (columns - current.spanX).coerceAtLeast(0))
+        val occupiedX = ceil(current.spanX).toInt().coerceAtLeast(1)
+        val occupiedY = ceil(current.spanY).toInt().coerceAtLeast(1)
+        val targetColumn = (sourceColumn + dx).coerceIn(0, (columns - occupiedX).coerceAtLeast(0))
         val maxRows = maxOf(page.rows, AppPrefs.maxGridRows(landscape))
-        val targetRow = (sourceRow + dy).coerceIn(0, (maxRows - current.spanY).coerceAtLeast(0))
+        val targetRow = (sourceRow + dy).coerceIn(0, (maxRows - occupiedY).coerceAtLeast(0))
         val destination = targetRow * columns + targetColumn
         if (destination == source) return
         val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->
@@ -1120,10 +1142,10 @@ class WidgetPanelSettingsActivity : Activity() {
             val otherPosition = other.position.coerceAtLeast(0)
             val otherColumn = otherPosition % columns
             val otherRow = otherPosition / columns
-            targetColumn < otherColumn + other.spanX &&
-                targetColumn + current.spanX > otherColumn &&
-                targetRow < otherRow + other.spanY &&
-                targetRow + current.spanY > otherRow
+            targetColumn < otherColumn + other.occupiedColumns &&
+                targetColumn + occupiedX > otherColumn &&
+                targetRow < otherRow + other.occupiedRows &&
+                targetRow + occupiedY > otherRow
         }
         if (overlaps) {
             Toast.makeText(this, R.string.panel_move_blocked, Toast.LENGTH_SHORT).show()
@@ -1163,8 +1185,8 @@ class WidgetPanelSettingsActivity : Activity() {
             val position = item.position.coerceAtLeast(0)
             val row = position / page.columns
             val column = position % page.columns
-            (0 until item.spanY.coerceIn(1, 10)).flatMap { dy ->
-                (0 until item.spanX.coerceIn(1, page.columns - column)).map { dx ->
+            (0 until item.occupiedRows.coerceAtMost(10)).flatMap { dy ->
+                (0 until item.occupiedColumns.coerceAtMost(page.columns - column)).map { dx ->
                     (row + dy) * page.columns + column + dx
                 }
             }

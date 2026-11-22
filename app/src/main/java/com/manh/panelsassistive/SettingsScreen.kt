@@ -12,7 +12,6 @@ import android.view.Gravity
 import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -73,21 +72,21 @@ class SettingsScreen(private val activity: Activity) {
             subtitle: String,
             checked: Boolean? = null,
             onChecked: ((Boolean) -> Unit)? = null,
-            iconRes: Int = 0,
+            tile: View? = null,
             onClick: () -> Unit
         ) {
-            val row = menuRow(icon, title, subtitle, checked, onChecked, iconRes, onClick)
+            val row = menuRow(icon, title, subtitle, checked, onChecked, tile, onClick)
             content.addView(row)
             rowEntries.add(row to searchText(title, subtitle))
         }
 
         addRow(
             icon = "circle-dot",
-            iconRes = R.drawable.panels_assistive_icon,
             title = "Bóng nổi",
             subtitle = "Biểu tượng, kích thước, ghim cạnh, ẩn cạnh",
             checked = AppPrefs.floatBallEnabled(activity),
-            onChecked = ::setFloatBallEnabled
+            onChecked = ::setFloatBallEnabled,
+            tile = GlassUi.floatBallTile(activity)
         ) {
             activity.startActivity(Intent(activity, FloatBallSettingsActivity::class.java))
         }
@@ -227,7 +226,7 @@ class SettingsScreen(private val activity: Activity) {
         subtitle: String,
         checked: Boolean? = null,
         onChecked: ((Boolean) -> Unit)? = null,
-        iconRes: Int = 0,
+        tile: View? = null,
         onClick: () -> Unit
     ): LinearLayout {
         val row = LinearLayout(activity).apply {
@@ -239,13 +238,8 @@ class SettingsScreen(private val activity: Activity) {
             isFocusable = true
             setOnClickListener { onClick() }
         }
-        if (iconRes != 0) {
-            // Real app artwork, so the row matches the launcher and float ball.
-            row.addView(ImageView(activity).apply {
-                setImageResource(iconRes)
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                contentDescription = title
-            }, LinearLayout.LayoutParams(dp(40), dp(40)))
+        if (tile != null) {
+            row.addView(tile)
         } else {
             row.addView(GlassUi.iconTile(activity, icon, sizeDp = 40, glyphDp = 22))
         }
