@@ -102,8 +102,8 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             TypedValue.COMPLEX_UNIT_SP,
             when {
                 big -> 18f
-                wide -> 16f
-                else -> 14f
+                wide -> 14f
+                else -> 12f
             }
         )
         views.setTextViewTextSize(
@@ -111,8 +111,8 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             TypedValue.COMPLEX_UNIT_SP,
             when {
                 big -> 13f
-                wide -> 12f
-                else -> 11f
+                wide -> 11f
+                else -> 10f
             }
         )
 
@@ -130,17 +130,20 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             R.id.cover_play_bg,
             GlassWidgets.circleBitmap(
                 context,
-                GlassWidgets.dp(context, 44),
+                GlassWidgets.dp(context, 34),
                 (accent and 0x00FFFFFF) or (playAlpha shl 24)
             )
         )
+        // Remove the placeholder oval from the XML so only the painted disc
+        // (and no leftover ring) shows at runtime.
+        views.setInt(R.id.cover_play_bg, "setBackgroundColor", Color.TRANSPARENT)
         views.setImageViewBitmap(
             R.id.cover_play,
             GlassWidgets.glyphBitmap(
                 context,
                 if (now.isPlaying) "pause" else "play",
                 Color.WHITE,
-                GlassWidgets.dp(context, if (big) 24 else 20)
+                GlassWidgets.dp(context, if (big) 19 else 14)
             )
         )
 
@@ -204,7 +207,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
      * The Play button stays the only accent-coloured element.
      */
     private fun sideCircleBitmap(context: Context, glyphName: String, glyphAlpha: Int): Bitmap {
-        val size = GlassWidgets.dp(context, 34).coerceAtLeast(12)
+        val size = GlassWidgets.dp(context, 26).coerceAtLeast(12)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val centre = size / 2f
@@ -265,8 +268,8 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 isDither = true
                 shader = LinearGradient(
                     0f, 0f, 0f, height.toFloat(),
-                    Color.argb(24, 255, 255, 255),
-                    Color.argb(4, 255, 255, 255),
+                    Color.argb(32, 255, 255, 255),
+                    Color.argb(10, 255, 255, 255),
                     Shader.TileMode.CLAMP
                 )
             }
@@ -276,7 +279,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 shader = LinearGradient(
                     0f, height * 0.38f, 0f, height * 0.78f,
                     Color.TRANSPARENT,
-                    Color.argb(66, 6, 10, 18),
+                    Color.argb(74, 6, 10, 18),
                     Shader.TileMode.CLAMP
                 )
             }
@@ -347,19 +350,19 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
 
         // Bottom fade: the base of the card dissolves into the wallpaper,
         // matching the way the white glass cards fade out towards their base.
-        // It stops at ~20% alpha so the transport row still has some artwork
-        // behind it instead of floating on bare wallpaper.
+        // It stops at ~30% alpha so the transport row still has artwork behind it
+        // instead of dissolving into bare wallpaper.
         val fade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
             shader = LinearGradient(
-                0f, height * 0.64f, 0f, height.toFloat(),
+                0f, height * 0.70f, 0f, height.toFloat(),
                 Color.TRANSPARENT,
-                Color.argb(200, 0, 0, 0),
+                Color.argb(180, 0, 0, 0),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, height * 0.64f, width.toFloat(), height.toFloat(), fade)
+        canvas.drawRect(0f, height * 0.70f, width.toFloat(), height.toFloat(), fade)
         return bitmap
     }
 

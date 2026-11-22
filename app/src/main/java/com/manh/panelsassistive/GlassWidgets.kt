@@ -131,9 +131,8 @@ object GlassWidgets {
 
     /**
      * The music card picks one of three layouts from the launcher-provided
-     * size: 2x2 compact, 4x2 wide, 4x4 large. Controls live in weighted rows,
-     * so they are always split evenly and simply get smaller when the widget
-     * is shrunk instead of disappearing.
+     * size: 2x2 compact, 4x2 wide, 4x4 large. Each layout keeps one-line text
+     * and a small centred transport cluster with fixed, evenly spaced sizes.
      */
     fun musicSize(options: Bundle): MusicSize {
         val (width, height) = sizeDp(options)
@@ -297,7 +296,7 @@ object GlassWidgets {
 
     /**
      * Small translucent transport disc (Previous/Next) like the reference
-     * "simple" music card: soft white fill, hairline rim, light glyph.
+     * "simple" music card: soft white fill and a light glyph, no outline.
      */
     fun transportCircleBitmap(
         context: Context,
@@ -315,12 +314,6 @@ object GlassWidgets {
             centre,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(46, 255, 255, 255) }
         )
-        val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = (context.resources.displayMetrics.density * 0.9f).coerceAtLeast(1f)
-            color = Color.argb(110, 255, 255, 255)
-        }
-        canvas.drawCircle(centre, centre, centre - rim.strokeWidth / 2f, rim)
         val glyph = LucideGlyphs.glyph(context, glyphName)
         if (glyph.isEmpty()) return bitmap
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -328,6 +321,14 @@ object GlassWidgets {
             textAlign = Paint.Align.CENTER
             textSize = size * 0.44f
             color = glyphColor
+            // The disc is only a faint wash, so a soft shadow keeps the white
+            // arrows legible on a bright wallpaper or a milky card.
+            setShadowLayer(
+                dp(context, 2).toFloat(),
+                0f,
+                dp(context, 1) * 0.35f,
+                Color.argb(120, 0, 0, 0)
+            )
         }
         val baseline = centre - (paint.ascent() + paint.descent()) / 2f
         canvas.drawText(glyph, centre, baseline, paint)
@@ -705,9 +706,9 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
 }
 
 /**
- * Shared card for volume and brightness: a white "Âm lượng / Độ sáng" caption
- * with the percentage, the whole card split in two tap zones, and a soft white
- * fill that shows the current level.
+ * Shared card for volume and brightness: a small volume / sun glyph with the
+ * percentage, the whole card split in two tap zones, and a soft white fill
+ * that shows the current level.
  */
 abstract class GlassLevelWidget : GlassWidgetProvider() {
     protected abstract val upAction: String
@@ -723,8 +724,8 @@ abstract class GlassLevelWidget : GlassWidgetProvider() {
 
     protected abstract fun adjust(context: Context, up: Boolean): Boolean
 
-    /** Card caption, e.g. "Âm lượng" / "Độ sáng", matching the reference mock-up. */
-    protected abstract fun label(context: Context): String
+    /** Small glyph shown above the percentage, e.g. "volume-2" / "sun". */
+    protected abstract fun iconName(): String
 
     protected open val showsStepIcons: Boolean = false
 
@@ -743,7 +744,15 @@ abstract class GlassLevelWidget : GlassWidgetProvider() {
     ) {
         WidgetLevelObserver.ensure(context)
         val level = currentLevel(context).coerceIn(0f, 1f)
-        views.setTextViewText(R.id.widget_label, label(context))
+        views.setImageViewBitmap(
+            R.id.widget_label,
+            GlassWidgets.glyphBitmap(
+                context,
+                iconName(),
+                Color.argb(228, 255, 255, 255),
+                GlassWidgets.dp(context, 16)
+            )
+        )
         views.setTextViewText(R.id.widget_value, "${(level * 100).roundToInt()}%")
         if (showsStepIcons) {
             val (upGlyph, downGlyph) = stepIcons()
@@ -802,7 +811,7 @@ abstract class GlassVolumeWidget : GlassLevelWidget() {
         return audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
     }
 
-    override fun label(context: Context): String = "Âm lượng"
+    override fun iconName(): String = "volume-2"
 
     override fun adjust(context: Context, up: Boolean): Boolean {
         val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -847,7 +856,7 @@ abstract class GlassBrightnessWidget : GlassLevelWidget() {
         return value.coerceIn(1, 255) / 255f
     }
 
-    override fun label(context: Context): String = "Độ sáng"
+    override fun iconName(): String = "sun"
 
     override fun ready(context: Context): Boolean = Settings.System.canWrite(context)
 
@@ -959,9 +968,9 @@ class GlassMusicWidget : GlassWidgetProvider() {
                 else -> "Chạm để mở nhạc"
             }
         val titleBase = when (size) {
-            GlassWidgets.MusicSize.COMPACT -> 14f
-            GlassWidgets.MusicSize.WIDE -> 15f
-            GlassWidgets.MusicSize.LARGE -> 20f
+            GlassWidgets.MusicSize.COMPACT -> 12f
+            GlassWidgets.MusicSize.WIDE -> 14f
+            GlassWidgets.MusicSize.LARGE -> 18f
         }
         // Shrink long Vietnamese titles instead of cutting them with “…”.
         val titleSp = titleBase * when {
@@ -970,9 +979,9 @@ class GlassMusicWidget : GlassWidgetProvider() {
             else -> 1f
         }
         val artistBase = when (size) {
-            GlassWidgets.MusicSize.COMPACT -> 11f
-            GlassWidgets.MusicSize.WIDE -> 12f
-            GlassWidgets.MusicSize.LARGE -> 14f
+            GlassWidgets.MusicSize.COMPACT -> 10f
+            GlassWidgets.MusicSize.WIDE -> 11f
+            GlassWidgets.MusicSize.LARGE -> 13f
         }
         val artistSp = artistBase * when {
             artist.length > 32 -> 0.8f
@@ -990,25 +999,25 @@ class GlassMusicWidget : GlassWidgetProvider() {
         // calling setSelected here makes the launcher show a loading error.
 
         val artDp = when (size) {
-            GlassWidgets.MusicSize.COMPACT -> 68
-            GlassWidgets.MusicSize.WIDE -> 84
-            GlassWidgets.MusicSize.LARGE -> 150
+            GlassWidgets.MusicSize.COMPACT -> 52
+            GlassWidgets.MusicSize.WIDE -> 68
+            GlassWidgets.MusicSize.LARGE -> 120
         }
-        val ring = Color.argb(150, 255, 255, 255)
+        val ring = Color.argb(110, 255, 255, 255)
         views.setImageViewBitmap(
             R.id.widget_art,
             GlassWidgets.circularArtBitmap(context, now.art, GlassWidgets.dp(context, artDp), ring)
         )
 
         val playCircleDp = when (size) {
-            GlassWidgets.MusicSize.COMPACT -> 36
-            GlassWidgets.MusicSize.WIDE -> 42
-            GlassWidgets.MusicSize.LARGE -> 56
+            GlassWidgets.MusicSize.COMPACT -> 34
+            GlassWidgets.MusicSize.WIDE -> 38
+            GlassWidgets.MusicSize.LARGE -> 50
         }
         val playIconDp = when (size) {
-            GlassWidgets.MusicSize.COMPACT -> 15
-            GlassWidgets.MusicSize.WIDE -> 17
-            GlassWidgets.MusicSize.LARGE -> 22
+            GlassWidgets.MusicSize.COMPACT -> 14
+            GlassWidgets.MusicSize.WIDE -> 15
+            GlassWidgets.MusicSize.LARGE -> 19
         }
         val skipCircleDp = when (size) {
             GlassWidgets.MusicSize.COMPACT -> 26

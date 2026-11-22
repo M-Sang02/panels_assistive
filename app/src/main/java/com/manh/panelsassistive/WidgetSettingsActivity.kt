@@ -43,28 +43,28 @@ class WidgetSettingsActivity : Activity() {
             "volume-2",
             "Âm lượng dọc (1×2)",
             "Cột dọc mảnh, kính trắng gần như trong suốt. Nửa trên tăng, nửa dưới giảm; " +
-                "nhãn \"Âm lượng\" và % ở giữa, dấu +/− ở hai đầu.",
+                "icon loa nhỏ và % ở giữa, dấu +/− ở hai đầu.",
             GlassVolumeVerticalWidget::class.java
         ))
         root.addView(widgetCard(
             "audio-lines",
             "Âm lượng ngang (2×1)",
-            "Thanh ngang mảnh dạng viên thuốc. Chạm nửa trái để giảm, nửa phải để tăng — " +
-                "cập nhật ngay cả khi bạn bấm nút âm lượng vật lý.",
+            "Thanh ngang mảnh dạng viên thuốc, icon loa nhỏ và % ở giữa. Chạm nửa trái để " +
+                "giảm, nửa phải để tăng — cập nhật ngay khi bấm phím âm lượng.",
             GlassVolumeHorizontalWidget::class.java
         ))
         root.addView(widgetCard(
             "sun",
             "Độ sáng dọc (1×2)",
-            "Cột dọc tăng/giảm độ sáng màn hình, kèm nhãn \"Độ sáng\" và %. Cần cấp quyền " +
+            "Cột dọc tăng/giảm độ sáng màn hình, kèm icon mặt trời nhỏ và %. Cần cấp quyền " +
                 "Chỉnh sửa cài đặt hệ thống ở lần chạm đầu tiên.",
             GlassBrightnessVerticalWidget::class.java
         ))
         root.addView(widgetCard(
             "sun-medium",
             "Độ sáng ngang (2×1)",
-            "Thanh ngang tăng/giảm độ sáng, nhãn và % ở giữa. Chạm nửa trái để giảm, " +
-                "nửa phải để tăng.",
+            "Thanh ngang tăng/giảm độ sáng, icon mặt trời nhỏ và % ở giữa. Chạm nửa trái " +
+                "để giảm, nửa phải để tăng.",
             GlassBrightnessHorizontalWidget::class.java
         ))
         root.addView(widgetCard(
@@ -77,9 +77,9 @@ class WidgetSettingsActivity : Activity() {
         root.addView(widgetCard(
             "music",
             "Nhạc (2×2 → 4×2 → 4×4)",
-            "Ảnh bìa tròn cân giữa, tên bài và nghệ sĩ căn giữa, hàng nút Prev / Play / " +
-                "Next chia đều bên dưới. Ghim ở dạng 2×2, kéo rộng thành 4×2 hoặc phóng " +
-                "to 4×4 — nút tự co giãn, không bao giờ bị ẩn khi thu nhỏ.",
+            "Ảnh bìa tròn nhỏ cân giữa, tên bài và nghệ sĩ một dòng căn giữa, cụm " +
+                "Prev / Play / Next gọn ở dưới. Ghim ở dạng 2×2, kéo rộng thành 4×2 " +
+                "hoặc phóng to 4×4 — bố cục đổi theo kích thước, nút luôn hiện rõ.",
             GlassMusicWidget::class.java
         ))
         root.addView(widgetCard(
