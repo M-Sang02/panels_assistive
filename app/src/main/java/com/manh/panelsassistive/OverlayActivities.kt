@@ -10,17 +10,16 @@ import android.util.Log
 /**
  * Transparent trampoline used by the music widget. Tapping the card opens the
  * app that is actually playing right now (MediaSession, then Audio
- * playback configs), falling back to the app assigned to this widget instance.
- * Tapping Play while idle opens that assigned app and asks it to start playing.
+ * playback configs), falling back to the music app shared by every music
+ * widget. Tapping Play while idle opens that app and asks it to start playing.
  */
 class WidgetLaunchActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val widgetId = intent.getIntExtra(GlassWidgets.EXTRA_WIDGET_ID, -1)
         when {
             intent.getBooleanExtra(EXTRA_OPEN_WRITE_SETTINGS, false) -> openWriteSettings(this)
-            intent.getBooleanExtra(EXTRA_PLAY_NOW, false) -> playNow(this, widgetId)
-            intent.getBooleanExtra(EXTRA_MEDIA_TAP, false) -> openMusicApp(this, widgetId)
+            intent.getBooleanExtra(EXTRA_PLAY_NOW, false) -> playNow(this)
+            intent.getBooleanExtra(EXTRA_MEDIA_TAP, false) -> openMusicApp(this)
         }
         finish()
         overridePendingTransition(0, 0)
@@ -57,15 +56,15 @@ class WidgetLaunchActivity : Activity() {
 
         /**
          * Opens the app whose session the card is showing — even when that
-         * session is paused — then the music app assigned to this widget, then
-         * the phone's default music app. The clock's quick-open shortcut is
-         * deliberately not used here: it may point at a chat app (Zalo) and
-         * must not hijack the music card when nothing is playing.
+         * session is paused — then the shared music app, then the phone's
+         * default music app. The clock's quick-open shortcut is deliberately
+         * not used here: it may point at a chat app (Zalo) and must not
+         * hijack the music card when nothing is playing.
          */
-        fun openMusicApp(context: Context, widgetId: Int = -1) {
+        fun openMusicApp(context: Context) {
             // "Không mở app" assignment: the card stays purely informational.
-            if (AppPrefs.musicWidgetNoApp(context, widgetId)) return
-            val assigned = AppPrefs.musicWidgetPackage(context, widgetId)
+            if (AppPrefs.musicWidgetNoApp(context)) return
+            val assigned = AppPrefs.musicWidgetPackage(context)
             // A paused session still present on the notification shade wins
             // over the widget's default app.
             val shown = WidgetMedia.shownPackage(context, assigned)
@@ -82,8 +81,8 @@ class WidgetLaunchActivity : Activity() {
         }
 
         /** "Play music now": resume the assigned app or launch it and send play. */
-        fun playNow(context: Context, widgetId: Int) {
-            val assigned = AppPrefs.musicWidgetPackage(context, widgetId)
+        fun playNow(context: Context) {
+            val assigned = AppPrefs.musicWidgetPackage(context)
             if (assigned.isNotEmpty()) {
                 WidgetMedia.playNow(context, assigned)
                 return
@@ -91,7 +90,7 @@ class WidgetLaunchActivity : Activity() {
             if (WidgetMedia.activePackage(context) != null) {
                 WidgetMedia.send(context, GlassWidgets.ACTION_MEDIA_TOGGLE)
             } else {
-                openMusicApp(context, widgetId)
+                openMusicApp(context)
             }
         }
     }

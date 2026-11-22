@@ -1,7 +1,6 @@
 package com.manh.panelsassistive
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -227,16 +226,21 @@ class ThemeSettingsActivity : Activity() {
             Toast.makeText(this, "Không tìm thấy gói icon nào được cài", Toast.LENGTH_SHORT).show()
             return
         }
-        val labels = packs.map { it.label }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("Chọn icon pack")
-            .setItems(labels) { _, which ->
-                AppPrefs.setIconPackPackage(this, packs[which].packageName)
-                AppPrefs.setIconPackEnabled(this, true)
-                render()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        val current = AppPrefs.iconPackPackage(this)
+        val items = packs.map { pack ->
+            GlassDialogs.Item(
+                id = pack.packageName,
+                label = pack.label,
+                caption = pack.packageName,
+                iconPackage = pack.packageName,
+                selected = pack.packageName == current
+            )
+        }
+        GlassDialogs.show(this, "Chọn icon pack", items, "Gói icon áp dụng cho app và lối tắt") { item ->
+            AppPrefs.setIconPackPackage(this, item.id)
+            AppPrefs.setIconPackEnabled(this, true)
+            render()
+        }
     }
 
     private fun applyTheme(theme: AppTheme) {

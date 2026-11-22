@@ -186,9 +186,8 @@ object AppPrefs {
     private const val KEY_WIDGET_SHORTCUT = "widget_shortcut"
     private const val KEY_MUSIC_WIDGET_SOURCE = "music_widget_source"
     private const val KEY_MUSIC_WIDGET_PACKAGE = "music_widget_package"
-    private const val KEY_MUSIC_WIDGET_PACKAGE_ID = "music_widget_package_"
 
-    /** Sentinel stored per music widget: tap must not open any app. */
+    /** Sentinel in the shared music key: tapping any music widget opens no app. */
     const val WIDGET_NO_APP = "__none__"
     private const val KEY_EXPANSION_SLIDERS = "expansion_sliders"
     private const val KEY_PANEL_LABELS = "panel_labels"
@@ -970,47 +969,21 @@ object AppPrefs {
         store(context).edit().putBoolean(KEY_MUSIC_WIDGET_SOURCE, enabled).apply()
     }
 
-    /** Default music app used by every music widget unless an instance overrides it. */
-    fun musicWidgetPackage(context: Context): String =
-        store(context).getString(KEY_MUSIC_WIDGET_PACKAGE, null).orEmpty()
+    /**
+     * One music app shared by every music widget, so pinning several widgets
+     * still means a single assignment. [WIDGET_NO_APP] keeps the cards
+     * informational without launching anything.
+     */
+    fun musicWidgetPackage(context: Context): String {
+        val value = store(context).getString(KEY_MUSIC_WIDGET_PACKAGE, null).orEmpty()
+        return if (value == WIDGET_NO_APP) "" else value
+    }
+
+    fun musicWidgetNoApp(context: Context): Boolean =
+        store(context).getString(KEY_MUSIC_WIDGET_PACKAGE, null) == WIDGET_NO_APP
 
     fun setMusicWidgetPackage(context: Context, packageName: String?) {
         store(context).edit().putString(KEY_MUSIC_WIDGET_PACKAGE, packageName.orEmpty()).apply()
-    }
-
-    /**
-     * Per-widget music app: an explicit instance choice wins, then the shared
-     * default, then the generic widget shortcut's package.
-     */
-    fun musicWidgetPackage(context: Context, widgetId: Int): String {
-        if (widgetId >= 0) {
-            val own = store(context).getString(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId, null)
-            if (own == WIDGET_NO_APP) return ""
-            if (!own.isNullOrEmpty()) return own
-        }
-        val shared = musicWidgetPackage(context)
-        if (shared.isNotEmpty()) return shared
-        return widgetShortcut(context).substringBefore('/')
-    }
-
-    /** True when this instance was explicitly told to open no app at all. */
-    fun musicWidgetNoApp(context: Context, widgetId: Int): Boolean =
-        widgetId >= 0 &&
-            store(context).getString(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId, null) ==
-            WIDGET_NO_APP
-
-    fun setMusicWidgetPackage(context: Context, widgetId: Int, packageName: String?) {
-        val editor = store(context).edit()
-        if (packageName.isNullOrEmpty()) {
-            editor.remove(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId)
-        } else {
-            editor.putString(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId, packageName)
-        }
-        editor.apply()
-    }
-
-    fun clearMusicWidgetPackage(context: Context, widgetId: Int) {
-        store(context).edit().remove(KEY_MUSIC_WIDGET_PACKAGE_ID + widgetId).apply()
     }
 
     private fun iconOverrideStore(context: Context) =

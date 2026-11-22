@@ -1196,28 +1196,35 @@ class WidgetPanelSettingsActivity : Activity() {
     }
 
     private fun showAddItemDialog(position: Int) {
-        val options = arrayOf(
-            getString(R.string.choose_widget),
-            getString(R.string.choose_app),
-            getString(R.string.choose_shortcut)
+        val items = listOf(
+            GlassDialogs.Item(
+                PanelItemType.WIDGET,
+                getString(R.string.choose_widget),
+                "Tiện ích đặt trên lưới bảng",
+                glyph = "layout-grid"
+            ),
+            GlassDialogs.Item(
+                PanelItemType.APP,
+                getString(R.string.choose_app),
+                "Mở ứng dụng đã cài",
+                glyph = "app-window"
+            ),
+            GlassDialogs.Item(
+                PanelItemType.SHORTCUT,
+                getString(R.string.choose_shortcut),
+                "Lối tắt do ứng dụng cung cấp",
+                glyph = "arrow-up-right"
+            )
         )
-        AlertDialog.Builder(this)
-            .setTitle(R.string.add_panel_item)
-            .setItems(options) { _, choice ->
-                val type = when (choice) {
-                    0 -> PanelItemType.WIDGET
-                    1 -> PanelItemType.APP
-                    else -> PanelItemType.SHORTCUT
-                }
-                startActivity(
-                    Intent(this, WidgetPickerActivity::class.java)
-                        .putExtra(WidgetPickerActivity.EXTRA_LANDSCAPE_LAYOUT, landscape)
-                        .putExtra(WidgetPickerActivity.EXTRA_PANEL_ID, selectedPage().id)
-                        .putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, type)
-                        .putExtra(WidgetPickerActivity.EXTRA_POSITION, position)
-                )
-            }
-            .show()
+        GlassDialogs.show(this, getString(R.string.add_panel_item), items) { item ->
+            startActivity(
+                Intent(this, WidgetPickerActivity::class.java)
+                    .putExtra(WidgetPickerActivity.EXTRA_LANDSCAPE_LAYOUT, landscape)
+                    .putExtra(WidgetPickerActivity.EXTRA_PANEL_ID, selectedPage().id)
+                    .putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, item.id)
+                    .putExtra(WidgetPickerActivity.EXTRA_POSITION, position)
+            )
+        }
     }
 
     private fun previewPopup() {

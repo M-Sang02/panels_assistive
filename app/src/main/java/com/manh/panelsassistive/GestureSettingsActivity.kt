@@ -184,70 +184,64 @@ class GestureSettingsActivity : Activity() {
             addView(ActionGlyphView(this@GestureSettingsActivity, selected.id, GlassUi.ACCENT), LinearLayout.LayoutParams(dp(24), dp(24)))
             addView(selectedLabel, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             setOnClickListener {
-                val choices = LinearLayout(this@GestureSettingsActivity).apply { orientation = LinearLayout.VERTICAL }
-                lateinit var dialog: AlertDialog
-                actions.forEach { choice ->
-                    choices.addView(LinearLayout(this@GestureSettingsActivity).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        setPadding(dp(12), dp(10), dp(12), dp(10))
-                        isClickable = true
-                        isFocusable = true
-                        addView(ActionGlyphView(this@GestureSettingsActivity, choice.id, GlassUi.ACCENT), LinearLayout.LayoutParams(dp(28), dp(28)))
-                        addView(TextView(this@GestureSettingsActivity).apply {
-                            text = choice.label
-                            textSize = 15f
-                            setTextColor(GlassUi.TEXT_PRIMARY)
-                            setPadding(dp(12), 0, 0, 0)
-                        })
-                        setOnClickListener {
-                            dialog.dismiss()
-                            if (choice.id == ActionDispatcher.OPEN_SELECTED_APP ||
-                                choice.id == ActionDispatcher.OPEN_SELECTED_SHORTCUT
-                            ) {
-                                val target = pickerTarget ?: return@setOnClickListener
-                                startActivity(
-                                    Intent(this@GestureSettingsActivity, WidgetPickerActivity::class.java)
-                                        .putExtra(
-                                            WidgetPickerActivity.EXTRA_ITEM_TYPE,
-                                            if (choice.id == ActionDispatcher.OPEN_SELECTED_APP) {
-                                                PanelItemType.APP
-                                            } else {
-                                                PanelItemType.SHORTCUT
-                                            }
-                                        )
-                                        .putExtra(WidgetPickerActivity.EXTRA_ACTION_PICKER_TARGET, target)
-                                )
-                                return@setOnClickListener
-                            }
-                            if (choice.requiresAccessibility && !AccessibilityActionService.isEnabled(this@GestureSettingsActivity)) {
-                                AlertDialog.Builder(this@GestureSettingsActivity)
-                                    .setTitle(R.string.accessibility_required_title)
-                                    .setMessage(R.string.accessibility_required_message)
-                                    .setNegativeButton(android.R.string.cancel, null)
-                                    .setPositiveButton(R.string.open_accessibility_settings) { _, _ ->
-                                        ActionDispatcher.openAccessibilitySettings(this@GestureSettingsActivity)
-                                    }
-                                    .show()
-                            } else {
-                                onSelected(choice.id)
-                                button.removeViewAt(0)
-                                button.addView(
-                                    ActionGlyphView(this@GestureSettingsActivity, choice.id, GlassUi.ACCENT),
-                                    0,
-                                    LinearLayout.LayoutParams(dp(24), dp(24))
-                                )
-                                selectedLabel.text = choice.label
-                            }
-                        }
-                    })
+                var currentId = selectedType
+                val items = actions.map { choice ->
+                    GlassDialogs.Item(
+                        id = choice.id,
+                        label = choice.label,
+                        actionId = choice.id.takeIf { it != ActionDispatcher.NONE },
+                        glyph = if (choice.id == ActionDispatcher.NONE) "ban" else null,
+                        selected = choice.id == currentId
+                    )
                 }
-                dialog = AlertDialog.Builder(this@GestureSettingsActivity)
-                    .setTitle(R.string.select_action)
-                    .setView(ScrollView(this@GestureSettingsActivity).apply { addView(choices) })
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .create()
-                dialog.show()
+                GlassDialogs.show(
+                    this@GestureSettingsActivity,
+                    getString(R.string.select_action),
+                    items,
+                    "Gán hành động cho thao tác này"
+                ) { picked ->
+                    val choice = actions.firstOrNull { it.id == picked.id } ?: return@show
+                    when {
+                        choice.id == ActionDispatcher.OPEN_SELECTED_APP ||
+                            choice.id == ActionDispatcher.OPEN_SELECTED_SHORTCUT -> {
+                            val target = pickerTarget ?: return@show
+                            startActivity(
+                                Intent(this@GestureSettingsActivity, WidgetPickerActivity::class.java)
+                                    .putExtra(
+                                        WidgetPickerActivity.EXTRA_ITEM_TYPE,
+                                        if (choice.id == ActionDispatcher.OPEN_SELECTED_APP) {
+                                            PanelItemType.APP
+                                        } else {
+                                            PanelItemType.SHORTCUT
+                                        }
+                                    )
+                                    .putExtra(WidgetPickerActivity.EXTRA_ACTION_PICKER_TARGET, target)
+                            )
+                        }
+                        choice.requiresAccessibility &&
+                            !AccessibilityActionService.isEnabled(this@GestureSettingsActivity) -> {
+                            AlertDialog.Builder(this@GestureSettingsActivity)
+                                .setTitle(R.string.accessibility_required_title)
+                                .setMessage(R.string.accessibility_required_message)
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .setPositiveButton(R.string.open_accessibility_settings) { _, _ ->
+                                    ActionDispatcher.openAccessibilitySettings(this@GestureSettingsActivity)
+                                }
+                                .show()
+                        }
+                        else -> {
+                            currentId = choice.id
+                            onSelected(choice.id)
+                            button.removeViewAt(0)
+                            button.addView(
+                                ActionGlyphView(this@GestureSettingsActivity, choice.id, GlassUi.ACCENT),
+                                0,
+                                LinearLayout.LayoutParams(dp(24), dp(24))
+                            )
+                            selectedLabel.text = choice.label
+                        }
+                    }
+                }
             }
         }
         return button

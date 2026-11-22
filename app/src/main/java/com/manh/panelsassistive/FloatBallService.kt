@@ -1726,15 +1726,33 @@ class FloatBallService : Service() {
     }
 
     private fun showPopupAddOptions(position: Int) {
-        val types = arrayOf(PanelItemType.WIDGET, PanelItemType.APP, PanelItemType.SHORTCUT)
-        val labels = arrayOf(
-            getString(R.string.choose_widget),
-            getString(R.string.choose_app),
-            getString(R.string.choose_shortcut)
+        val items = listOf(
+            GlassDialogs.Item(
+                PanelItemType.WIDGET,
+                getString(R.string.choose_widget),
+                "Tiện ích đặt trên lưới bảng",
+                glyph = "layout-grid"
+            ),
+            GlassDialogs.Item(
+                PanelItemType.APP,
+                getString(R.string.choose_app),
+                "Biểu tượng ứng dụng trong bảng",
+                glyph = "app-window"
+            ),
+            GlassDialogs.Item(
+                PanelItemType.SHORTCUT,
+                getString(R.string.choose_shortcut),
+                "Lối tắt mở nhanh hành động hoặc ứng dụng",
+                glyph = "arrow-up-right"
+            )
         )
-        showOverlayDialog(android.app.AlertDialog.Builder(this)
-            .setItems(labels) { _, selected -> openWidgetPicker(types[selected], position) }
-        )
+        GlassDialogs.showOverlay(
+            this,
+            getString(R.string.add_panel_item),
+            items,
+            "Chọn loại mục để thêm vào bảng",
+            overlayWindowType()
+        ) { item -> openWidgetPicker(item.id, position) }
     }
 
 

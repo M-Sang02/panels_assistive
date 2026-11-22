@@ -942,11 +942,6 @@ class GlassMusicWidget : GlassWidgetProvider() {
     // The music pane is painted inside bind(), where the album art is known.
     override fun bindBackground(context: Context, views: RemoteViews, options: Bundle) = Unit
 
-    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        appWidgetIds.forEach { AppPrefs.clearMusicWidgetPackage(context, it) }
-        super.onDeleted(context, appWidgetIds)
-    }
-
     override fun bind(
         context: Context,
         views: RemoteViews,
@@ -956,8 +951,8 @@ class GlassMusicWidget : GlassWidgetProvider() {
     ) {
         val size = GlassWidgets.musicSize(options)
 
-        val noApp = AppPrefs.musicWidgetNoApp(context, widgetId)
-        val assigned = AppPrefs.musicWidgetPackage(context, widgetId)
+        val noApp = AppPrefs.musicWidgetNoApp(context)
+        val assigned = AppPrefs.musicWidgetPackage(context)
         val now = WidgetMedia.snapshot(context, assigned)
         GlassWidgets.bindMusicCard(views, context, options)
         val muted = Color.argb(217, 255, 255, 255)
@@ -1119,11 +1114,7 @@ class GlassMusicWidget : GlassWidgetProvider() {
         ) {
             return false
         }
-        val preferred = if (widgetId >= 0) {
-            AppPrefs.musicWidgetPackage(context, widgetId)
-        } else {
-            AppPrefs.musicWidgetPackage(context)
-        }
+        val preferred = AppPrefs.musicWidgetPackage(context)
         WidgetMedia.send(context, action, preferred)
         GlassWidgets.refreshSoon(context, javaClass)
         // The session may settle after the command; refresh once more.

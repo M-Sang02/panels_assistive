@@ -1,7 +1,6 @@
 package com.manh.panelsassistive
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Bitmap
@@ -166,20 +165,21 @@ class IconOverrideActivity : Activity() {
 
     private fun showOptions(entry: Entry) {
         val key = IconPacks.overrideKey(entry.type, entry.value)
-        AlertDialog.Builder(this)
-            .setTitle(entry.label)
-            .setItems(arrayOf("Chọn ảnh từ máy", "Chọn icon từ gói", "Đặt lại icon mặc định")) { _, which ->
-                when (which) {
-                    0 -> pickImage(key)
-                    1 -> pickPackIcon(key)
-                    else -> {
-                        AppPrefs.setIconOverride(this, key, null)
-                        refreshList()
-                    }
+        val items = listOf(
+            GlassDialogs.Item(OPTION_IMAGE, "Chọn ảnh từ máy", glyph = "image"),
+            GlassDialogs.Item(OPTION_PACK, "Chọn icon từ gói", glyph = "layout-grid"),
+            GlassDialogs.Item(OPTION_RESET, "Đặt lại icon mặc định", glyph = "undo-2")
+        )
+        GlassDialogs.show(this, entry.label, items) { item ->
+            when (item.id) {
+                OPTION_IMAGE -> pickImage(key)
+                OPTION_PACK -> pickPackIcon(key)
+                else -> {
+                    AppPrefs.setIconOverride(this, key, null)
+                    refreshList()
                 }
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
     }
 
     private fun pickImage(key: String) {
@@ -223,15 +223,18 @@ class IconOverrideActivity : Activity() {
             Toast.makeText(this, "Không tìm thấy gói icon nào được cài", Toast.LENGTH_SHORT).show()
             return
         }
-        AlertDialog.Builder(this)
-            .setTitle("Chọn gói icon")
-            .setItems(packs.map { it.label }.toTypedArray()) { _, which ->
-                val packageName = packs[which].packageName
-                AppPrefs.setIconPackPackage(this, packageName)
-                showPackIconList(packageName, key)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        val items = packs.map { pack ->
+            GlassDialogs.Item(
+                id = pack.packageName,
+                label = pack.label,
+                caption = pack.packageName,
+                iconPackage = pack.packageName
+            )
+        }
+        GlassDialogs.show(this, "Chọn gói icon", items, "Gói icon chứa biểu tượng bạn muốn dùng") { item ->
+            AppPrefs.setIconPackPackage(this, item.id)
+            showPackIconList(item.id, key)
+        }
     }
 
     private fun showPackIconList(packageName: String, key: String) {
@@ -240,29 +243,22 @@ class IconOverrideActivity : Activity() {
             Toast.makeText(this, "Gói này không có danh sách icon", Toast.LENGTH_SHORT).show()
             return
         }
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), 0)
+        val sheet = GlassDialogs.sheet(this, "Chọn icon", "Gói $packageName")
+        val search = GlassDialogs.searchField(this, sheet.content)
+        val listView = ListView(this).apply {
+            setBackgroundColor(0)
+            divider = null
+            dividerHeight = 0
+            clipToPadding = false
         }
-        val search = EditText(this).apply {
-            hint = "Tìm icon"
-            setSingleLine()
-            textSize = 14f
-        }
-        val listView = ListView(this)
-        container.addView(search)
-        container.addView(listView, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(360)
+        sheet.content.addView(listView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(360)
         ).apply { topMargin = dp(6) })
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Chọn icon")
-            .setView(container)
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
         val rows = ArrayList(all.filter { it.first.contains(search.text, ignoreCase = true) })
         val packAdapter = PackIconAdapter(packageName, rows) { name ->
             AppPrefs.setIconOverride(this, key, "PACK|$packageName|$name")
-            dialog.dismiss()
+            sheet.dismiss()
             refreshList()
         }
         listView.adapter = packAdapter
@@ -276,7 +272,7 @@ class IconOverrideActivity : Activity() {
                 packAdapter.notifyDataSetChanged()
             }
         })
-        dialog.show()
+        sheet.show()
     }
 
     private fun refreshList() {
@@ -440,5 +436,8 @@ class IconOverrideActivity : Activity() {
 
     private companion object {
         const val REQUEST_IMAGE = 7401
+        const val OPTION_IMAGE = "image"
+        const val OPTION_PACK = "pack"
+        const val OPTION_RESET = "reset"
     }
 }
