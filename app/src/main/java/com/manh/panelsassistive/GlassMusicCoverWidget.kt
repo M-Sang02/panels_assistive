@@ -227,11 +227,11 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     }
 
     /**
-     * The card itself: the album art centre-cropped at full sharpness, a soft
-     * diagonal wash and edge bloom ("loang") like the neutral panes, clear at
-     * the top, thickening into a frosted scrim behind the track text and
-     * transport row and dissolving into the artwork again at the base, plus a
-     * 24dp rounded outline and a light hairline rim. Without artwork it falls
+     * The card itself: the album art centre-cropped at full sharpness under a
+     * soft frosted veil — milkiest at the top edge, clearing steadily downwards
+     * until it is fully transparent at the base — plus a gentle white wash that
+     * bleeds in from the right edge and fades out towards the left, a 24dp
+     * rounded outline and a faint, even hairline rim. Without artwork it falls
      * back to the white glass with a music watermark.
      */
     private fun coverBitmap(
@@ -275,86 +275,48 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             drawMusicWatermark(canvas, context, width, height)
         }
 
-        // "Loang" sheen shared with the neutral panes: light bleeds in from
-        // the right edge — and blooms gently from the bottom-right corner —
-        // melting to transparent towards the middle, so the top stays clear.
-        val wash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                width.toFloat(), 0f, 0f, 0f,
-                Color.argb(26, 255, 255, 255),
-                Color.TRANSPARENT,
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), wash)
-        val bloom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = RadialGradient(
-                width * 0.88f, height * 0.92f, maxOf(width, height) * 0.95f,
-                Color.argb(22, 255, 255, 255),
-                Color.TRANSPARENT,
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bloom)
-
-        // Clear glass over the artwork at the top, thickening smoothly behind
-        // the track text and transport row, then dissolving back into the
-        // artwork at the very bottom so the base never turns into a white slab.
-        val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // Frost matching the reference pane: milkier at the top, clearing in a
+        // steady line-free ramp and reaching full transparency at the bottom
+        // edge, so the artwork breathes again where the card meets its rim.
+        val frost = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
                 intArrayOf(
-                    Color.TRANSPARENT,
-                    Color.TRANSPARENT,
-                    Color.argb(18, 255, 255, 255),
-                    Color.argb(42, 255, 255, 255),
-                    Color.argb(40, 255, 255, 255),
+                    Color.argb(56, 255, 255, 255),
+                    Color.argb(50, 255, 255, 255),
+                    Color.argb(28, 255, 255, 255),
+                    Color.argb(13, 255, 255, 255),
                     Color.TRANSPARENT
                 ),
-                floatArrayOf(0f, 0.30f, 0.52f, 0.72f, 0.86f, 1f),
+                floatArrayOf(0f, 0.30f, 0.58f, 0.84f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), frost)
 
-        // Soft light catching the top edge, kept gentle so the frame reads as
-        // glass instead of a painted line.
-        val edge = (context.resources.displayMetrics.density * 1.4f * scale)
-            .coerceAtLeast(1f)
-        val topGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                width * 0.06f, 0f, width * 0.94f, 0f,
-                intArrayOf(
-                    Color.TRANSPARENT,
-                    Color.argb(60, 255, 255, 255),
-                    Color.TRANSPARENT
-                ),
-                floatArrayOf(0f, 0.5f, 1f),
+        // Soft light bleeding in from the right edge and melting to
+        // transparent towards the left. A wide radial falloff is used on
+        // purpose — a straight gradient read as a white band.
+        val loang = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(
+                width * 1.02f, height * 0.20f, width * 1.16f,
+                Color.argb(34, 255, 255, 255),
+                Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(width * 0.06f, 0f, width * 0.94f, edge, topGlow)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), loang)
 
-        // Light hairline rim on the same rounded path as the clipped cover, so
-        // the line follows the corners exactly. Slightly brighter at the top,
-        // softer at the base, without ever becoming a hard outline.
+        // Hairline rim on the same rounded path as the clipped cover, kept as
+        // faint and even as the reference — no brighter top edge.
         val rimWidth = (context.resources.displayMetrics.density * 0.9f * scale)
             .coerceAtLeast(1f)
         val inset = rimWidth / 2f
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = rimWidth
-            shader = LinearGradient(
-                0f, 0f, 0f, height.toFloat(),
-                intArrayOf(
-                    Color.argb(128, 255, 255, 255),
-                    Color.argb(108, 255, 255, 255),
-                    Color.argb(92, 255, 255, 255)
-                ),
-                floatArrayOf(0f, 0.45f, 1f),
-                Shader.TileMode.CLAMP
-            )
+            color = Color.argb(52, 255, 255, 255)
         }
         canvas.drawRoundRect(
             RectF(inset, inset, width - inset, height - inset),
