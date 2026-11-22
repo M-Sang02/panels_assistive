@@ -79,7 +79,7 @@ object GlassDialogs {
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             background = sheetBackground(activity)
-            setPadding(dp(activity, 18), dp(activity, 16), dp(activity, 18), dp(8))
+            setPadding(dp(activity, 18), dp(activity, 16), dp(activity, 18), dp(activity, 8))
         }
         root.addView(TextView(activity).apply {
             text = title
