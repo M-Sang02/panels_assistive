@@ -1,5 +1,6 @@
 package com.manh.panelsassistive
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -10,6 +11,7 @@ import android.graphics.drawable.LayerDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Switch
@@ -259,7 +261,8 @@ object GlassUi {
         textSize = 14f
         setTypeface(typeface, Typeface.BOLD)
         gravity = Gravity.CENTER
-        setPadding(dp(context, 16), 0, dp(context, 16), 0)
+        setPadding(dp(context, 16), dp(context, 10), dp(context, 16), dp(context, 10))
+        minimumHeight = dp(context, 46)
         background = if (prominent) {
             GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
@@ -278,6 +281,118 @@ object GlassUi {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(context, 8) }
+    }
+
+    /**
+     * Two equally wide action buttons on one row, for pairs such as
+     * "Xuất cài đặt / Nhập cài đặt". Each still uses the shared 46dp height.
+     */
+    fun actionRow(
+        context: Context,
+        firstLabel: CharSequence,
+        secondLabel: CharSequence,
+        prominentFirst: Boolean = false,
+        prominentSecond: Boolean = false,
+        onFirst: () -> Unit,
+        onSecond: () -> Unit
+    ): LinearLayout = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(actionButton(context, firstLabel, prominentFirst, onFirst).apply {
+            maxLines = 2
+            gravity = Gravity.CENTER
+            setPadding(dp(context, 12), dp(context, 8), dp(context, 12), dp(context, 8))
+            layoutParams = LinearLayout.LayoutParams(0, dp(context, 56), 1f).apply {
+                topMargin = dp(context, 8)
+                marginEnd = dp(context, 4)
+            }
+        })
+        addView(actionButton(context, secondLabel, prominentSecond, onSecond).apply {
+            maxLines = 2
+            gravity = Gravity.CENTER
+            setPadding(dp(context, 12), dp(context, 8), dp(context, 12), dp(context, 8))
+            layoutParams = LinearLayout.LayoutParams(0, dp(context, 56), 1f).apply {
+                topMargin = dp(context, 8)
+                marginStart = dp(context, 4)
+            }
+        })
+    }
+
+    /** Circular colour chip shared by every colour section in the app. */
+    fun paletteSwatch(context: Context, color: Int, selected: Boolean): FrameLayout =
+        FrameLayout(context).apply {
+            paintSwatch(context, this, color, selected)
+            contentDescription = "Chọn màu"
+            isClickable = true
+            isFocusable = true
+        }
+
+    fun paintSwatch(context: Context, swatch: View, color: Int, selected: Boolean) {
+        swatch.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+            setStroke(
+                dp(context, if (selected) 3 else 1),
+                if (selected) TEXT_PRIMARY else Color.argb(90, 255, 255, 255)
+            )
+        }
+    }
+
+    /** Small palette tile that opens the shared HSV picker. */
+    fun paletteButton(
+        context: Context,
+        initial: Int,
+        title: String,
+        onPick: (Int) -> Unit
+    ): FrameLayout = FrameLayout(context).apply {
+        background = fieldBackground(context, 12)
+        contentDescription = "Bảng màu tùy chỉnh"
+        isClickable = true
+        isFocusable = true
+        addView(
+            LucideGlyphView(context, "palette", ACCENT),
+            FrameLayout.LayoutParams(dp(context, 18), dp(context, 18), Gravity.CENTER)
+        )
+        setOnClickListener {
+            val activity = context as? Activity ?: return@setOnClickListener
+            PanelColorPicker.show(activity, initial, title, onPick)
+        }
+    }
+
+    /**
+     * One unified colour strip: 32dp swatches followed by the palette button,
+     * horizontally scrollable. Every colour section uses this exact row.
+     */
+    fun paletteRow(
+        context: Context,
+        palette: IntArray,
+        selected: Int,
+        title: String,
+        chips: MutableList<Pair<Int, View>>? = null,
+        initial: Int = selected,
+        onPick: (Int) -> Unit
+    ): HorizontalScrollView = HorizontalScrollView(context).apply {
+        isHorizontalScrollBarEnabled = false
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(context, 4), dp(context, 4), dp(context, 4))
+            palette.forEach { color ->
+                val swatch = paletteSwatch(context, color, color == selected).apply {
+                    setOnClickListener { onPick(color) }
+                }
+                chips?.add(color to swatch)
+                addView(swatch, LinearLayout.LayoutParams(dp(context, 32), dp(context, 32)).apply {
+                    marginEnd = dp(context, 7)
+                })
+            }
+            addView(paletteButton(context, initial, title, onPick),
+                LinearLayout.LayoutParams(dp(context, 36), dp(context, 36)))
+        }
+        addView(row)
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(context, 6) }
     }
 
     fun iconTile(

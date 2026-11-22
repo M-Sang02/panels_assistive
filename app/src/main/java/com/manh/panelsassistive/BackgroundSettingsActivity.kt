@@ -7,7 +7,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -43,7 +42,17 @@ class BackgroundSettingsActivity : Activity() {
 
         root.addView(GlassUi.glassCard(this).apply {
             addView(fieldLabel("Màu nền"))
-            addView(colorRow())
+            addView(GlassUi.paletteRow(
+                this@BackgroundSettingsActivity,
+                AppPrefs.panelPalette,
+                AppPrefs.sharedPanelColor(this@BackgroundSettingsActivity),
+                "Màu nền",
+                colorChips
+            ) { color ->
+                AppPrefs.setSharedPanelColor(this@BackgroundSettingsActivity, color)
+                renderPreview()
+                refreshPanels()
+            })
         })
 
         root.addView(GlassUi.glassCard(this).apply {
@@ -151,48 +160,6 @@ class BackgroundSettingsActivity : Activity() {
         })
     }
 
-    private fun colorRow(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, dp(10), 0, 0)
-        AppPrefs.panelPalette.forEach { color ->
-            val chip = View(this@BackgroundSettingsActivity).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(color)
-                }
-                isClickable = true
-                contentDescription = "Màu nền"
-                setOnClickListener {
-                    AppPrefs.setSharedPanelColor(this@BackgroundSettingsActivity, color)
-                    renderPreview()
-                    refreshPanels()
-                }
-            }
-            colorChips.add(color to chip)
-            addView(chip, LinearLayout.LayoutParams(dp(30), dp(30)).apply {
-                marginEnd = dp(6)
-            })
-        }
-        addView(ImageButton(this@BackgroundSettingsActivity).apply {
-            setImageResource(android.R.drawable.ic_menu_edit)
-            setColorFilter(GlassUi.TEXT_PRIMARY)
-            background = GlassUi.fieldBackground(this@BackgroundSettingsActivity, 12)
-            contentDescription = "Màu nền tùy chỉnh"
-            setPadding(dp(6), dp(6), dp(6), dp(6))
-            setOnClickListener {
-                PanelColorPicker.show(
-                    this@BackgroundSettingsActivity,
-                    AppPrefs.sharedPanelColor(this@BackgroundSettingsActivity)
-                ) { color ->
-                    AppPrefs.setSharedPanelColor(this@BackgroundSettingsActivity, color)
-                    renderPreview()
-                    refreshPanels()
-                }
-            }
-        }, LinearLayout.LayoutParams(dp(36), dp(36)))
-    }
-
     private fun updateValues() {
         opacityValue.text = "${AppPrefs.sharedPanelOpacity(this)}%"
         cornerValue.text = "${AppPrefs.sharedPanelCorner(this)}dp"
@@ -214,10 +181,7 @@ class BackgroundSettingsActivity : Activity() {
             }
         }
         colorChips.forEach { (chipColor, chip) ->
-            (chip.background as? GradientDrawable)?.setStroke(
-                dp(2),
-                if (chipColor == color) GlassUi.TEXT_PRIMARY else Color.argb(80, 255, 255, 255)
-            )
+            GlassUi.paintSwatch(this, chip, chipColor, chipColor == color)
         }
     }
 

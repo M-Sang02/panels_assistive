@@ -174,26 +174,25 @@ class AdvancedSettingsActivity : Activity() {
             13,
             GlassUi.TEXT_SECONDARY
         ).apply { setPadding(0, dp(4), 0, dp(4)) })
-        addView(GlassUi.actionButton(
+        addView(GlassUi.actionRow(
             this@AdvancedSettingsActivity,
-            getString(R.string.open_accessibility_settings)
-        ) { ActionDispatcher.openAccessibilitySettings(this@AdvancedSettingsActivity) })
-        addView(GlassUi.actionButton(
-            this@AdvancedSettingsActivity,
-            getString(R.string.open_battery_optimization_settings)
-        ) {
-            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-            } else {
-                startActivity(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                        .setData(Uri.parse("package:$packageName"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
+            getString(R.string.open_accessibility_settings),
+            getString(R.string.open_battery_optimization_settings),
+            onFirst = { ActionDispatcher.openAccessibilitySettings(this@AdvancedSettingsActivity) },
+            onSecond = {
+                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                } else {
+                    startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                            .setData(Uri.parse("package:$packageName"))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
             }
-        })
+        ))
         addView(label(getString(R.string.accessibility_optional_description), 12, GlassUi.TEXT_MUTED).apply {
             setPadding(0, dp(8), 0, 0)
         })
@@ -270,33 +269,36 @@ class AdvancedSettingsActivity : Activity() {
         addView(label(getString(R.string.quick_settings_description), 13, GlassUi.TEXT_SECONDARY).apply {
             setPadding(0, dp(8), 0, dp(4))
         })
-        addView(GlassUi.actionButton(
+        addView(GlassUi.actionRow(
             this@AdvancedSettingsActivity,
-            getString(R.string.add_panels_tile)
-        ) { QuickSettingsTiles.requestAdd(this@AdvancedSettingsActivity, accessibilityTile = false) })
-        addView(GlassUi.actionButton(
-            this@AdvancedSettingsActivity,
-            getString(R.string.add_accessibility_tile)
-        ) { QuickSettingsTiles.requestAdd(this@AdvancedSettingsActivity, accessibilityTile = true) })
+            getString(R.string.add_panels_tile),
+            getString(R.string.add_accessibility_tile),
+            onFirst = {
+                QuickSettingsTiles.requestAdd(this@AdvancedSettingsActivity, accessibilityTile = false)
+            },
+            onSecond = {
+                QuickSettingsTiles.requestAdd(this@AdvancedSettingsActivity, accessibilityTile = true)
+            }
+        ))
     }
 
     private fun backupCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(cardHeader("download", getString(R.string.settings_backup_section)))
-        addView(GlassUi.actionButton(
+        addView(GlassUi.actionRow(
             this@AdvancedSettingsActivity,
-            getString(R.string.export_settings)
-        ) { exportBackup() })
-        addView(GlassUi.actionButton(
-            this@AdvancedSettingsActivity,
-            getString(R.string.import_settings)
-        ) {
-            AlertDialog.Builder(this@AdvancedSettingsActivity)
-                .setTitle(R.string.import_settings)
-                .setMessage(R.string.import_settings_confirmation)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.import_settings) { _, _ -> importBackup() }
-                .show()
-        })
+            getString(R.string.export_settings),
+            getString(R.string.import_settings),
+            prominentFirst = true,
+            onFirst = { exportBackup() },
+            onSecond = {
+                AlertDialog.Builder(this@AdvancedSettingsActivity)
+                    .setTitle(R.string.import_settings)
+                    .setMessage(R.string.import_settings_confirmation)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.import_settings) { _, _ -> importBackup() }
+                    .show()
+            }
+        ))
     }
 
     private fun statusCard(): LinearLayout = GlassUi.glassCard(this).apply {

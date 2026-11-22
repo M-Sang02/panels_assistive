@@ -21,12 +21,18 @@
         android:orientation="horizontal"
         android:padding="10dp">
 
-        <ImageView
-            android:id="@+id/widget_art"
-            android:layout_width="68dp"
-            android:layout_height="68dp"
-            android:scaleType="fitCenter"
-            android:contentDescription="Ảnh bìa" />
+        <FrameLayout
+            android:layout_width="80dp"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:id="@+id/widget_art"
+                android:layout_width="68dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:contentDescription="Ảnh bìa"
+                android:scaleType="fitCenter" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"

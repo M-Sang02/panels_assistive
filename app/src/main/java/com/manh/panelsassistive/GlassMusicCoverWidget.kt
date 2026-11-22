@@ -289,26 +289,6 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), veil)
 
-        // Soft glass reflection: a diagonal band of light sweeping across the
-        // card, like the compact music widget's glossy highlight. Kept faint
-        // so the artwork stays readable.
-        val glare = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            isDither = true
-            shader = LinearGradient(
-                -width * 0.2f, 0f, width * 1.05f, height * 0.95f,
-                intArrayOf(
-                    Color.TRANSPARENT,
-                    Color.TRANSPARENT,
-                    Color.argb(46, 255, 255, 255),
-                    Color.TRANSPARENT,
-                    Color.TRANSPARENT
-                ),
-                floatArrayOf(0f, 0.36f, 0.5f, 0.64f, 1f),
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), glare)
-
         // Brighter hairline along the top edge: the card catches the light.
         val edge = (GlassWidgets.dp(context, 1) * scale).coerceAtLeast(1f)
         val topGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {

@@ -994,15 +994,13 @@ class FloatBallService : Service() {
             }
             try {
                 widgetHost.createView(this, id, info).apply {
-                    // Report the exact slot span (cells + inner gaps) so the
-                    // RemoteViews layout matches the rectangle it is drawn in.
-                    updateAppWidgetSize(
-                        null,
-                        cellWidthDp * spanX + 6 * (spanX - 1),
-                        rowHeightDp * spanY + 6 * (spanY - 1),
-                        cellWidthDp * spanX + 6 * (spanX - 1),
-                        rowHeightDp * spanY + 6 * (spanY - 1)
-                    )
+                    // Report the exact pixel slot converted to dp (see spanDp):
+                    // the old dp arithmetic rounded up at large spans, so a
+                    // widget filling 100% of the cells was laid out wider than
+                    // its view and got cropped.
+                    val widthDp = PanelViewportMetrics.spanDp(this@FloatBallService, cellWidthDp, spanX)
+                    val heightDp = PanelViewportMetrics.spanDp(this@FloatBallService, rowHeightDp, spanY)
+                    updateAppWidgetSize(null, widthDp, heightDp, widthDp, heightDp)
                     setOnTouchListener { _, event ->
                         if (popupEditMode) return@setOnTouchListener true
                         panelSwipeListener.onTouch(this, event)
@@ -1017,8 +1015,8 @@ class FloatBallService : Service() {
             createPanelShortcut(
                 item,
                 showLabel = AppPrefs.showPanelLabels(this),
-                tileWidthDp = cellWidthDp * spanX + 6 * (spanX - 1),
-                tileHeightDp = rowHeightDp * spanY + 6 * (spanY - 1)
+                tileWidthDp = PanelViewportMetrics.spanDp(this, cellWidthDp, spanX),
+                tileHeightDp = PanelViewportMetrics.spanDp(this, rowHeightDp, spanY)
             )
         }
         wrapper.addView(content, FrameLayout.LayoutParams(

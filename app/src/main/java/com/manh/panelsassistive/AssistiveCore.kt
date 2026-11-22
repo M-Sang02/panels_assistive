@@ -103,6 +103,15 @@ internal object PanelViewportMetrics {
         val slots = span.coerceAtLeast(1)
         return sizePx(context, sizeDp) * slots + gapPx(context) * (slots - 1)
     }
+
+    /**
+     * The spanned slot width converted back to dp with the same rounding used
+     * to build the view. RemoteViews sizes are compared against this value, so
+     * reporting `sizeDp * span + 6 * (span - 1)` overestimated wide widgets and
+     * cropped their right/bottom edge. At one cell the two are identical.
+     */
+    fun spanDp(context: Context, sizeDp: Int, span: Int): Int =
+        (spanPx(context, sizeDp, span) / context.resources.displayMetrics.density).toInt()
 }
 
 object AppPrefs {
@@ -893,12 +902,12 @@ object AppPrefs {
     }
 
     /**
-     * Saturated presets for the widget accent. Deliberately deeper than the
-     * pale theme swatches: the colour is painted over a frosted white card,
-     * so a light tint looked washed out there.
+     * Presets for the widget accent. Still saturated enough to read over the
+     * frosted white card, but the first (default) swatch is a lighter, softer
+     * blue that matches the light tone of the colour picker plane.
      */
     val WIDGET_ACCENT_PALETTE = intArrayOf(
-        0xFF1F6BFF.toInt(),
+        0xFF4E96E8.toInt(),
         0xFF00A884.toInt(),
         0xFFFF5A36.toInt(),
         0xFFE0266B.toInt(),

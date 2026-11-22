@@ -5,14 +5,10 @@ import android.app.AlertDialog
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -341,56 +337,13 @@ class WidgetSettingsActivity : Activity() {
                 "nút Phát / Tạm dừng của cả hai widget nhạc; nền widget vẫn là kính trắng."
         ))
         val current = AppPrefs.widgetAccent(this@WidgetSettingsActivity)
-        val row = LinearLayout(this@WidgetSettingsActivity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), dp(4), dp(4))
-            AppPrefs.WIDGET_ACCENT_PALETTE.forEach { color ->
-                addView(swatch(color, color == current),
-                    LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(7) })
-            }
-            addView(FrameLayout(this@WidgetSettingsActivity).apply {
-                background = GlassUi.fieldBackground(this@WidgetSettingsActivity, 12)
-                contentDescription = "Bảng màu widget tùy chỉnh"
-                isClickable = true
-                isFocusable = true
-                addView(
-                    LucideGlyphView(this@WidgetSettingsActivity, "palette", GlassUi.ACCENT),
-                    FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER)
-                )
-                setOnClickListener {
-                    PanelColorPicker.show(
-                        this@WidgetSettingsActivity,
-                        current,
-                        "Màu của widget"
-                    ) { color -> applyWidgetColor(color) }
-                }
-            }, LinearLayout.LayoutParams(dp(36), dp(36)))
-        }
-        addView(HorizontalScrollView(this@WidgetSettingsActivity).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(row)
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(6) })
+        addView(GlassUi.paletteRow(
+            this@WidgetSettingsActivity,
+            AppPrefs.WIDGET_ACCENT_PALETTE,
+            current,
+            "Màu của widget"
+        ) { color -> applyWidgetColor(color) })
     }
-
-    private fun swatch(color: Int, selected: Boolean): FrameLayout =
-        FrameLayout(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(color)
-                setStroke(
-                    dp(if (selected) 3 else 1),
-                    if (selected) Color.WHITE else Color.argb(90, 255, 255, 255)
-                )
-            }
-            contentDescription = "Màu widget"
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { applyWidgetColor(color) }
-        }
 
     private fun applyWidgetColor(color: Int) {
         AppPrefs.setWidgetAccent(this, color)

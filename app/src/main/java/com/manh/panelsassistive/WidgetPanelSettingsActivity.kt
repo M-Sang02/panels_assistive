@@ -313,44 +313,16 @@ class WidgetPanelSettingsActivity : Activity() {
             secondary
         ).apply { setPadding(0, dp(6), 0, dp(2)) })
         popupChips.clear()
-        addView(LinearLayout(this@WidgetPanelSettingsActivity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(10), 0, 0)
-            AppPrefs.panelPalette.forEach { swatch ->
-                val chip = View(this@WidgetPanelSettingsActivity).apply {
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(swatch)
-                    }
-                    isClickable = true
-                    contentDescription = "Màu nền bảng tiện ích"
-                    setOnClickListener {
-                        AppPrefs.setPopupPanelColor(this@WidgetPanelSettingsActivity, swatch)
-                        updatePreviewBackground()
-                        refreshPopupSurface()
-                    }
-                }
-                popupChips.add(swatch to chip)
-                addView(chip, LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(6) })
-            }
-            addView(ImageButton(this@WidgetPanelSettingsActivity).apply {
-                setImageResource(android.R.drawable.ic_menu_edit)
-                setColorFilter(this@WidgetPanelSettingsActivity.foreground)
-                background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 12)
-                contentDescription = "Màu nền tùy chỉnh"
-                setPadding(dp(6), dp(6), dp(6), dp(6))
-                setOnClickListener {
-                    PanelColorPicker.show(
-                        this@WidgetPanelSettingsActivity,
-                        AppPrefs.popupPanelColor(this@WidgetPanelSettingsActivity)
-                    ) { color ->
-                        AppPrefs.setPopupPanelColor(this@WidgetPanelSettingsActivity, color)
-                        updatePreviewBackground()
-                        refreshPopupSurface()
-                    }
-                }
-            }, LinearLayout.LayoutParams(dp(36), dp(36)))
+        addView(GlassUi.paletteRow(
+            this@WidgetPanelSettingsActivity,
+            AppPrefs.panelPalette,
+            AppPrefs.popupPanelColor(this@WidgetPanelSettingsActivity),
+            "Nền bảng tiện ích",
+            popupChips
+        ) { color ->
+            AppPrefs.setPopupPanelColor(this@WidgetPanelSettingsActivity, color)
+            updatePreviewBackground()
+            refreshPopupSurface()
         })
         val opacityValue = text(
             "${AppPrefs.popupPanelOpacity(this@WidgetPanelSettingsActivity)}%",
@@ -539,10 +511,7 @@ class WidgetPanelSettingsActivity : Activity() {
 
     private fun updatePopupChips(color: Int) {
         popupChips.forEach { (swatch, chip) ->
-            (chip.background as? GradientDrawable)?.setStroke(
-                dp(2),
-                if (swatch == color) GlassUi.TEXT_PRIMARY else Color.argb(80, 255, 255, 255)
-            )
+            GlassUi.paintSwatch(this, chip, swatch, swatch == color)
         }
     }
 
@@ -922,8 +891,12 @@ class WidgetPanelSettingsActivity : Activity() {
             if (info != null) {
                 try {
                     val widgetView = host.createView(this, widgetId, info)
-                    val widthDp = page.cellWidthDp * spanX + 6 * (spanX - 1)
-                    val heightDp = page.rowHeightDp * spanY + 6 * (spanY - 1)
+                    val widthDp = PanelViewportMetrics.spanDp(
+                        this@WidgetPanelSettingsActivity, page.cellWidthDp, spanX
+                    )
+                    val heightDp = PanelViewportMetrics.spanDp(
+                        this@WidgetPanelSettingsActivity, page.rowHeightDp, spanY
+                    )
                     widgetView.updateAppWidgetSize(
                         null,
                         widthDp,

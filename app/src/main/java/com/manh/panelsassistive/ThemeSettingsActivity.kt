@@ -3,13 +3,11 @@ package com.manh.panelsassistive
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -71,57 +69,14 @@ class ThemeSettingsActivity : Activity() {
         val activeCustom =
             AppPrefs.themeKey(this@ThemeSettingsActivity) == AppThemes.CUSTOM_KEY
         val accent = AppThemes.current(this@ThemeSettingsActivity).accent
-        val row = LinearLayout(this@ThemeSettingsActivity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(2), dp(4), dp(2))
-            AppThemes.ACCENT_PALETTE.forEach { color ->
-                addView(swatch(color, activeCustom && color == accent),
-                    LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(7) })
-            }
-            addView(FrameLayout(this@ThemeSettingsActivity).apply {
-                background = GlassUi.fieldBackground(this@ThemeSettingsActivity, 12)
-                contentDescription = "Bảng màu tùy chỉnh"
-                isClickable = true
-                isFocusable = true
-                addView(LucideGlyphView(
-                    this@ThemeSettingsActivity,
-                    "palette",
-                    GlassUi.ACCENT
-                ), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
-                setOnClickListener {
-                    PanelColorPicker.show(
-                        this@ThemeSettingsActivity,
-                        accent,
-                        "Màu nhấn tùy chỉnh"
-                    ) { color -> applyAccent(color) }
-                }
-            }, LinearLayout.LayoutParams(dp(36), dp(36)))
-        }
-        addView(HorizontalScrollView(this@ThemeSettingsActivity).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(row)
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(6) })
+        addView(GlassUi.paletteRow(
+            this@ThemeSettingsActivity,
+            AppThemes.ACCENT_PALETTE,
+            if (activeCustom) accent else 0,
+            "Màu nhấn tùy chỉnh",
+            initial = accent
+        ) { color -> applyAccent(color) })
     }
-
-    private fun swatch(color: Int, selected: Boolean): FrameLayout =
-        FrameLayout(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(color)
-                setStroke(
-                    dp(if (selected) 3 else 1),
-                    if (selected) GlassUi.TEXT_PRIMARY else Color.argb(90, 255, 255, 255)
-                )
-            }
-            contentDescription = "Màu nhấn " + hex(color)
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { applyAccent(color) }
-        }
 
     private fun applyAccent(color: Int) {
         AppThemes.applyAccent(this, color)
