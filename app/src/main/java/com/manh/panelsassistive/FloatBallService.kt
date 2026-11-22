@@ -29,8 +29,6 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.ImageDecoder
-import android.graphics.LinearGradient
-import android.graphics.Shader
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -2248,9 +2246,13 @@ class FloatBallService : Service() {
 
     private class FloatBallIconView(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        private val ringRect = RectF()
-        private var ballShader: Shader? = null
-        private var ballShaderWidth = 0
+        /**
+         * Default ball face. This is the same PNG used as the launcher icon, so
+         * replacing `panels_assistive_icon.png` restyles both at once.
+         */
+        private val defaultIconBitmap: Bitmap? by lazy {
+            BitmapFactory.decodeResource(resources, R.drawable.panels_assistive_icon)
+        }
         private val iconHandler = Handler(Looper.getMainLooper())
         private var sourceMode = AppPrefs.FloatBallIconMode.STATIC
         private var cropScale = 1f
@@ -2647,37 +2649,25 @@ class FloatBallService : Service() {
                 return
             }
 
-            // Default face mirrors the settings glyph language: accent squircle
-            // with a white dashed dot-ring, same shape as the app icon.
-            val inset = width * 0.06f
-            val radius = width * 0.5f * cornerPercent / 100f
-            paint.style = Paint.Style.FILL
-            paint.shader = ballBallShader()
-            canvas.drawRoundRect(
-                RectF(inset, inset, width - inset, height - inset),
-                radius,
-                radius,
-                paint
-            )
-            paint.shader = null
-            val cx = width / 2f
-            val cy = height / 2f
-            ringRect.set(
-                cx - width * 0.21f, cy - width * 0.21f,
-                cx + width * 0.21f, cy + width * 0.21f
-            )
-            paint.color = Color.WHITE
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = width * 0.048f
-            paint.strokeCap = Paint.Cap.ROUND
-            var sweepStart = -86f
-            repeat(4) {
-                canvas.drawArc(ringRect, sweepStart, 68f, false, paint)
-                sweepStart += 90f
+            // Default face: the app icon artwork, decoded from a real image so
+            // the artwork can be swapped without touching code. The image owns
+            // its own squircle and ring (no centre dot), so the clipped canvas
+            // is released first and the icon is drawn at full size.
+            val icon = defaultIconBitmap
+            if (icon != null) {
+                canvas.restoreToCount(saveCount)
+                paint.shader = null
+                paint.color = Color.WHITE
+                paint.style = Paint.Style.FILL
+                paint.strokeCap = Paint.Cap.BUTT
+                canvas.drawBitmap(
+                    icon,
+                    null,
+                    RectF(0f, 0f, width.toFloat(), height.toFloat()),
+                    paint
+                )
+                return
             }
-            paint.style = Paint.Style.FILL
-            paint.strokeCap = Paint.Cap.BUTT
-            canvas.drawCircle(cx, cy, width * 0.062f, paint)
             canvas.restoreToCount(saveCount)
         }
 
@@ -2691,19 +2681,6 @@ class FloatBallService : Service() {
             bitmap?.recycle()
             bitmap = null
             super.onDetachedFromWindow()
-        }
-
-        private fun ballBallShader(): Shader {
-            val cached = ballShader
-            if (cached != null && ballShaderWidth == width) return cached
-            return LinearGradient(
-                0f, 0f, width.toFloat(), height.toFloat(),
-                GlassUi.ACCENT, GlassUi.ACCENT_STRONG,
-                Shader.TileMode.CLAMP
-            ).also {
-                ballShader = it
-                ballShaderWidth = width
-            }
         }
 
         private fun dp(value: Int) =
