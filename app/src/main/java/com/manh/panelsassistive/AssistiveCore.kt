@@ -58,6 +58,12 @@ data class ExpansionShortcut(
     val label: String
 )
 
+/** What the panel was created for; only the starting geometry differs. */
+object PanelKind {
+    const val WIDGET = "widget"
+    const val APP = "app"
+}
+
 data class WidgetPanelPage(
     val id: String,
     val name: String,
@@ -70,7 +76,8 @@ data class WidgetPanelPage(
     val areaRows: Int = 10,
     val areaPaddingDp: Int = 0,
     val backgroundOpacity: Int = 78,
-    val backgroundColor: Int = 0xFF152438.toInt()
+    val backgroundColor: Int = 0xFF152438.toInt(),
+    val kind: String = PanelKind.WIDGET
 )
 
 internal object PanelViewportMetrics {
@@ -156,6 +163,7 @@ object AppPrefs {
     private const val KEY_CURRENT_PORTRAIT_PANEL = "current_portrait_panel"
     private const val KEY_CURRENT_LANDSCAPE_PANEL = "current_landscape_panel"
     private const val KEY_PANEL_EDGE_PADDING_MIGRATED = "panel_edge_padding_migrated"
+    private const val KEY_PANEL_BACKGROUNDS_MIGRATED = "panel_backgrounds_migrated"
     private const val KEY_LANDSCAPE_LAYOUT_ENABLED = "landscape_layout_enabled"
     private const val KEY_WIDGET_POPUP_ENABLED = "widget_popup_enabled"
     private const val KEY_POPUP_BLUR = "popup_blur"
@@ -515,12 +523,41 @@ object AppPrefs {
         editor.putBoolean(KEY_PANEL_EDGE_PADDING_MIGRATED, true).apply()
     }
 
+    /**
+     * Before per-panel backgrounds every panel shared the popup surface colour.
+     * Seeding each saved page with that current look keeps existing panels
+     * unchanged; from then on each page owns its background.
+     */
+    private fun migratePanelBackgrounds(context: Context) {
+        val prefs = store(context)
+        if (prefs.getBoolean(KEY_PANEL_BACKGROUNDS_MIGRATED, false)) return
+        val color = popupPanelColor(context)
+        val opacity = popupPanelOpacity(context)
+        val editor = prefs.edit()
+        listOf(KEY_PORTRAIT_PANELS, KEY_LANDSCAPE_PANELS).forEach { key ->
+            val serialized = prefs.getString(key, null) ?: return@forEach
+            try {
+                val pages = JSONArray(serialized)
+                for (index in 0 until pages.length()) {
+                    val page = pages.optJSONObject(index) ?: continue
+                    page.put("backgroundColor", color)
+                    page.put("backgroundOpacity", opacity)
+                }
+                editor.putString(key, pages.toString())
+            } catch (error: JSONException) {
+                Log.e(TAG, "Unable to migrate panel backgrounds for $key", error)
+            }
+        }
+        editor.putBoolean(KEY_PANEL_BACKGROUNDS_MIGRATED, true).apply()
+    }
+
     fun maxGridColumns(landscape: Boolean): Int = if (landscape) 20 else 10
 
     fun maxGridRows(landscape: Boolean): Int = if (landscape) 10 else 20
 
     fun panelPages(context: Context, landscape: Boolean = false): List<WidgetPanelPage> {
         migratePanelEdgePadding(context)
+        migratePanelBackgrounds(context)
         val key = if (landscape) KEY_LANDSCAPE_PANELS else KEY_PORTRAIT_PANELS
         val serialized = store(context).getString(key, null) ?: return defaultPanel(context, landscape)
         return try {
@@ -569,7 +606,8 @@ object AppPrefs {
                                 .coerceIn(1, 30),
                             jsonPage.optInt("areaPaddingDp", 0).coerceIn(0, 100),
                             jsonPage.optInt("backgroundOpacity", 78).coerceIn(0, 100),
-                            jsonPage.optInt("backgroundColor", 0xFF152438.toInt())
+                            jsonPage.optInt("backgroundColor", 0xFF152438.toInt()),
+                            jsonPage.optString("kind", PanelKind.WIDGET)
                         )
                     )
                 }
@@ -616,6 +654,7 @@ object AppPrefs {
                     .put("areaPaddingDp", page.areaPaddingDp.coerceIn(0, 100))
                     .put("backgroundOpacity", page.backgroundOpacity.coerceIn(0, 100))
                     .put("backgroundColor", page.backgroundColor)
+                    .put("kind", if (page.kind == PanelKind.APP) PanelKind.APP else PanelKind.WIDGET)
                     .put("items", items)
             )
         }
@@ -644,9 +683,42 @@ object AppPrefs {
         }
     }
 
-    fun addPanel(context: Context, landscape: Boolean, name: String): WidgetPanelPage {
-        val page = WidgetPanelPage(UUID.randomUUID().toString(), name)
-        savePanelPages(context, landscape, panelPages(context, landscape) + page, page.id)
+    fun addPanel(
+        context: Context,
+        landscape: Boolean,
+        name: String,
+        kind: String = PanelKind.WIDGET
+    ): WidgetPanelPage {
+        val pages = panelPages(context, landscape)
+        // Every new panel starts with its own background: walk the palette so a
+        // fresh panel never looks identical to the one created before it.
+        val background = panelPalette[pages.size % panelPalette.size]
+        val opacity = popupPanelOpacity(context)
+        val page = if (kind == PanelKind.APP) {
+            WidgetPanelPage(
+                id = UUID.randomUUID().toString(),
+                name = name,
+                kind = PanelKind.APP,
+                columns = 5,
+                rows = 5,
+                cellWidthDp = 70,
+                rowHeightDp = 70,
+                areaColumns = 5,
+                areaRows = 5,
+                areaPaddingDp = 0,
+                backgroundOpacity = opacity,
+                backgroundColor = background
+            )
+        } else {
+            WidgetPanelPage(
+                id = UUID.randomUUID().toString(),
+                name = name,
+                kind = PanelKind.WIDGET,
+                backgroundOpacity = opacity,
+                backgroundColor = background
+            )
+        }
+        savePanelPages(context, landscape, pages + page, page.id)
         return page
     }
 
@@ -1434,7 +1506,9 @@ object AppPrefs {
     private fun defaultPanel(context: Context, landscape: Boolean) = listOf(
         WidgetPanelPage(
             id = if (landscape) "landscape-default" else "portrait-default",
-            name = context.getString(R.string.default_panel_name)
+            name = context.getString(R.string.default_panel_name),
+            backgroundOpacity = popupPanelOpacity(context),
+            backgroundColor = popupPanelColor(context)
         )
     )
 

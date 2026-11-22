@@ -113,6 +113,14 @@
     <string name="default_panel_name">Bảng 1</string>
     <string name="panel_name_hint">Tên bảng</string>
     <string name="add_panel">Thêm bảng</string>
+    <string name="add_panel_subtitle">Đặt tên và chọn mục đích cho bảng.</string>
+    <string name="panel_kind_label">Loại bảng</string>
+    <string name="panel_kind_widget">Bảng cho tiện ích</string>
+    <string name="panel_kind_widget_caption">Lưới 10×10, ô 30dp — giữ nguyên tỷ lệ hiện tại</string>
+    <string name="panel_kind_app">Bảng cho app</string>
+    <string name="panel_kind_app_caption">Lưới 5×5, ô 70dp cho biểu tượng ứng dụng</string>
+    <string name="create_panel">Tạo bảng</string>
+    <string name="panel_name_required">Nhập tên bảng</string>
     <string name="rename_panel">Đổi tên bảng</string>
     <string name="delete_panel">Xóa bảng</string>
     <string name="keep_one_panel">Cần giữ lại ít nhất một bảng.</string>

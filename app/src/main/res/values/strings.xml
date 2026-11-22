@@ -113,6 +113,14 @@
     <string name="default_panel_name">Panel 1</string>
     <string name="panel_name_hint">Panel name</string>
     <string name="add_panel">Add panel</string>
+    <string name="add_panel_subtitle">Name the panel and pick what it is for.</string>
+    <string name="panel_kind_label">Panel type</string>
+    <string name="panel_kind_widget">Widget panel</string>
+    <string name="panel_kind_widget_caption">10×10 grid, 30dp cells — keeps the current ratio</string>
+    <string name="panel_kind_app">App panel</string>
+    <string name="panel_kind_app_caption">5×5 grid, 70dp cells for app icons</string>
+    <string name="create_panel">Create panel</string>
+    <string name="panel_name_required">Enter a panel name</string>
     <string name="rename_panel">Rename panel</string>
     <string name="delete_panel">Delete panel</string>
     <string name="keep_one_panel">Keep at least one panel.</string>

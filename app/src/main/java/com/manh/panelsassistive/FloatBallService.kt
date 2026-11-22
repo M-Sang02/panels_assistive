@@ -81,6 +81,8 @@ class FloatBallService : Service() {
     private var popupAddButton: View? = null
     private var popupTemporarilyHidden = false
     private var popupEditMode = false
+    private var popupScroller: android.widget.HorizontalScrollView? = null
+    private var popupViewport: ScrollView? = null
     /** True between hiding the overlays and MiCTS taking its screenshot. */
     private var screenSearchActive = false
     private var widgetHostListening = false
@@ -821,7 +823,7 @@ class FloatBallService : Service() {
         val landscape = usesLandscapeLayout()
         val pages = AppPrefs.panelPages(this, landscape)
         val page = pages.firstOrNull { it.id == AppPrefs.currentPanelId(this, landscape) } ?: pages.first()
-        val popupBackground = popupPanelBackground()
+        val popupBackground = popupPanelBackground(page)
         val root = FrameLayout(this).apply {
             elevation = dp(18).toFloat()
         }
@@ -877,6 +879,8 @@ class FloatBallService : Service() {
         })
         grid.setOnTouchListener(panelSwipeListener)
         root.setOnTouchListener(panelSwipeListener)
+        popupViewport = vertical
+        popupScroller = horizontal
         showOverlayPanel(
             root,
             dp(PanelViewportMetrics.panelWidthDp(page)),
@@ -1417,11 +1421,20 @@ class FloatBallService : Service() {
         AppPrefs.sharedPanelCorner(this)
     )
 
-    private fun popupPanelBackground() = panelBackground(
-        AppPrefs.popupPanelColor(this),
-        AppPrefs.popupPanelOpacity(this),
-        AppPrefs.popupPanelCorner(this)
-    )
+    private fun popupPanelBackground(page: WidgetPanelPage? = null): GradientDrawable {
+        val target = page ?: selectedPanelPage()
+        return panelBackground(
+            target?.backgroundColor ?: AppPrefs.popupPanelColor(this),
+            target?.backgroundOpacity ?: AppPrefs.popupPanelOpacity(this),
+            AppPrefs.popupPanelCorner(this)
+        )
+    }
+
+    private fun selectedPanelPage(): WidgetPanelPage? {
+        val landscape = usesLandscapeLayout()
+        return AppPrefs.panelPages(this, landscape)
+            .firstOrNull { it.id == AppPrefs.currentPanelId(this, landscape) }
+    }
 
     private fun panelBackground(color: Int, opacity: Int, corner: Int) = GradientDrawable().apply {
         val alpha = opacity.coerceIn(0, 100) * 255 / 100
@@ -1997,7 +2010,48 @@ class FloatBallService : Service() {
         val next = (current + direction + pages.size) % pages.size
         AppPrefs.setCurrentPanel(this, landscape, pages[next].id)
         populateWidgetList()
+        applyPanelSurface(pages[next])
         animatePanelChange(direction)
+    }
+
+    /**
+     * Each panel owns its background (and may have its own geometry), so a
+     * swipe repaints the window and resizes the viewport to the new page.
+     */
+    private fun applyPanelSurface(page: WidgetPanelPage) {
+        val window = popupDialog?.window ?: return
+        window.setBackgroundDrawable(popupPanelBackground(page))
+        window.decorView.setPadding(0, 0, 0, 0)
+        val width = minOf(
+            dp(PanelViewportMetrics.panelWidthDp(page)),
+            (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(1))
+        )
+        val height = minOf(
+            dp(PanelViewportMetrics.panelHeightDp(page)),
+            (resources.displayMetrics.heightPixels - dp(64)).coerceAtLeast(dp(1))
+        )
+        window.setLayout(width, height)
+        applyPopupBlur(window, OverlaySurface.WIDGETS)
+        val columns = page.columns.coerceIn(2, 20)
+        val viewportWidthDp = PanelViewportMetrics.widthDp(page.areaColumns, page.cellWidthDp)
+        val viewportHeightDp = PanelViewportMetrics.heightDp(page.areaRows, page.rowHeightDp)
+        val surfaceWidth = dp(maxOf(
+            viewportWidthDp,
+            PanelViewportMetrics.widthDp(columns, page.cellWidthDp)
+        ))
+        popupViewport?.layoutParams = (popupViewport?.layoutParams as? FrameLayout.LayoutParams)?.apply {
+            this.width = surfaceWidth
+            this.height = dp(viewportHeightDp)
+        }
+        popupScroller?.layoutParams = (popupScroller?.layoutParams as? FrameLayout.LayoutParams)?.apply {
+            val inset = dp(page.areaPaddingDp.coerceIn(0, 100))
+            setMargins(inset, inset, inset, inset)
+        }
+        popupScroller?.post {
+            val scroller = popupScroller ?: return@post
+            val viewport = popupViewport ?: return@post
+            scroller.scrollTo(((viewport.width - scroller.width) / 2).coerceAtLeast(0), 0)
+        }
     }
 
     private fun animatePanelChange(direction: Int) {
@@ -2223,6 +2277,8 @@ class FloatBallService : Service() {
                     popup = null
                     popupList = null
                     popupAddButton = null
+                    popupScroller = null
+                    popupViewport = null
                     popupEditMode = false
                     overlaySurface = OverlaySurface.NONE
                     stopWidgetUpdates()

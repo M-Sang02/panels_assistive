@@ -307,9 +307,10 @@ class WidgetPanelSettingsActivity : Activity() {
         }
 
     private fun backgroundCard(): LinearLayout = glassCard().apply {
-        addView(text("Nền bảng tiện ích", 16, this@WidgetPanelSettingsActivity.foreground, true))
+        val page = selectedPage()
+        addView(text("Nền bảng", 16, this@WidgetPanelSettingsActivity.foreground, true))
         addView(text(
-            "Chỉ áp dụng cho bảng tiện ích. Thanh sáng dọc và bảng mở rộng dùng mục Nền bảng trong Hiệu ứng.",
+            "Mỗi bảng có nền riêng. Bảng mới tự nhận một màu nền mới; bo góc và viền dùng chung.",
             12,
             secondary
         ).apply { setPadding(0, dp(6), 0, dp(2)) })
@@ -317,16 +318,15 @@ class WidgetPanelSettingsActivity : Activity() {
         addView(GlassUi.paletteRow(
             this@WidgetPanelSettingsActivity,
             AppPrefs.panelPalette,
-            AppPrefs.popupPanelColor(this@WidgetPanelSettingsActivity),
-            "Nền bảng tiện ích",
+            page.backgroundColor,
+            "Nền bảng",
             popupChips
         ) { color ->
-            AppPrefs.setPopupPanelColor(this@WidgetPanelSettingsActivity, color)
-            updatePreviewBackground()
+            updatePage { it.copy(backgroundColor = color) }
             refreshPopupSurface()
         })
         val opacityValue = text(
-            "${AppPrefs.popupPanelOpacity(this@WidgetPanelSettingsActivity)}%",
+            "${page.backgroundOpacity}%",
             13,
             GlassUi.ACCENT,
             true
@@ -335,14 +335,13 @@ class WidgetPanelSettingsActivity : Activity() {
         addView(opacityValue)
         addView(GlassUi.slider(this@WidgetPanelSettingsActivity).apply {
             max = 100
-            progress = AppPrefs.popupPanelOpacity(this@WidgetPanelSettingsActivity)
+            progress = page.backgroundOpacity
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
                     if (!fromUser) return
                     val opacity = progress
-                    AppPrefs.setPopupPanelOpacity(this@WidgetPanelSettingsActivity, opacity)
                     opacityValue.text = "$opacity%"
-                    updatePreviewBackground()
+                    updatePage { it.copy(backgroundOpacity = opacity) }
                     refreshPopupSurface()
                 }
 
@@ -498,8 +497,9 @@ class WidgetPanelSettingsActivity : Activity() {
 
     private fun updatePreviewBackground() {
         if (!::previewGrid.isInitialized) return
-        val color = AppPrefs.popupPanelColor(this)
-        val alpha = (AppPrefs.popupPanelOpacity(this) * 255 / 100).coerceIn(0, 255)
+        val page = selectedPage()
+        val color = page.backgroundColor
+        val alpha = (page.backgroundOpacity.coerceIn(0, 100) * 255 / 100).coerceIn(0, 255)
         previewGrid.background = GradientDrawable().apply {
             setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
             cornerRadius = dp(AppPrefs.popupPanelCorner(this@WidgetPanelSettingsActivity)).toFloat()
@@ -1259,10 +1259,95 @@ class WidgetPanelSettingsActivity : Activity() {
     }
 
     private fun addPanel() {
-        editPanelName(R.string.add_panel) { name ->
-            AppPrefs.addPanel(this, landscape, name)
-            render()
+        var selectedKind = PanelKind.WIDGET
+        val sheet = GlassDialogs.sheet(
+            this,
+            getString(R.string.add_panel),
+            getString(R.string.add_panel_subtitle)
+        )
+        val input = EditText(this).apply {
+            setSingleLine(true)
+            hint = getString(R.string.panel_name_hint)
+            setHintTextColor(secondary)
+            setTextColor(foreground)
+            textSize = 15f
+            background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 14)
+            setPadding(dp(14), 0, dp(14), 0)
         }
+        sheet.content.addView(input, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(50)
+        ))
+        sheet.content.addView(text(getString(R.string.panel_kind_label), 13, secondary, true).apply {
+            setPadding(0, dp(14), 0, dp(8))
+        })
+        lateinit var widgetOption: LinearLayout
+        lateinit var appOption: LinearLayout
+        fun paintOptions() {
+            listOf(widgetOption to PanelKind.WIDGET, appOption to PanelKind.APP).forEach { (row, kind) ->
+                row.background = GlassUi.tabSurface(this, kind == selectedKind)
+            }
+        }
+        fun optionRow(icon: String, title: String, caption: String, kind: String): LinearLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    selectedKind = kind
+                    paintOptions()
+                }
+                addView(GlassUi.iconTile(
+                    this@WidgetPanelSettingsActivity,
+                    icon,
+                    sizeDp = 36,
+                    glyphDp = 19
+                ))
+                addView(LinearLayout(this@WidgetPanelSettingsActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(10), 0, 0, 0)
+                    addView(text(title, 14, foreground, true))
+                    addView(text(caption, 11, secondary).apply { setPadding(0, dp(2), 0, 0) })
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            }
+        widgetOption = optionRow(
+            "layout-grid",
+            getString(R.string.panel_kind_widget),
+            getString(R.string.panel_kind_widget_caption),
+            PanelKind.WIDGET
+        )
+        appOption = optionRow(
+            "app-window",
+            getString(R.string.panel_kind_app),
+            getString(R.string.panel_kind_app_caption),
+            PanelKind.APP
+        )
+        sheet.content.addView(widgetOption, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+        sheet.content.addView(appOption, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(8) })
+        paintOptions()
+        sheet.content.addView(GlassUi.actionButton(
+            this,
+            getString(R.string.create_panel),
+            prominent = true
+        ) {
+            val name = input.text.toString().trim()
+            if (name.isBlank()) {
+                input.error = getString(R.string.panel_name_required)
+                return@actionButton
+            }
+            AppPrefs.addPanel(this, landscape, name, selectedKind)
+            sheet.dismiss()
+            render()
+        })
+        sheet.show()
     }
 
     private fun editPanelName(title: Int, initial: String = "", onSave: (String) -> Unit) {
