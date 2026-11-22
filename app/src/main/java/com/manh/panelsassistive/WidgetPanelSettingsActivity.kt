@@ -541,20 +541,23 @@ class WidgetPanelSettingsActivity : Activity() {
             getString(R.string.grid_cell_width),
             selectedPage().cellWidthDp,
             20,
-            120
+            120,
+            icon = "move-horizontal"
         ) { value -> updatePage { it.copy(cellWidthDp = value, rowHeightDp = value) } })
-        addView(valueControl(
-            getString(R.string.panel_rows),
-            selectedPage().rows.coerceAtMost(AppPrefs.maxGridRows(landscape)),
-            1,
-            AppPrefs.maxGridRows(landscape)
-        ) { value -> updatePage { it.copy(rows = value) } })
         addView(valueControl(
             getString(R.string.panel_columns),
             selectedPage().columns.coerceAtMost(AppPrefs.maxGridColumns(landscape)),
             2,
-            AppPrefs.maxGridColumns(landscape)
+            AppPrefs.maxGridColumns(landscape),
+            icon = "columns-3"
         ) { value -> updatePage { it.copy(columns = value) } })
+        addView(valueControl(
+            getString(R.string.panel_rows),
+            selectedPage().rows.coerceAtMost(AppPrefs.maxGridRows(landscape)),
+            1,
+            AppPrefs.maxGridRows(landscape),
+            icon = "rows-3"
+        ) { value -> updatePage { it.copy(rows = value) } })
         addView(text(getString(R.string.panel_area_size), 14, secondary).apply {
             setPadding(0, dp(14), 0, dp(6))
         })
@@ -650,6 +653,7 @@ class WidgetPanelSettingsActivity : Activity() {
         minimum: Int,
         maximum: Int,
         enabled: Boolean = true,
+        icon: String? = null,
         onValue: (Int) -> Unit
     ): View {
         val container = LinearLayout(this).apply {
@@ -661,6 +665,12 @@ class WidgetPanelSettingsActivity : Activity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+        }
+        if (icon != null) {
+            header.addView(
+                LucideGlyphView(this, icon, secondary),
+                LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginEnd = dp(8) }
+            )
         }
         header.addView(text(title, 14, secondary), LinearLayout.LayoutParams(0, dp(36), 1f))
         val input = EditText(this).apply {
@@ -1269,7 +1279,7 @@ class WidgetPanelSettingsActivity : Activity() {
             setSingleLine(true)
             hint = getString(R.string.panel_name_hint)
             setHintTextColor(secondary)
-            setTextColor(foreground)
+            setTextColor(this@WidgetPanelSettingsActivity.foreground)
             textSize = 15f
             background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 14)
             setPadding(dp(14), 0, dp(14), 0)
@@ -1308,7 +1318,7 @@ class WidgetPanelSettingsActivity : Activity() {
                 addView(LinearLayout(this@WidgetPanelSettingsActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(dp(10), 0, 0, 0)
-                    addView(text(title, 14, foreground, true))
+                    addView(text(title, 14, this@WidgetPanelSettingsActivity.foreground, true))
                     addView(text(caption, 11, secondary).apply { setPadding(0, dp(2), 0, 0) })
                 }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             }
