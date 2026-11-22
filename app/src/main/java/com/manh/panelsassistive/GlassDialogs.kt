@@ -157,7 +157,7 @@ object GlassDialogs {
         val search = if (searchable) addSearch(activity, sheet.content) else null
         val list = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         val scroller = MaxHeightScrollView(activity, maxListHeight(activity))
-        scroller.addView(list, ScrollView.LayoutParams(
+        scroller.addView(list, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
