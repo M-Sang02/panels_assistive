@@ -7,8 +7,6 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
@@ -228,11 +226,10 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     }
 
     /**
-     * The card itself: the album art centre-cropped at full sharpness, a light
-     * frosted veil, a soft scrim behind the track text, a 24dp rounded outline,
-     * a hairline rim and a bottom fade that dissolves the art into the
-     * wallpaper. Without artwork it falls back to the white glass with a music
-     * watermark.
+     * The card itself: the album art centre-cropped at full sharpness, clear at
+     * the top and thickening smoothly into a soft frosted scrim behind the track
+     * text and transport row, a 24dp rounded outline and a light hairline rim.
+     * Without artwork it falls back to the white glass with a music watermark.
      */
     private fun coverBitmap(
         context: Context,
@@ -266,8 +263,8 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 isDither = true
                 shader = LinearGradient(
                     0f, 0f, 0f, height.toFloat(),
-                    Color.argb(20, 255, 255, 255),
-                    Color.argb(6, 255, 255, 255),
+                    Color.argb(32, 255, 255, 255),
+                    Color.argb(12, 255, 255, 255),
                     Shader.TileMode.CLAMP
                 )
             }
@@ -275,64 +272,48 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             drawMusicWatermark(canvas, context, width, height)
         }
 
-        // One continuous frosted veil across the whole card: a soft white wash
-        // that thins out towards the base. The previous build drew a haze band
-        // plus a separate scrim rectangle that ended abruptly at 78% height,
-        // which produced the horizontal slice running through the transport row.
-        val veil = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // Clear glass over the artwork at the top, thickening smoothly behind
+        // the track text and transport row. Starting at 34% avoids the old
+        // top-heavy haze; the five stops keep the transition band-free.
+        val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
-                Color.argb(26, 255, 255, 255),
-                Color.argb(6, 255, 255, 255),
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), veil)
-
-        // Bottom dissolve: the lower half thins out gradually and is nearly
-        // clear at the very base, leaving only a hint of the artwork. The
-        // transport buttons are separate ImageViews, so they stay readable.
-        val fade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            isDither = true
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-            shader = LinearGradient(
-                0f, height * 0.30f, 0f, height.toFloat(),
                 intArrayOf(
                     Color.TRANSPARENT,
-                    Color.argb(50, 0, 0, 0),
-                    Color.argb(150, 0, 0, 0),
-                    Color.argb(232, 0, 0, 0)
+                    Color.TRANSPARENT,
+                    Color.argb(20, 255, 255, 255),
+                    Color.argb(38, 255, 255, 255),
+                    Color.argb(46, 255, 255, 255)
                 ),
-                floatArrayOf(0f, 0.30f, 0.70f, 1f),
+                floatArrayOf(0f, 0.34f, 0.58f, 0.80f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, height * 0.30f, width.toFloat(), height.toFloat(), fade)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
 
-        // Bright light catching the top edge, like the reference card.
-        val edge = (context.resources.displayMetrics.density * 1.8f * scale)
+        // Soft light catching the top edge, kept gentle so the frame reads as
+        // glass instead of a painted line.
+        val edge = (context.resources.displayMetrics.density * 1.4f * scale)
             .coerceAtLeast(1f)
         val topGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                width * 0.04f, 0f, width * 0.96f, 0f,
+                width * 0.06f, 0f, width * 0.94f, 0f,
                 intArrayOf(
                     Color.TRANSPARENT,
-                    Color.argb(112, 255, 255, 255),
+                    Color.argb(60, 255, 255, 255),
                     Color.TRANSPARENT
                 ),
                 floatArrayOf(0f, 0.5f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(width * 0.04f, 0f, width * 0.96f, edge, topGlow)
+        canvas.drawRect(width * 0.06f, 0f, width * 0.94f, edge, topGlow)
 
-        // Crisp rim painted *after* the dissolve so the frame stays closed on
-        // every side. The vertical gradient keeps the top/corners brighter
-        // while the bottom stays visible instead of fading away with the art.
-        // Same rounded path as the clipped cover, so the line follows the
-        // corners exactly without breaks or offsets.
-        val rimWidth = (context.resources.displayMetrics.density * scale)
+        // Light hairline rim on the same rounded path as the clipped cover, so
+        // the line follows the corners exactly. Slightly brighter at the top,
+        // softer at the base, without ever becoming a hard outline.
+        val rimWidth = (context.resources.displayMetrics.density * 0.9f * scale)
             .coerceAtLeast(1f)
         val inset = rimWidth / 2f
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -341,9 +322,9 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
                 intArrayOf(
-                    Color.argb(190, 255, 255, 255),
-                    Color.argb(154, 255, 255, 255),
-                    Color.argb(128, 255, 255, 255)
+                    Color.argb(128, 255, 255, 255),
+                    Color.argb(108, 255, 255, 255),
+                    Color.argb(92, 255, 255, 255)
                 ),
                 floatArrayOf(0f, 0.45f, 1f),
                 Shader.TileMode.CLAMP

@@ -1,7 +1,6 @@
 package com.manh.panelsassistive
 
 import android.app.Activity
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -58,8 +57,10 @@ class WidgetLaunchActivity : Activity() {
 
         /**
          * Opens the app whose session the card is showing — even when that
-         * session is paused — then the app assigned to this widget, then the
-         * pinned quick-open app, then the system music app.
+         * session is paused — then the music app assigned to this widget, then
+         * the phone's default music app. The clock's quick-open shortcut is
+         * deliberately not used here: it may point at a chat app (Zalo) and
+         * must not hijack the music card when nothing is playing.
          */
         fun openMusicApp(context: Context, widgetId: Int = -1) {
             // "Không mở app" assignment: the card stays purely informational.
@@ -70,16 +71,6 @@ class WidgetLaunchActivity : Activity() {
             val shown = WidgetMedia.shownPackage(context, assigned)
             if (shown != null && WidgetMedia.launch(context, shown)) return
             if (assigned.isNotEmpty() && WidgetMedia.launch(context, assigned)) return
-            val shortcut = AppPrefs.widgetShortcut(context)
-                .takeIf { it.isNotEmpty() }
-                ?.let { ComponentName.unflattenFromString(it) }
-            if (shortcut != null) {
-                val launch = Intent(Intent.ACTION_MAIN)
-                    .addCategory(Intent.CATEGORY_LAUNCHER)
-                    .setComponent(shortcut)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (runCatching { context.startActivity(launch) }.isSuccess) return
-            }
             val musicApps = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val opened = runCatching { context.startActivity(musicApps) }.isSuccess

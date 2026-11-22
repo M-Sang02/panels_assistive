@@ -125,8 +125,8 @@ class WidgetSettingsActivity : Activity() {
         addView(hint(
             "Chạm vào thân widget Đồng hồ để mở app được gán. Widget âm lượng và độ sáng " +
                 "chỉ chỉnh mức, không mở app. Widget nhạc mở app đang hiện trên thông báo, " +
-                "kể cả khi đang tạm dừng; khi không có nhạc sẽ mở app được gán riêng cho " +
-                "widget đó, rồi mới dùng app dưới đây."
+                "kể cả khi đang tạm dừng; khi không có nhạc sẽ mở app nhạc được gán riêng " +
+                "cho widget đó, rồi mới mở app nhạc mặc định của máy."
         ))
         addView(LinearLayout(this@WidgetSettingsActivity).apply {
             orientation = LinearLayout.HORIZONTAL

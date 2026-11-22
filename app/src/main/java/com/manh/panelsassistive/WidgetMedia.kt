@@ -117,7 +117,12 @@ object WidgetMedia {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
         return try {
             val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            audio?.activePlaybackConfigurations?.forEach { config ->
+                ?: return null
+            // Chat apps keep a registered-but-paused player around (Zalo and
+            // friends); when no audio is actually live those configs must not
+            // be reported as "the app that is playing".
+            if (!audio.isMusicActive) return null
+            audio.activePlaybackConfigurations?.forEach { config ->
                 // isActive()/getClientUid() are hidden framework methods.
                 val active = config.javaClass.getMethod("isActive").invoke(config) as? Boolean
                 if (active != true) return@forEach
@@ -261,11 +266,25 @@ object WidgetMedia {
         preferredPackage: String?
     ): MediaController? {
         val preferred = preferredPackage?.takeIf { it.isNotEmpty() }
+        // Sessions without any track information are noise, not music: chat
+        // apps such as Zalo register a media session for voice notes and keep
+        // it paused, and picking it made the card open Zalo instead of the
+        // chosen/default music app.
         return sessions.firstOrNull { it.packageName == preferred && isPlaying(it) }
             ?: sessions.firstOrNull { isPlaying(it) }
-            ?: sessions.firstOrNull { it.packageName == preferred }
-            ?: sessions.firstOrNull { it.metadata != null }
-            ?: sessions.firstOrNull()
+            ?: sessions.firstOrNull { it.packageName == preferred && hasTrack(it) }
+            ?: sessions.firstOrNull { hasTrack(it) }
+    }
+
+    private fun hasTrack(controller: MediaController): Boolean {
+        val metadata = controller.metadata ?: return false
+        val text = metadata.getString(MediaMetadata.METADATA_KEY_TITLE)
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM)
+        return !text.isNullOrBlank() ||
+            metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI) != null ||
+            metadata.getString(MediaMetadata.METADATA_KEY_ART_URI) != null
     }
 
     private fun isPlaying(controller: MediaController): Boolean {
