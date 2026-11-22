@@ -9,7 +9,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
-import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
@@ -18,7 +17,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.widget.RemoteViews
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
@@ -262,28 +260,6 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 RectF(0f, 0f, width.toFloat(), height.toFloat()),
                 Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
             )
-            // A light haze over the art, then a subdued scrim behind the text
-            // band so white type stays readable without turning the card dark.
-            val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                isDither = true
-                shader = LinearGradient(
-                    0f, 0f, 0f, height.toFloat(),
-                    Color.argb(32, 255, 255, 255),
-                    Color.argb(10, 255, 255, 255),
-                    Shader.TileMode.CLAMP
-                )
-            }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), haze)
-            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                isDither = true
-                shader = LinearGradient(
-                    0f, height * 0.38f, 0f, height * 0.78f,
-                    Color.TRANSPARENT,
-                    Color.argb(74, 6, 10, 18),
-                    Shader.TileMode.CLAMP
-                )
-            }
-            canvas.drawRect(0f, height * 0.38f, width.toFloat(), height * 0.78f, scrim)
         } else {
             val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 isDither = true
@@ -298,27 +274,34 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             drawMusicWatermark(canvas, context, width, height)
         }
 
-        // Light sheen from the upper edge and a soft white bloom at the bottom.
-        val sheen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // One continuous frosted veil across the whole card: a soft white wash
+        // that thins out towards the base. The previous build drew a haze band
+        // plus a separate scrim rectangle that ended abruptly at 78% height,
+        // which produced the horizontal slice running through the transport row.
+        val veil = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             shader = LinearGradient(
-                0f, 0f, 0f, height * 0.6f,
-                Color.argb(14, 255, 255, 255),
-                Color.TRANSPARENT,
+                0f, 0f, 0f, height.toFloat(),
+                Color.argb(26, 255, 255, 255),
+                Color.argb(6, 255, 255, 255),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height * 0.6f, sheen)
-        val bloom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), veil)
+
+        // Legibility scrim: transparent at the top, only reaching its tint at
+        // the bottom edge of the card. Extending the rect to the very bottom
+        // means there is no hard edge left in the middle of the artwork.
+        val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
-            shader = RadialGradient(
-                width * 0.8f, height * 0.92f, max(width, height) * 0.95f,
-                Color.argb(20, 255, 255, 255),
+            shader = LinearGradient(
+                0f, height * 0.34f, 0f, height.toFloat(),
                 Color.TRANSPARENT,
+                Color.argb(92, 6, 10, 18),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bloom)
+        canvas.drawRect(0f, height * 0.34f, width.toFloat(), height.toFloat(), scrim)
 
         // Brighter hairline along the top edge: the card catches the light.
         val edge = (GlassWidgets.dp(context, 1) * scale).coerceAtLeast(1f)
@@ -327,7 +310,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 width * 0.08f, 0f, width * 0.92f, 0f,
                 intArrayOf(
                     Color.TRANSPARENT,
-                    Color.argb(56, 255, 255, 255),
+                    Color.argb(52, 255, 255, 255),
                     Color.TRANSPARENT
                 ),
                 floatArrayOf(0f, 0.5f, 1f),
@@ -348,21 +331,20 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             radius, radius, rim
         )
 
-        // Bottom fade: the base of the card dissolves into the wallpaper,
-        // matching the way the white glass cards fade out towards their base.
-        // It stops at ~30% alpha so the transport row still has artwork behind it
-        // instead of dissolving into bare wallpaper.
+        // Bottom fade: only the last few percent of the card dissolves into the
+        // wallpaper. It used to start at 70% height, which cut the transport row
+        // off from the glass and exposed the placeholder drawable underneath.
         val fade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
             shader = LinearGradient(
-                0f, height * 0.70f, 0f, height.toFloat(),
+                0f, height * 0.93f, 0f, height.toFloat(),
                 Color.TRANSPARENT,
-                Color.argb(180, 0, 0, 0),
+                Color.argb(120, 0, 0, 0),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, height * 0.70f, width.toFloat(), height.toFloat(), fade)
+        canvas.drawRect(0f, height * 0.93f, width.toFloat(), height.toFloat(), fade)
         return bitmap
     }
 

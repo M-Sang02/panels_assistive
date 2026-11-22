@@ -377,32 +377,35 @@ internal object PanelEditDialogs {
         private val cellWidthDp: Int,
         private val rowHeightDp: Int
     ) : Drawable() {
+        private val inset = PanelViewportMetrics.insetPx(context)
+        private val stepX =
+            PanelViewportMetrics.sizePx(context, cellWidthDp) + PanelViewportMetrics.gapPx(context)
+        private val stepY =
+            PanelViewportMetrics.sizePx(context, rowHeightDp) + PanelViewportMetrics.gapPx(context)
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0x667DA8D3
-            strokeWidth = context.dp(1).toFloat()
+            strokeWidth = context.dp(1).coerceAtLeast(1).toFloat()
             style = Paint.Style.STROKE
         }
 
         override fun draw(canvas: Canvas) {
             val bounds = bounds
-            val left = (bounds.left + context.dp(2)).toFloat()
-            val top = (bounds.top + context.dp(2)).toFloat()
-            val cellWidth = context.dp(cellWidthDp + 6).toFloat()
-            val rowHeight = context.dp(rowHeightDp + 6).toFloat()
+            val left = (bounds.left + inset).toFloat()
+            val top = (bounds.top + inset).toFloat()
             val right = minOf(
-                (bounds.right - context.dp(2)).toFloat(),
-                left + columns.coerceIn(2, 20) * cellWidth
-            )
-            val bottom = (bounds.bottom - context.dp(2)).toFloat()
+                (bounds.right - inset).toFloat(),
+                left + columns.coerceIn(2, 20) * stepX
+            ).coerceAtLeast(left)
+            val bottom = (bounds.bottom - inset).toFloat().coerceAtLeast(top)
             var x = left
             while (x <= right) {
                 canvas.drawLine(x, top, x, bottom, paint)
-                x += cellWidth
+                x += stepX
             }
             var y = top
             while (y <= bottom) {
                 canvas.drawLine(left, y, right, y, paint)
-                y += rowHeight
+                y += stepY
             }
         }
 
@@ -418,7 +421,7 @@ internal object PanelEditDialogs {
         override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 
         private fun Context.dp(value: Int): Int =
-            (value * resources.displayMetrics.density + 0.5f).toInt()
+            (value * resources.displayMetrics.density).toInt()
     }
 
     private val SIZE_PATTERN = Regex("(\\d{1,2})\\s*[xX×]\\s*(\\d{1,2})")

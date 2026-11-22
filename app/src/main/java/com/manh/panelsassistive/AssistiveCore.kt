@@ -50,19 +50,20 @@ data class WidgetPanelPage(
     val id: String,
     val name: String,
     val items: List<PanelItem> = emptyList(),
-    val columns: Int = 4,
-    val rows: Int = 4,
-    val cellWidthDp: Int = 72,
-    val rowHeightDp: Int = 84,
-    val areaColumns: Int = 4,
-    val areaRows: Int = 4,
-    val areaPaddingDp: Int = 2,
+    val columns: Int = 10,
+    val rows: Int = 10,
+    val cellWidthDp: Int = 64,
+    val rowHeightDp: Int = 64,
+    val areaColumns: Int = 10,
+    val areaRows: Int = 10,
+    val areaPaddingDp: Int = 0,
     val backgroundOpacity: Int = 78,
     val backgroundColor: Int = 0xFF152438.toInt()
 )
 
 internal object PanelViewportMetrics {
     private const val CELL_GAP_DP = 6
+    private const val CELL_MARGIN_DP = 3
     private const val GRID_INSET_DP = 4
 
     fun widthDp(columns: Int, cellWidthDp: Int) =
@@ -76,6 +77,32 @@ internal object PanelViewportMetrics {
 
     fun panelHeightDp(page: WidgetPanelPage) =
         heightDp(page.areaRows, page.rowHeightDp) + page.areaPaddingDp.coerceIn(0, 100) * 2
+
+    /**
+     * Single source of truth for the pixel geometry of the panel grids.
+     *
+     * Every slot is `sizePx + gapPx` wide, where `gapPx` is exactly twice the
+     * 3dp margin each child gets. A cell spanning n slots therefore has to be
+     * `sizePx * n + gapPx * (n - 1)` wide; using `dp(cell * n)` instead left
+     * spanned widgets several pixels narrower than the slots they cover and
+     * made them drift from the edit guides whenever the cell size changed.
+     */
+    fun sizePx(context: Context, sizeDp: Int): Int =
+        (sizeDp.coerceAtLeast(1) * context.resources.displayMetrics.density).toInt()
+
+    fun marginPx(context: Context): Int =
+        (CELL_MARGIN_DP * context.resources.displayMetrics.density).toInt()
+
+    fun gapPx(context: Context): Int = marginPx(context) * 2
+
+    /** 2dp padding that GridLayout grids are created with. */
+    fun insetPx(context: Context): Int =
+        (2 * context.resources.displayMetrics.density).toInt()
+
+    fun spanPx(context: Context, sizeDp: Int, span: Int): Int {
+        val slots = span.coerceAtLeast(1)
+        return sizePx(context, sizeDp) * slots + gapPx(context) * (slots - 1)
+    }
 }
 
 object AppPrefs {
@@ -104,6 +131,7 @@ object AppPrefs {
     private const val KEY_QUICK_TILE_PRIMARY = "quick_tile_primary"
     private const val KEY_QUICK_TILE_SECONDARY = "quick_tile_secondary"
     private const val KEY_THEME = "app_theme"
+    private const val KEY_THEME_ACCENT = "app_theme_accent"
     private const val KEY_SHARED_PANEL_COLOR = "shared_panel_color"
     private const val KEY_SHARED_PANEL_OPACITY = "shared_panel_opacity"
     private const val KEY_SHARED_PANEL_CORNER = "shared_panel_corner"
@@ -271,13 +299,11 @@ object AppPrefs {
                 is Float -> encoded.put("type", "float").put("value", value.toDouble())
                 is String -> encoded.put("type", "string").put("value", value)
                 is Set<*> -> {
-                    if (value.all { it is String }) {
-                        encoded.put("type", "string_set").put("value", JSONArray(value))
-                    } else {
-                        throw JSONException("Unsupported preference value for $key")
-                    }
+                    // Skip exotic sets instead of failing the whole backup.
+                    if (!value.all { it is String }) return@forEach
+                    encoded.put("type", "string_set").put("value", JSONArray(value))
                 }
-                else -> throw JSONException("Unsupported preference value for $key")
+                else -> return@forEach
             }
             values.put(key, encoded)
         }
@@ -285,32 +311,34 @@ object AppPrefs {
             .put("format", "panels-assistive-settings")
             .put("version", 1)
             .put("preferences", values)
-        floatBallIconUri(context)?.let { savedUri ->
-            val uri = android.net.Uri.parse(savedUri)
-            val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
-                val output = java.io.ByteArrayOutputStream()
-                val buffer = ByteArray(8192)
-                var total = 0
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    total += read
-                    if (total > MAX_FLOAT_BALL_ICON_BYTES) {
-                        throw java.io.IOException("Float Ball icon exceeds the 16 MB export limit.")
+        runCatching {
+            floatBallIconUri(context)?.let { savedUri ->
+                val uri = android.net.Uri.parse(savedUri)
+                val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    var total = 0
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > MAX_FLOAT_BALL_ICON_BYTES) {
+                            throw java.io.IOException("Float Ball icon exceeds the 16 MB export limit.")
+                        }
+                        output.write(buffer, 0, read)
                     }
-                    output.write(buffer, 0, read)
-                }
-                output.toByteArray()
-            } ?: throw java.io.IOException("Unable to read the selected Float Ball icon.")
-            result.put(
-                "floatBallIcon",
-                JSONObject()
-                    .put("mimeType", context.contentResolver.getType(uri) ?: "image/*")
-                    .put(
-                        "base64",
-                        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                    )
-            )
+                    output.toByteArray()
+                } ?: throw java.io.IOException("Unable to read the selected Float Ball icon.")
+                result.put(
+                    "floatBallIcon",
+                    JSONObject()
+                        .put("mimeType", context.contentResolver.getType(uri) ?: "image/*")
+                        .put(
+                            "base64",
+                            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        )
+                )
+            }
         }
         return result.toString(2)
     }
@@ -322,18 +350,20 @@ object AppPrefs {
         }
         val values = root.optJSONObject("preferences") ?: throw JSONException("Missing preferences.")
         val iconMimeType = root.optJSONObject("floatBallIcon")?.optString("mimeType", "image/*")
-        val iconBytes = root.optJSONObject("floatBallIcon")?.let { icon ->
-            val encoded = icon.getString("base64")
-            if (encoded.isBlank()) throw JSONException("Empty Float Ball icon.")
-            if (encoded.length > ((MAX_FLOAT_BALL_ICON_BYTES + 2) / 3) * 4) {
-                throw java.io.IOException("Float Ball icon exceeds the 16 MB import limit.")
-            }
-            android.util.Base64.decode(encoded, android.util.Base64.DEFAULT).also {
-                if (it.isEmpty() || it.size > MAX_FLOAT_BALL_ICON_BYTES) {
-                    throw java.io.IOException("Float Ball icon is empty or exceeds the 16 MB import limit.")
+        val iconBytes = runCatching {
+            root.optJSONObject("floatBallIcon")?.let { icon ->
+                val encoded = icon.getString("base64")
+                if (encoded.isBlank()) throw JSONException("Empty Float Ball icon.")
+                if (encoded.length > ((MAX_FLOAT_BALL_ICON_BYTES + 2) / 3) * 4) {
+                    throw java.io.IOException("Float Ball icon exceeds the 16 MB import limit.")
+                }
+                android.util.Base64.decode(encoded, android.util.Base64.DEFAULT).also {
+                    if (it.isEmpty() || it.size > MAX_FLOAT_BALL_ICON_BYTES) {
+                        throw java.io.IOException("Float Ball icon is empty or exceeds the 16 MB import limit.")
+                    }
                 }
             }
-        }
+        }.getOrNull()
         val editor = store(context).edit().clear()
         val keys = values.keys()
         while (keys.hasNext()) {
@@ -347,11 +377,12 @@ object AppPrefs {
                 "float" -> editor.putFloat(key, encoded.getDouble("value").toFloat())
                 "string" -> editor.putString(key, encoded.getString("value"))
                 "string_set" -> {
-                    val array = value as? JSONArray ?: throw JSONException("Invalid string set: $key")
-                    val items = (0 until array.length()).map { array.getString(it) }.toSet()
-                    editor.putStringSet(key, items)
+                    val array = value as? JSONArray
+                    if (array != null) {
+                        val items = (0 until array.length()).map { array.getString(it) }.toSet()
+                        editor.putStringSet(key, items)
+                    }
                 }
-                else -> throw JSONException("Unsupported preference type for $key")
             }
         }
         iconBytes?.let { bytes ->
@@ -431,7 +462,7 @@ object AppPrefs {
                 for (index in 0 until pages.length()) {
                     val page = pages.optJSONObject(index) ?: continue
                     if (page.optInt("areaPaddingDp", 10) == 10) {
-                        page.put("areaPaddingDp", 2)
+                        page.put("areaPaddingDp", 0)
                         changed = true
                     }
                 }
@@ -442,6 +473,10 @@ object AppPrefs {
         }
         editor.putBoolean(KEY_PANEL_EDGE_PADDING_MIGRATED, true).apply()
     }
+
+    fun maxGridColumns(landscape: Boolean): Int = if (landscape) 20 else 10
+
+    fun maxGridRows(landscape: Boolean): Int = if (landscape) 10 else 20
 
     fun panelPages(context: Context, landscape: Boolean = false): List<WidgetPanelPage> {
         migratePanelEdgePadding(context)
@@ -472,18 +507,26 @@ object AppPrefs {
                             )
                         }
                     }
+                    val cellSize = jsonPage.optInt(
+                        "cellWidthDp",
+                        jsonPage.optInt("rowHeightDp", 64)
+                    ).coerceIn(40, 120)
                     add(
                         WidgetPanelPage(
                             jsonPage.optString("id", UUID.randomUUID().toString()),
                             jsonPage.optString("name", context.getString(R.string.default_panel_name)),
                             items,
-                            jsonPage.optInt("columns", 4).coerceIn(2, 20),
-                            jsonPage.optInt("rows", 4).coerceIn(1, 10),
-                            jsonPage.optInt("cellWidthDp", 72).coerceIn(30, 120),
-                            jsonPage.optInt("rowHeightDp", 84).coerceIn(30, 200),
-                            jsonPage.optInt("areaColumns", jsonPage.optInt("columns", 4)).coerceIn(2, 30),
-                            jsonPage.optInt("areaRows", jsonPage.optInt("rows", 4)).coerceIn(1, 30),
-                            jsonPage.optInt("areaPaddingDp", 2).coerceIn(0, 100),
+                            jsonPage.optInt("columns", 10)
+                                .coerceIn(1, maxGridColumns(landscape)),
+                            jsonPage.optInt("rows", 10)
+                                .coerceIn(1, maxGridRows(landscape)),
+                            cellSize,
+                            cellSize,
+                            jsonPage.optInt("areaColumns", jsonPage.optInt("columns", 10))
+                                .coerceIn(1, 30),
+                            jsonPage.optInt("areaRows", jsonPage.optInt("rows", 10))
+                                .coerceIn(1, 30),
+                            jsonPage.optInt("areaPaddingDp", 0).coerceIn(0, 100),
                             jsonPage.optInt("backgroundOpacity", 78).coerceIn(0, 100),
                             jsonPage.optInt("backgroundColor", 0xFF152438.toInt())
                         )
@@ -523,11 +566,11 @@ object AppPrefs {
                 JSONObject()
                     .put("id", page.id)
                     .put("name", page.name)
-                    .put("columns", page.columns.coerceIn(2, 20))
-                    .put("rows", page.rows.coerceIn(1, 10))
-                    .put("cellWidthDp", page.cellWidthDp.coerceIn(30, 120))
-                    .put("rowHeightDp", page.rowHeightDp.coerceIn(30, 200))
-                    .put("areaColumns", page.areaColumns.coerceIn(2, 30))
+                    .put("columns", page.columns.coerceIn(1, maxGridColumns(landscape)))
+                    .put("rows", page.rows.coerceIn(1, maxGridRows(landscape)))
+                    .put("cellWidthDp", page.cellWidthDp.coerceIn(40, 120))
+                    .put("rowHeightDp", page.cellWidthDp.coerceIn(40, 120))
+                    .put("areaColumns", page.areaColumns.coerceIn(1, 30))
                     .put("areaRows", page.areaRows.coerceIn(1, 30))
                     .put("areaPaddingDp", page.areaPaddingDp.coerceIn(0, 100))
                     .put("backgroundOpacity", page.backgroundOpacity.coerceIn(0, 100))
@@ -594,12 +637,13 @@ object AppPrefs {
         val pages = panelPages(context, landscape)
         val targetId = pages.firstOrNull { it.id == panelId }?.id ?: pages.first().id
         val target = pages.first { it.id == targetId }
-        val columns = target.columns.coerceIn(2, 20)
+        val columns = target.columns.coerceIn(1, maxGridColumns(landscape))
+        val maxRows = maxGridRows(landscape)
         val occupied = target.items.flatMap { existing ->
             val start = existing.position.coerceAtLeast(0)
             val row = start / columns
             val column = start % columns
-            (0 until existing.spanY.coerceIn(1, 10)).flatMap { dy ->
+            (0 until existing.spanY.coerceIn(1, maxRows)).flatMap { dy ->
                 (0 until existing.spanX.coerceIn(1, columns - column)).map { dx ->
                     (row + dy) * columns + column + dx
                 }
@@ -610,7 +654,7 @@ object AppPrefs {
             val column = position % columns
             val spanX = item.spanX.coerceIn(1, columns - column)
             val row = position / columns
-            return (0 until item.spanY.coerceIn(1, 10)).all { dy ->
+            return (0 until item.spanY.coerceIn(1, maxRows)).all { dy ->
                 (0 until spanX).all { dx -> (row + dy) * columns + column + dx !in occupied }
             }
         }
@@ -618,7 +662,7 @@ object AppPrefs {
             startPosition
         } else {
             generateSequence(startPosition) { it + 1 }
-                .take(columns * target.rows.coerceIn(1, 10) * 10)
+                .take(columns * target.rows.coerceIn(1, maxRows) * 10)
                 .firstOrNull(::fits) ?: startPosition
         }
         val column = position % columns
@@ -631,7 +675,7 @@ object AppPrefs {
                     page.copy(items = page.items + item.copy(
                         position = position,
                         spanX = spanX,
-                        spanY = item.spanY.coerceIn(1, 10)
+                        spanY = item.spanY.coerceIn(1, maxRows)
                     ))
                 } else page
             },
@@ -746,10 +790,20 @@ object AppPrefs {
         store(context).edit().putString(KEY_THEME, key).apply()
     }
 
+    fun themeAccent(context: Context): Int =
+        store(context).getInt(KEY_THEME_ACCENT, 0xFF7CBEFF.toInt())
+
+    fun setThemeAccent(context: Context, color: Int) {
+        store(context).edit()
+            .putString(KEY_THEME, AppThemes.CUSTOM_KEY)
+            .putInt(KEY_THEME_ACCENT, color)
+            .apply()
+    }
+
     fun sharedPanelColor(context: Context) = store(context).getInt(KEY_SHARED_PANEL_COLOR, android.graphics.Color.rgb(24, 41, 61))
     fun setSharedPanelColor(context: Context, color: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_COLOR, color).apply() }
-    fun sharedPanelOpacity(context: Context) = store(context).getInt(KEY_SHARED_PANEL_OPACITY, 82).coerceIn(5, 100)
-    fun setSharedPanelOpacity(context: Context, value: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_OPACITY, value.coerceIn(5, 100)).apply() }
+    fun sharedPanelOpacity(context: Context) = store(context).getInt(KEY_SHARED_PANEL_OPACITY, 82).coerceIn(0, 100)
+    fun setSharedPanelOpacity(context: Context, value: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_OPACITY, value.coerceIn(0, 100)).apply() }
     fun sharedPanelCorner(context: Context) = store(context).getInt(KEY_SHARED_PANEL_CORNER, 26).coerceIn(0, 48)
     fun setSharedPanelCorner(context: Context, value: Int) { store(context).edit().putInt(KEY_SHARED_PANEL_CORNER, value.coerceIn(0, 48)).apply() }
 
@@ -761,9 +815,9 @@ object AppPrefs {
         store(context).edit().putInt(KEY_POPUP_PANEL_COLOR, color).apply()
     }
     fun popupPanelOpacity(context: Context) =
-        store(context).getInt(KEY_POPUP_PANEL_OPACITY, sharedPanelOpacity(context)).coerceIn(5, 100)
+        store(context).getInt(KEY_POPUP_PANEL_OPACITY, sharedPanelOpacity(context)).coerceIn(0, 100)
     fun setPopupPanelOpacity(context: Context, value: Int) {
-        store(context).edit().putInt(KEY_POPUP_PANEL_OPACITY, value.coerceIn(5, 100)).apply()
+        store(context).edit().putInt(KEY_POPUP_PANEL_OPACITY, value.coerceIn(0, 100)).apply()
     }
     fun popupPanelCorner(context: Context) =
         store(context).getInt(KEY_POPUP_PANEL_CORNER, sharedPanelCorner(context)).coerceIn(0, 48)

@@ -53,7 +53,7 @@ class EffectsSettingsActivity : Activity() {
             } else View.GONE
         }
         val scopeRow = LinearLayout(this@EffectsSettingsActivity).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
         }
         val intensityValue = label(
             getString(R.string.blur_intensity) + ": " + AppPrefs.popupBlurRadius(this@EffectsSettingsActivity),
@@ -95,8 +95,15 @@ class EffectsSettingsActivity : Activity() {
         }
         screenChip = chip(getString(R.string.popup_blur_scope_screen)) { chooseScope(false) }
         panelChip = chip(getString(R.string.popup_blur_scope_panel)) { chooseScope(true) }
-        scopeRow.addView(screenChip, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
-        scopeRow.addView(panelChip, LinearLayout.LayoutParams(0, dp(42), 1f))
+        // Two full-width rows so the longer Vietnamese labels stay readable.
+        scopeRow.addView(screenChip, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(44)
+        ))
+        scopeRow.addView(panelChip, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(44)
+        ).apply { topMargin = dp(6) })
         controls.addView(label(getString(R.string.popup_blur_scope), 13, GlassUi.TEXT_SECONDARY).apply {
             setPadding(0, dp(10), 0, dp(4))
         })

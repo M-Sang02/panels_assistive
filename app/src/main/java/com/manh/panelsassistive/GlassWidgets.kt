@@ -137,8 +137,10 @@ object GlassWidgets {
     fun musicSize(options: Bundle): MusicSize {
         val (width, height) = sizeDp(options)
         return when {
-            // 4x4-ish square: both sides much larger than one grid cell.
-            width >= 300 && height >= 300 -> MusicSize.LARGE
+            // 4x4-ish square: both sides much larger than one grid cell. The
+            // threshold is below 300dp because a 4x4 slot is often only ~290dp
+            // on a 1080p phone once launcher padding is taken into account.
+            width >= 240 && height >= 240 -> MusicSize.LARGE
             // Clearly wider than tall: 4x2 / 3x2.
             width >= 200 && width >= height * 3 / 2 -> MusicSize.WIDE
             else -> MusicSize.COMPACT
@@ -998,15 +1000,21 @@ class GlassMusicWidget : GlassWidgetProvider() {
         // widget cannot start a marquee. Titles shrink and stay static instead;
         // calling setSelected here makes the launcher show a loading error.
 
+        val (cardWidthDp, cardHeightDp) = GlassWidgets.sizeDp(options)
         val artDp = when (size) {
             GlassWidgets.MusicSize.COMPACT -> 52
             GlassWidgets.MusicSize.WIDE -> 68
-            GlassWidgets.MusicSize.LARGE -> 120
+            GlassWidgets.MusicSize.LARGE ->
+                (minOf(cardWidthDp, cardHeightDp) * 0.58f).roundToInt().coerceIn(104, 220)
         }
+        // The card background is capped at MAX_CARD_PX; painting the round art
+        // any larger would only inflate the RemoteViews payload (two big
+        // bitmaps in one binder call) without adding visible detail.
+        val artPx = GlassWidgets.dp(context, artDp).coerceAtMost(288)
         val ring = Color.argb(110, 255, 255, 255)
         views.setImageViewBitmap(
             R.id.widget_art,
-            GlassWidgets.circularArtBitmap(context, now.art, GlassWidgets.dp(context, artDp), ring)
+            GlassWidgets.circularArtBitmap(context, now.art, artPx, ring)
         )
 
         val playCircleDp = when (size) {

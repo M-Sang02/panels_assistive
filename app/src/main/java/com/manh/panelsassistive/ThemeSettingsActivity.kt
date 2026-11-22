@@ -3,11 +3,13 @@ package com.manh.panelsassistive
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -49,10 +51,85 @@ class ThemeSettingsActivity : Activity() {
             addView(themeRow(theme, theme.key == current.key))
         }
 
+        addView(accentPicker())
+
         addView(hint(
             "Áp dụng bảng màu sẽ ghi đè màu nền bảng bạn đã tự chỉnh trong " +
                 "Bảng tiện ích và Hiệu ứng."
         ))
+    }
+
+    /** Free accent picker: swatches for quick picks plus a draggable HSV palette. */
+    private fun accentPicker(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(0, dp(10), 0, 0)
+        addView(GlassUi.divider(this@ThemeSettingsActivity))
+        addView(label("Màu nhấn tùy chỉnh", 14, GlassUi.TEXT_PRIMARY, true))
+        addView(hint(
+            "Chạm một ô màu bên dưới, hoặc mở bảng màu để kéo chọn bất kỳ màu nào " +
+                "— giống bảng chọn màu của bảng tiện ích."
+        ))
+        val activeCustom =
+            AppPrefs.themeKey(this@ThemeSettingsActivity) == AppThemes.CUSTOM_KEY
+        val accent = AppThemes.current(this@ThemeSettingsActivity).accent
+        val row = LinearLayout(this@ThemeSettingsActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(2), dp(4), dp(2))
+            AppThemes.ACCENT_PALETTE.forEach { color ->
+                addView(swatch(color, activeCustom && color == accent),
+                    LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(7) })
+            }
+            addView(FrameLayout(this@ThemeSettingsActivity).apply {
+                background = GlassUi.fieldBackground(this@ThemeSettingsActivity, 12)
+                contentDescription = "Bảng màu tùy chỉnh"
+                isClickable = true
+                isFocusable = true
+                addView(LucideGlyphView(
+                    this@ThemeSettingsActivity,
+                    "palette",
+                    GlassUi.ACCENT
+                ), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+                setOnClickListener {
+                    PanelColorPicker.show(
+                        this@ThemeSettingsActivity,
+                        accent,
+                        "Màu nhấn tùy chỉnh"
+                    ) { color -> applyAccent(color) }
+                }
+            }, LinearLayout.LayoutParams(dp(36), dp(36)))
+        }
+        addView(HorizontalScrollView(this@ThemeSettingsActivity).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(6) })
+    }
+
+    private fun swatch(color: Int, selected: Boolean): FrameLayout =
+        FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(color)
+                setStroke(
+                    dp(if (selected) 3 else 1),
+                    if (selected) GlassUi.TEXT_PRIMARY else Color.argb(90, 255, 255, 255)
+                )
+            }
+            contentDescription = "Màu nhấn " + hex(color)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { applyAccent(color) }
+        }
+
+    private fun applyAccent(color: Int) {
+        AppThemes.applyAccent(this, color)
+        window.statusBarColor = GlassUi.PAGE_COLOR
+        window.navigationBarColor = GlassUi.PAGE_COLOR
+        render()
+        Toast.makeText(this, "Đã áp dụng màu nhấn", Toast.LENGTH_SHORT).show()
     }
 
     private fun themeRow(theme: AppTheme, selected: Boolean): LinearLayout =

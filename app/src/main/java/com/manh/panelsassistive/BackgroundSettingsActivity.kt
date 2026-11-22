@@ -50,7 +50,7 @@ class BackgroundSettingsActivity : Activity() {
             val header = valueRow("Độ trong suốt")
             opacityValue = header.second
             addView(header.first)
-            addView(slider(AppPrefs.sharedPanelOpacity(this@BackgroundSettingsActivity), 5, 100, { opacity ->
+            addView(slider(AppPrefs.sharedPanelOpacity(this@BackgroundSettingsActivity), 0, 100, { opacity ->
                 AppPrefs.setSharedPanelOpacity(this@BackgroundSettingsActivity, opacity)
                 opacityValue.text = "$opacity%"
                 renderPreview()

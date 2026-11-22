@@ -95,7 +95,7 @@ object GlassUi {
             GradientDrawable().apply {
                 setColor(ACCENT_SOFT)
                 cornerRadius = dp(context, 16).toFloat()
-                setStroke(dp(context, 1), Color.argb(150, 124, 190, 255))
+                setStroke(dp(context, 1), (ACCENT and 0x00FFFFFF) or 0x96000000)
             }
         } else {
             fieldBackground(context, 16)

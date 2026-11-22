@@ -931,8 +931,11 @@ class FloatBallService : Service() {
                 GridLayout.spec(row, spanY),
                 GridLayout.spec(column, spanX)
             ).apply {
-                width = dp(page.cellWidthDp * spanX)
-                height = dp(page.rowHeightDp * spanY)
+                // Exact slot span: n cells plus the (n - 1) inner gaps. Using
+                // dp(cell * span) made spanned widgets narrower than the slots
+                // they covered, which is what made them drift from the grid.
+                width = PanelViewportMetrics.spanPx(this@FloatBallService, page.cellWidthDp, spanX)
+                height = PanelViewportMetrics.spanPx(this@FloatBallService, page.rowHeightDp, spanY)
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             }
             grid.addView(child, params)
@@ -965,8 +968,8 @@ class FloatBallService : Service() {
                 GridLayout.spec(row),
                 GridLayout.spec(column)
             ).apply {
-                width = dp(page.cellWidthDp)
-                height = dp(page.rowHeightDp)
+                width = PanelViewportMetrics.sizePx(this@FloatBallService, page.cellWidthDp)
+                height = PanelViewportMetrics.sizePx(this@FloatBallService, page.rowHeightDp)
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             })
         }
@@ -993,12 +996,14 @@ class FloatBallService : Service() {
             }
             try {
                 widgetHost.createView(this, id, info).apply {
+                    // Report the exact slot span (cells + inner gaps) so the
+                    // RemoteViews layout matches the rectangle it is drawn in.
                     updateAppWidgetSize(
                         null,
-                        cellWidthDp * spanX,
-                        rowHeightDp * spanY,
-                        cellWidthDp * spanX,
-                        rowHeightDp * spanY
+                        cellWidthDp * spanX + 6 * (spanX - 1),
+                        rowHeightDp * spanY + 6 * (spanY - 1),
+                        cellWidthDp * spanX + 6 * (spanX - 1),
+                        rowHeightDp * spanY + 6 * (spanY - 1)
                     )
                     setOnTouchListener { _, event ->
                         if (popupEditMode) return@setOnTouchListener true
@@ -1014,8 +1019,8 @@ class FloatBallService : Service() {
             createPanelShortcut(
                 item,
                 showLabel = AppPrefs.showPanelLabels(this),
-                tileWidthDp = cellWidthDp * spanX - 6,
-                tileHeightDp = rowHeightDp * spanY - 6
+                tileWidthDp = cellWidthDp * spanX + 6 * (spanX - 1),
+                tileHeightDp = rowHeightDp * spanY + 6 * (spanY - 1)
             )
         }
         wrapper.addView(content, FrameLayout.LayoutParams(
@@ -1942,7 +1947,7 @@ class FloatBallService : Service() {
     private fun selectedRowHeight(): Int =
         AppPrefs.panelPages(this, usesLandscapeLayout())
             .firstOrNull { it.id == AppPrefs.currentPanelId(this, usesLandscapeLayout()) }
-            ?.rowHeightDp ?: 56
+            ?.rowHeightDp ?: 64
 
 
     private fun showOverlayPanel(

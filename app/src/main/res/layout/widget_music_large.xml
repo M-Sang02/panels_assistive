@@ -17,16 +17,23 @@
         android:id="@+id/widget_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center"
         android:orientation="vertical"
         android:padding="14dp">
 
-        <ImageView
-            android:id="@+id/widget_art"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:scaleType="fitCenter"
-            android:contentDescription="Ảnh bìa" />
+        <!-- The art pane takes the leftover space so the round cover grows and
+             shrinks with the widget instead of being locked at 120dp. -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <ImageView
+                android:id="@+id/widget_art"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitCenter"
+                android:contentDescription="Ảnh bìa" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/widget_title"
@@ -72,6 +79,7 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="50dp"
+            android:layout_gravity="center_horizontal"
             android:layout_marginTop="8dp"
             android:gravity="center"
             android:orientation="horizontal">

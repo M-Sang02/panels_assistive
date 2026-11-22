@@ -275,11 +275,35 @@ class WidgetPanelSettingsActivity : Activity() {
         addView(panelPicker)
         addView(LinearLayout(this@WidgetPanelSettingsActivity).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(button(R.string.add_panel, ::addPanel), LinearLayout.LayoutParams(0, dp(48), 1f))
-            addView(button(R.string.rename_panel, ::renamePanel), LinearLayout.LayoutParams(0, dp(48), 1f))
-            addView(button(R.string.delete_panel, ::deletePanel), LinearLayout.LayoutParams(0, dp(48), 1f))
+            addView(panelIconAction("plus", R.string.add_panel, ::addPanel),
+                LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+            addView(panelIconAction("pencil", R.string.rename_panel, ::renamePanel),
+                LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                    marginStart = dp(3)
+                    marginEnd = dp(3)
+                })
+            addView(panelIconAction("trash", R.string.delete_panel, ::deletePanel),
+                LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(6) })
         })
     }
+
+    /** Icon-only panel action (add / rename / delete) with a hidden label for talkback. */
+    private fun panelIconAction(icon: String, description: Int, action: () -> Unit): View =
+        FrameLayout(this).apply {
+            background = GlassUi.fieldBackground(this@WidgetPanelSettingsActivity, 14)
+            contentDescription = getString(description)
+            isClickable = true
+            isFocusable = true
+            addView(
+                LucideGlyphView(
+                    this@WidgetPanelSettingsActivity,
+                    icon,
+                    this@WidgetPanelSettingsActivity.foreground
+                ),
+                FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER)
+            )
+            setOnClickListener { action() }
+        }
 
     private fun backgroundCard(): LinearLayout = glassCard().apply {
         addView(text("Nền bảng tiện ích", 16, this@WidgetPanelSettingsActivity.foreground, true))
@@ -337,12 +361,12 @@ class WidgetPanelSettingsActivity : Activity() {
         addView(text("Độ trong suốt", 13, secondary, true).apply { setPadding(0, dp(12), 0, 0) })
         addView(opacityValue)
         addView(GlassUi.slider(this@WidgetPanelSettingsActivity).apply {
-            max = 95
-            progress = AppPrefs.popupPanelOpacity(this@WidgetPanelSettingsActivity) - 5
+            max = 100
+            progress = AppPrefs.popupPanelOpacity(this@WidgetPanelSettingsActivity)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
                     if (!fromUser) return
-                    val opacity = progress + 5
+                    val opacity = progress
                     AppPrefs.setPopupPanelOpacity(this@WidgetPanelSettingsActivity, opacity)
                     opacityValue.text = "$opacity%"
                     updatePreviewBackground()
@@ -441,7 +465,7 @@ class WidgetPanelSettingsActivity : Activity() {
                 visibility = if (enabled) View.VISIBLE else View.GONE
             }
             val scopeRow = LinearLayout(this@WidgetPanelSettingsActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
+                orientation = LinearLayout.VERTICAL
             }
             lateinit var screenChip: TextView
             lateinit var panelChip: TextView
@@ -465,8 +489,16 @@ class WidgetPanelSettingsActivity : Activity() {
             }
             screenChip = chip(getString(R.string.popup_blur_scope_screen)) { chooseScope(false) }
             panelChip = chip(getString(R.string.popup_blur_scope_panel)) { chooseScope(true) }
-            scopeRow.addView(screenChip, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(6) })
-            scopeRow.addView(panelChip, LinearLayout.LayoutParams(0, dp(42), 1f))
+            // Full-width rows: the two scopes used to share one line and long
+            // Vietnamese labels were clipped at the ends.
+            scopeRow.addView(screenChip, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44)
+            ))
+            scopeRow.addView(panelChip, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(44)
+            ).apply { topMargin = dp(6) })
             controls.addView(text("Chọn phạm vi làm mờ", 13, secondary, true).apply {
                 setPadding(0, dp(10), 0, dp(5))
             })
@@ -538,26 +570,20 @@ class WidgetPanelSettingsActivity : Activity() {
         addView(valueControl(
             getString(R.string.grid_cell_width),
             selectedPage().cellWidthDp,
-            30,
+            40,
             120
-        ) { value -> updatePage { it.copy(cellWidthDp = value) } })
-        addView(valueControl(
-            getString(R.string.grid_row_height),
-            selectedPage().rowHeightDp,
-            30,
-            200
-        ) { value -> updatePage { it.copy(rowHeightDp = value) } })
+        ) { value -> updatePage { it.copy(cellWidthDp = value, rowHeightDp = value) } })
         addView(valueControl(
             getString(R.string.panel_rows),
-            selectedPage().rows,
+            selectedPage().rows.coerceAtMost(AppPrefs.maxGridRows(landscape)),
             1,
-            10
+            AppPrefs.maxGridRows(landscape)
         ) { value -> updatePage { it.copy(rows = value) } })
         addView(valueControl(
             getString(R.string.panel_columns),
-            selectedPage().columns,
+            selectedPage().columns.coerceAtMost(AppPrefs.maxGridColumns(landscape)),
             2,
-            20
+            AppPrefs.maxGridColumns(landscape)
         ) { value -> updatePage { it.copy(columns = value) } })
         addView(text(getString(R.string.panel_area_size), 14, secondary).apply {
             setPadding(0, dp(14), 0, dp(6))
@@ -618,7 +644,7 @@ class WidgetPanelSettingsActivity : Activity() {
                     val areaColumns = columns.text.toString().toIntOrNull()
                     val areaRows = rows.text.toString().toIntOrNull()
                     val areaPadding = padding.text.toString().toIntOrNull()
-                    if (areaColumns?.let { it in 2..30 } != true ||
+                    if (areaColumns?.let { it in 1..30 } != true ||
                         areaRows?.let { it in 1..30 } != true ||
                         areaPadding?.let { it in 0..100 } != true
                     ) {
@@ -789,8 +815,12 @@ class WidgetPanelSettingsActivity : Activity() {
                 GridLayout.spec(row, spanY),
                 GridLayout.spec(column, spanX)
             ).apply {
-                width = dp(page.cellWidthDp * spanX)
-                height = dp(page.rowHeightDp * spanY)
+                width = PanelViewportMetrics.spanPx(
+                    this@WidgetPanelSettingsActivity, page.cellWidthDp, spanX
+                )
+                height = PanelViewportMetrics.spanPx(
+                    this@WidgetPanelSettingsActivity, page.rowHeightDp, spanY
+                )
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             }
             grid.addView(tile, params)
@@ -807,8 +837,12 @@ class WidgetPanelSettingsActivity : Activity() {
                 GridLayout.spec(row),
                 GridLayout.spec(column)
             ).apply {
-                width = dp(page.cellWidthDp)
-                height = dp(page.rowHeightDp)
+                width = PanelViewportMetrics.sizePx(
+                    this@WidgetPanelSettingsActivity, page.cellWidthDp
+                )
+                height = PanelViewportMetrics.sizePx(
+                    this@WidgetPanelSettingsActivity, page.rowHeightDp
+                )
                 setMargins(dp(3), dp(3), dp(3), dp(3))
             })
         }
@@ -888,8 +922,8 @@ class WidgetPanelSettingsActivity : Activity() {
             if (info != null) {
                 try {
                     val widgetView = host.createView(this, widgetId, info)
-                    val widthDp = page.cellWidthDp * spanX
-                    val heightDp = page.rowHeightDp * spanY
+                    val widthDp = page.cellWidthDp * spanX + 6 * (spanX - 1)
+                    val heightDp = page.rowHeightDp * spanY + 6 * (spanY - 1)
                     widgetView.updateAppWidgetSize(
                         null,
                         widthDp,
@@ -1104,7 +1138,8 @@ class WidgetPanelSettingsActivity : Activity() {
         val sourceColumn = source % columns
         val sourceRow = source / columns
         val targetColumn = (sourceColumn + dx).coerceIn(0, (columns - current.spanX).coerceAtLeast(0))
-        val targetRow = (sourceRow + dy).coerceIn(0, 19 - current.spanY.coerceAtLeast(1))
+        val maxRows = maxOf(page.rows, AppPrefs.maxGridRows(landscape))
+        val targetRow = (sourceRow + dy).coerceIn(0, (maxRows - current.spanY).coerceAtLeast(0))
         val destination = targetRow * columns + targetColumn
         if (destination == source) return
         val overlaps = !AppPrefs.panelFreeMode(this) && page.items.any { other ->

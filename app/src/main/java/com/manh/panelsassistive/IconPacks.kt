@@ -25,6 +25,15 @@ import java.io.File
 object IconPacks {
     data class Pack(val packageName: String, val label: String)
 
+    /**
+     * Portion of one side that stays empty around the source icon once it is
+     * placed on a pack frame. 0.16 keeps the icon at ~68% of the tile, inside
+     * the 60–72% band that ADW/Nova packs expect; without it the launcher icon
+     * was drawn edge to edge and the pack mask cut its outer details (sparkles,
+     * corners, rims) away.
+     */
+    private const val ICON_INSET_RATIO = 0.16f
+
     private val THEME_ACTIONS = listOf(
         "org.adw.launcher.THEMES",
         "com.novalauncher.THEME",
@@ -234,27 +243,29 @@ object IconPacks {
         pack.back?.let { name ->
             bitmap(context, pack, name, sizePx)?.let { canvas.drawBitmap(it, 0f, 0f, null) }
         }
-        val icon = drawableBitmap(original, sizePx)
-        val mask = pack.mask?.let { bitmap(context, pack, it, sizePx) }
-        if (mask != null) {
-            // The pack mask already carries its own safe margin, so the icon is
-            // drawn over the full canvas and only the mask decides the shape.
-            val layer = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-            val layerCanvas = Canvas(layer)
-            layerCanvas.drawBitmap(icon, 0f, 0f, null)
-            val clip = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                xfermode = PorterDuffXfermode(maskMode(mask))
+        // Scale the source icon down *before* the mask is applied. The previous
+        // build drew it across the whole canvas and then clipped it, so every
+        // detail sitting near the edge (star, corner, outer rim) was cut off.
+        // The inset is identical for every icon, which also keeps the visual
+        // size of pack icons even.
+        val inset = (sizePx * ICON_INSET_RATIO).toInt().coerceAtLeast(1)
+        val iconSize = (sizePx - inset * 2).coerceAtLeast(1)
+        val icon = drawableBitmap(original, iconSize)
+        val layer = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val layerCanvas = Canvas(layer)
+        layerCanvas.drawBitmap(icon, inset.toFloat(), inset.toFloat(), null)
+        pack.mask?.let { name ->
+            bitmap(context, pack, name, sizePx)?.let { mask ->
+                // The mask still owns the outer shape; because the icon is now
+                // inset it keeps its full artwork and only the frame decides
+                // where the glass edge sits.
+                val clip = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = PorterDuffXfermode(maskMode(mask))
+                }
+                layerCanvas.drawBitmap(mask, 0f, 0f, clip)
             }
-            layerCanvas.drawBitmap(mask, 0f, 0f, clip)
-            canvas.drawBitmap(layer, 0f, 0f, null)
-        } else {
-            val inset = (sizePx * 0.17f).toInt()
-            canvas.drawBitmap(
-                icon, null,
-                RectF(inset.toFloat(), inset.toFloat(), (sizePx - inset).toFloat(), (sizePx - inset).toFloat()),
-                null
-            )
         }
+        canvas.drawBitmap(layer, 0f, 0f, null)
         pack.upon?.let { name ->
             bitmap(context, pack, name, sizePx)?.let { canvas.drawBitmap(it, 0f, 0f, null) }
         }

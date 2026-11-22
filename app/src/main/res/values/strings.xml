@@ -281,14 +281,14 @@
     <string name="panel_opacity">Panel opacity</string>
     <string name="panel_color">Panel color</string>
     <string name="custom_panel_color">Custom panel color</string>
-    <string name="grid_cell_width">Grid vertical column width (dp)</string>
+    <string name="grid_cell_width">Cell size (dp)</string>
     <string name="grid_row_height">Grid horizontal row height (dp)</string>
     <string name="panel_rows">Grid rows</string>
     <string name="panel_area_size">Panel area size (columns × rows + padding)</string>
     <string name="panel_area_columns_hint">Columns</string>
     <string name="panel_area_rows_hint">Rows</string>
-    <string name="panel_area_padding_hint">2</string>
-    <string name="panel_area_invalid">Enter 2–30 columns, 1–30 rows and 0–100 dp padding.</string>
+    <string name="panel_area_padding_hint">0</string>
+    <string name="panel_area_invalid">Enter 1–30 columns, 1–30 rows and 0–100 dp padding.</string>
     <string name="resize_panel_item">Resize item</string>
     <string name="move_panel_item">Move item</string>
     <string name="drag_to_reorder">Drag to move this item in the preview.</string>

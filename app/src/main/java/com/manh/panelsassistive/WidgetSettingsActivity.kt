@@ -47,7 +47,7 @@ class WidgetSettingsActivity : Activity() {
             GlassVolumeVerticalWidget::class.java
         ))
         root.addView(widgetCard(
-            "audio-lines",
+            "volume-2",
             "Âm lượng ngang (2×1)",
             "Thanh ngang mảnh dạng viên thuốc, icon loa nhỏ và % ở giữa. Chạm nửa trái để " +
                 "giảm, nửa phải để tăng — cập nhật ngay khi bấm phím âm lượng.",

@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import rikka.shizuku.Shizuku
 
 class AdvancedSettingsActivity : Activity() {
@@ -39,6 +40,75 @@ class AdvancedSettingsActivity : Activity() {
     override fun onResume() {
         super.onResume()
         render()
+    }
+
+    private fun exportBackup() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json")
+            .putExtra(Intent.EXTRA_TITLE, "panels-assistive-settings.json")
+        try {
+            startActivityForResult(intent, REQUEST_EXPORT_SETTINGS)
+        } catch (error: Exception) {
+            android.util.Log.e(TAG, "Unable to open the export picker", error)
+            Toast.makeText(this, R.string.settings_file_error, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun importBackup() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json")
+        try {
+            startActivityForResult(intent, REQUEST_IMPORT_SETTINGS)
+        } catch (error: Exception) {
+            android.util.Log.e(TAG, "Unable to open the import picker", error)
+            Toast.makeText(this, R.string.settings_file_error, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        when (requestCode) {
+            REQUEST_EXPORT_SETTINGS -> try {
+                val serialized = AppPrefs.exportSettings(this)
+                val output = contentResolver.openOutputStream(uri)
+                    ?: throw java.io.IOException("Unable to open the selected file.")
+                output.bufferedWriter(Charsets.UTF_8).use { it.write(serialized) }
+                Toast.makeText(this, R.string.settings_exported, Toast.LENGTH_SHORT).show()
+            } catch (error: Exception) {
+                android.util.Log.e(TAG, "Unable to export settings", error)
+                Toast.makeText(this, R.string.settings_file_error, Toast.LENGTH_LONG).show()
+            }
+            REQUEST_IMPORT_SETTINGS -> try {
+                val input = contentResolver.openInputStream(uri)
+                    ?: throw java.io.IOException("Unable to open the selected file.")
+                val serialized = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                AppPrefs.importSettings(this, serialized)
+                if (AppPrefs.floatBallEnabled(this)) {
+                    if (Settings.canDrawOverlays(this)) {
+                        FloatBallService.start(this)
+                    } else {
+                        AppPrefs.setPendingOverlayEnable(this, true)
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName")
+                            )
+                        )
+                    }
+                } else {
+                    FloatBallService.stop(this)
+                }
+                Toast.makeText(this, R.string.settings_imported, Toast.LENGTH_SHORT).show()
+                render()
+            } catch (error: Exception) {
+                android.util.Log.e(TAG, "Unable to import settings", error)
+                Toast.makeText(this, R.string.settings_file_error, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun render() {
@@ -215,7 +285,7 @@ class AdvancedSettingsActivity : Activity() {
         addView(GlassUi.actionButton(
             this@AdvancedSettingsActivity,
             getString(R.string.export_settings)
-        ) { (this@AdvancedSettingsActivity as? MainActivity)?.exportSettingsFile() })
+        ) { exportBackup() })
         addView(GlassUi.actionButton(
             this@AdvancedSettingsActivity,
             getString(R.string.import_settings)
@@ -224,9 +294,7 @@ class AdvancedSettingsActivity : Activity() {
                 .setTitle(R.string.import_settings)
                 .setMessage(R.string.import_settings_confirmation)
                 .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.import_settings) { _, _ ->
-                    (this@AdvancedSettingsActivity as? MainActivity)?.importSettingsFile()
-                }
+                .setPositiveButton(R.string.import_settings) { _, _ -> importBackup() }
                 .show()
         })
     }
@@ -269,4 +337,10 @@ class AdvancedSettingsActivity : Activity() {
     }
 
     private fun dp(value: Int): Int = GlassUi.dp(this, value)
+
+    private companion object {
+        private const val TAG = "AdvancedSettingsActivity"
+        private const val REQUEST_EXPORT_SETTINGS = 45
+        private const val REQUEST_IMPORT_SETTINGS = 46
+    }
 }
