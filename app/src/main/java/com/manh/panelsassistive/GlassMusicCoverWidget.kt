@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
@@ -226,10 +227,12 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     }
 
     /**
-     * The card itself: the album art centre-cropped at full sharpness, clear at
-     * the top and thickening smoothly into a soft frosted scrim behind the track
-     * text and transport row, a 24dp rounded outline and a light hairline rim.
-     * Without artwork it falls back to the white glass with a music watermark.
+     * The card itself: the album art centre-cropped at full sharpness, a soft
+     * diagonal wash and edge bloom ("loang") like the neutral panes, clear at
+     * the top, thickening into a frosted scrim behind the track text and
+     * transport row and dissolving into the artwork again at the base, plus a
+     * 24dp rounded outline and a light hairline rim. Without artwork it falls
+     * back to the white glass with a music watermark.
      */
     private fun coverBitmap(
         context: Context,
@@ -272,9 +275,31 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             drawMusicWatermark(canvas, context, width, height)
         }
 
+        // "Loang" sheen shared with the neutral panes: light bleeds in from
+        // the right edge — and blooms gently from the bottom-right corner —
+        // melting to transparent towards the middle, so the top stays clear.
+        val wash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                width.toFloat(), 0f, 0f, 0f,
+                Color.argb(26, 255, 255, 255),
+                Color.TRANSPARENT,
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), wash)
+        val bloom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(
+                width * 0.88f, height * 0.92f, maxOf(width, height) * 0.95f,
+                Color.argb(22, 255, 255, 255),
+                Color.TRANSPARENT,
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bloom)
+
         // Clear glass over the artwork at the top, thickening smoothly behind
-        // the track text and transport row. Starting at 34% avoids the old
-        // top-heavy haze; the five stops keep the transition band-free.
+        // the track text and transport row, then dissolving back into the
+        // artwork at the very bottom so the base never turns into a white slab.
         val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             shader = LinearGradient(
@@ -282,11 +307,12 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 intArrayOf(
                     Color.TRANSPARENT,
                     Color.TRANSPARENT,
-                    Color.argb(20, 255, 255, 255),
-                    Color.argb(38, 255, 255, 255),
-                    Color.argb(46, 255, 255, 255)
+                    Color.argb(18, 255, 255, 255),
+                    Color.argb(42, 255, 255, 255),
+                    Color.argb(40, 255, 255, 255),
+                    Color.TRANSPARENT
                 ),
-                floatArrayOf(0f, 0.34f, 0.58f, 0.80f, 1f),
+                floatArrayOf(0f, 0.30f, 0.52f, 0.72f, 0.86f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
