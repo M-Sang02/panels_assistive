@@ -283,13 +283,14 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
                 intArrayOf(
-                    Color.argb(56, 255, 255, 255),
-                    Color.argb(50, 255, 255, 255),
-                    Color.argb(28, 255, 255, 255),
+                    Color.argb(40, 255, 255, 255),
+                    Color.argb(26, 255, 255, 255),
                     Color.argb(13, 255, 255, 255),
+                    Color.argb(5, 255, 255, 255),
+                    Color.TRANSPARENT,
                     Color.TRANSPARENT
                 ),
-                floatArrayOf(0f, 0.30f, 0.58f, 0.84f, 1f),
+                floatArrayOf(0f, 0.10f, 0.28f, 0.50f, 0.72f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
@@ -300,8 +301,8 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         // purpose — a straight gradient read as a white band.
         val loang = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
-                width * 1.02f, height * 0.20f, width * 1.16f,
-                Color.argb(34, 255, 255, 255),
+                width * 1.04f, height * 0.18f, width * 0.95f,
+                Color.argb(24, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
