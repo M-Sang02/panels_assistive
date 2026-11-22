@@ -67,6 +67,14 @@ object WidgetMedia {
         }.onFailure { Log.w(TAG, "Unable to open notification access", it) }
     }
 
+    /**
+     * Package of the session a card is showing — paused sessions included —
+     * without decoding artwork. Null when nothing is playing or paused.
+     */
+    fun shownPackage(context: Context, preferredPackage: String? = null): String? =
+        choose(activeSessions(context), preferredPackage)?.packageName
+            ?: activePackage(context)
+
     /** Snapshot for the widget card; never throws when sessions are unavailable. */
     fun snapshot(context: Context, preferredPackage: String? = null): Snapshot {
         val sessions = activeSessions(context)

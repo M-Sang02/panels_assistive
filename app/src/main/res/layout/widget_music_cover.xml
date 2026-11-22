@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Album-cover music card: art as the background under a single smooth frosted
      veil, tight one-line track text and a compact centred transport cluster at
-     the bottom. No XML background is used on the art pane: the bitmap painted in
-     bind() is the only frost, so the two layers cannot stack into a milky card
-     or leave a seam across the buttons. -->
+     the bottom. The drawable below is only the picker/first-frame fallback with
+     the same bright rim and 24dp corners; bind() paints the cover bitmap and
+     clears this background so the two layers never stack into a milky card. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -12,6 +12,7 @@
         android:id="@+id/cover_bg"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="@drawable/widget_music_cover_bg"
         android:contentDescription="@null"
         android:scaleType="fitXY" />
 

@@ -192,8 +192,9 @@ object GlassWidgets {
     }
 
     /**
-     * Tapping the album art / track info opens the app that is playing right
-     * now, or the app assigned to this widget instance when nothing plays.
+     * Tapping the album art / track info opens the app of the session shown on
+     * the card (even paused), or the app assigned to this widget instance when
+     * no music session exists at all.
      */
     fun musicTapPending(context: Context, widgetId: Int): PendingIntent =
         PendingIntent.getActivity(
@@ -923,8 +924,13 @@ class GlassClockWidget : GlassWidgetProvider() {
         options: Bundle,
         accent: Int
     ) {
+        // The lunar line only changes at midnight; the provider wakes twice an
+        // hour and keeps it in sync without any app-side polling.
+        views.setTextViewText(R.id.widget_lunar, LunarCalendar.todayLabel())
         val openTarget = GlassWidgets.targetPending(context, widgetId * 16 + 8)
         views.setOnClickPendingIntent(R.id.widget_value, openTarget)
+        views.setOnClickPendingIntent(R.id.widget_label, openTarget)
+        views.setOnClickPendingIntent(R.id.widget_lunar, openTarget)
         views.setOnClickPendingIntent(R.id.widget_bg, openTarget)
     }
 }

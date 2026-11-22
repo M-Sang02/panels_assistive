@@ -31,11 +31,12 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     companion object {
         /**
          * Bitmap side for the whole card. A frosted, low-res pane used to turn
-         * the cover into an unrecognisable smear; 256 px keeps the photo sharp
-         * enough while the payload (~260 KB) stays far below the binder budget
-         * that some launchers enforce (about 1 MB per RemoteViews).
+         * the cover into an unrecognisable smear; 288 px (the same cap as the
+         * regular music card) keeps the photo and the hairline rim sharp while
+         * the payload (~330 KB) stays far below the binder budget that some
+         * launchers enforce (about 1 MB per RemoteViews).
          */
-        private const val COVER_MAX_PX = 256
+        private const val COVER_MAX_PX = 288
     }
 
     override fun layoutId(context: Context, options: Bundle): Int =
@@ -289,34 +290,6 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), veil)
 
-        // Brighter hairline along the top edge: the card catches the light.
-        val edge = (GlassWidgets.dp(context, 1) * scale).coerceAtLeast(1f)
-        val topGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                width * 0.08f, 0f, width * 0.92f, 0f,
-                intArrayOf(
-                    Color.TRANSPARENT,
-                    Color.argb(52, 255, 255, 255),
-                    Color.TRANSPARENT
-                ),
-                floatArrayOf(0f, 0.5f, 1f),
-                Shader.TileMode.CLAMP
-            )
-        }
-        canvas.drawRect(width * 0.08f, 0f, width * 0.92f, edge, topGlow)
-
-        val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth =
-                (context.resources.displayMetrics.density * 0.9f * scale).coerceAtLeast(1f)
-            color = Color.argb(50, 255, 255, 255)
-        }
-        val inset = rim.strokeWidth / 2f
-        canvas.drawRoundRect(
-            RectF(inset, inset, width - inset, height - inset),
-            radius, radius, rim
-        )
-
         // Bottom dissolve: the lower half thins out gradually and is nearly
         // clear at the very base, leaving only a hint of the artwork. The
         // transport buttons are separate ImageViews, so they stay readable.
@@ -336,6 +309,50 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             )
         }
         canvas.drawRect(0f, height * 0.30f, width.toFloat(), height.toFloat(), fade)
+
+        // Bright light catching the top edge, like the reference card.
+        val edge = (context.resources.displayMetrics.density * 1.8f * scale)
+            .coerceAtLeast(1f)
+        val topGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                width * 0.04f, 0f, width * 0.96f, 0f,
+                intArrayOf(
+                    Color.TRANSPARENT,
+                    Color.argb(112, 255, 255, 255),
+                    Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(width * 0.04f, 0f, width * 0.96f, edge, topGlow)
+
+        // Crisp rim painted *after* the dissolve so the frame stays closed on
+        // every side. The vertical gradient keeps the top/corners brighter
+        // while the bottom stays visible instead of fading away with the art.
+        // Same rounded path as the clipped cover, so the line follows the
+        // corners exactly without breaks or offsets.
+        val rimWidth = (context.resources.displayMetrics.density * scale)
+            .coerceAtLeast(1f)
+        val inset = rimWidth / 2f
+        val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = rimWidth
+            shader = LinearGradient(
+                0f, 0f, 0f, height.toFloat(),
+                intArrayOf(
+                    Color.argb(190, 255, 255, 255),
+                    Color.argb(154, 255, 255, 255),
+                    Color.argb(128, 255, 255, 255)
+                ),
+                floatArrayOf(0f, 0.45f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRoundRect(
+            RectF(inset, inset, width - inset, height - inset),
+            radius, radius, rim
+        )
         return bitmap
     }
 

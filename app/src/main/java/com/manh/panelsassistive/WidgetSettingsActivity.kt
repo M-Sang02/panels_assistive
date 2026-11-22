@@ -71,7 +71,7 @@ class WidgetSettingsActivity : Activity() {
             "clock",
             "Đồng hồ (2×2)",
             "Chữ trắng trên nền kính trắng rất trong giống thẻ nhạc; tự cập nhật theo múi " +
-                "giờ và định dạng 12/24 giờ của máy.",
+                "giờ và định dạng 12/24 giờ của máy, kèm ngày âm lịch Việt Nam.",
             GlassClockWidget::class.java
         ))
         root.addView(widgetCard(
@@ -95,7 +95,6 @@ class WidgetSettingsActivity : Activity() {
         root.addView(musicCard())
         root.addView(quickOpenCard())
         root.addView(widgetColorCard())
-        root.addView(styleCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
 
@@ -125,8 +124,9 @@ class WidgetSettingsActivity : Activity() {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Mở nhanh từ widget"))
         addView(hint(
             "Chạm vào thân widget Đồng hồ để mở app được gán. Widget âm lượng và độ sáng " +
-                "chỉ chỉnh mức, không mở app. Widget nhạc ưu tiên mở app đang phát; khi " +
-                "im lặng sẽ mở app được gán riêng cho widget đó, rồi mới dùng app dưới đây."
+                "chỉ chỉnh mức, không mở app. Widget nhạc mở app đang hiện trên thông báo, " +
+                "kể cả khi đang tạm dừng; khi không có nhạc sẽ mở app được gán riêng cho " +
+                "widget đó, rồi mới dùng app dưới đây."
         ))
         addView(LinearLayout(this@WidgetSettingsActivity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -391,21 +391,6 @@ class WidgetSettingsActivity : Activity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
-    }
-
-    private fun styleCard(): LinearLayout = GlassUi.glassCard(this).apply {
-        addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Giao diện của widget"))
-        addView(hint(
-            "Widget dùng kính trắng rất trong: sáng nhẹ ở góc trên và tan nhanh thành trong " +
-                "suốt, không pha màu nền. Viền trắng mảnh 0,9dp, bo góc lớn; chữ/icon trắng " +
-                "có bóng mềm. Nhấn giữ widget để đổi kích thước."
-        ))
-        addView(GlassUi.actionButton(
-            this@WidgetSettingsActivity,
-            "Mở Giao diện"
-        ) {
-            startActivity(Intent(this@WidgetSettingsActivity, ThemeSettingsActivity::class.java))
-        })
     }
 
     private fun pin(provider: Class<*>) {

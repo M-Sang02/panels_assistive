@@ -57,15 +57,18 @@ class WidgetLaunchActivity : Activity() {
         }
 
         /**
-         * Opens the app that is playing now, then the app assigned to this
-         * widget, then the pinned quick-open app, then the system music app.
+         * Opens the app whose session the card is showing — even when that
+         * session is paused — then the app assigned to this widget, then the
+         * pinned quick-open app, then the system music app.
          */
         fun openMusicApp(context: Context, widgetId: Int = -1) {
             // "Không mở app" assignment: the card stays purely informational.
             if (AppPrefs.musicWidgetNoApp(context, widgetId)) return
-            val playing = WidgetMedia.activePackage(context)
-            if (playing != null && WidgetMedia.launch(context, playing)) return
             val assigned = AppPrefs.musicWidgetPackage(context, widgetId)
+            // A paused session still present on the notification shade wins
+            // over the widget's default app.
+            val shown = WidgetMedia.shownPackage(context, assigned)
+            if (shown != null && WidgetMedia.launch(context, shown)) return
             if (assigned.isNotEmpty() && WidgetMedia.launch(context, assigned)) return
             val shortcut = AppPrefs.widgetShortcut(context)
                 .takeIf { it.isNotEmpty() }
