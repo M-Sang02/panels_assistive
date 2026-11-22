@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -72,15 +73,17 @@ class SettingsScreen(private val activity: Activity) {
             subtitle: String,
             checked: Boolean? = null,
             onChecked: ((Boolean) -> Unit)? = null,
+            iconRes: Int = 0,
             onClick: () -> Unit
         ) {
-            val row = menuRow(icon, title, subtitle, checked, onChecked, onClick)
+            val row = menuRow(icon, title, subtitle, checked, onChecked, iconRes, onClick)
             content.addView(row)
             rowEntries.add(row to searchText(title, subtitle))
         }
 
         addRow(
             icon = "circle-dot",
+            iconRes = R.drawable.panels_assistive_icon,
             title = "Bóng nổi",
             subtitle = "Biểu tượng, kích thước, ghim cạnh, ẩn cạnh",
             checked = AppPrefs.floatBallEnabled(activity),
@@ -152,7 +155,7 @@ class SettingsScreen(private val activity: Activity) {
         addRow(
             icon = "palette",
             title = "Giao diện",
-            subtitle = "Bảng màu cho widget, bảng nổi và toàn ứng dụng"
+            subtitle = "Bảng màu cho bảng nổi và toàn ứng dụng"
         ) {
             activity.startActivity(Intent(activity, ThemeSettingsActivity::class.java))
         }
@@ -224,6 +227,7 @@ class SettingsScreen(private val activity: Activity) {
         subtitle: String,
         checked: Boolean? = null,
         onChecked: ((Boolean) -> Unit)? = null,
+        iconRes: Int = 0,
         onClick: () -> Unit
     ): LinearLayout {
         val row = LinearLayout(activity).apply {
@@ -235,7 +239,16 @@ class SettingsScreen(private val activity: Activity) {
             isFocusable = true
             setOnClickListener { onClick() }
         }
-        row.addView(GlassUi.iconTile(activity, icon, sizeDp = 40, glyphDp = 22))
+        if (iconRes != 0) {
+            // Real app artwork, so the row matches the launcher and float ball.
+            row.addView(ImageView(activity).apply {
+                setImageResource(iconRes)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                contentDescription = title
+            }, LinearLayout.LayoutParams(dp(40), dp(40)))
+        } else {
+            row.addView(GlassUi.iconTile(activity, icon, sizeDp = 40, glyphDp = 22))
+        }
         row.addView(LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), 0, dp(8), 0)

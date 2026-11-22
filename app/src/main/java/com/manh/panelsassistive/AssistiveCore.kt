@@ -52,8 +52,8 @@ data class WidgetPanelPage(
     val items: List<PanelItem> = emptyList(),
     val columns: Int = 10,
     val rows: Int = 10,
-    val cellWidthDp: Int = 64,
-    val rowHeightDp: Int = 64,
+    val cellWidthDp: Int = 30,
+    val rowHeightDp: Int = 30,
     val areaColumns: Int = 10,
     val areaRows: Int = 10,
     val areaPaddingDp: Int = 0,
@@ -146,7 +146,7 @@ object AppPrefs {
     private const val KEY_ICON_PACK_PACKAGE = "icon_pack_package"
     private const val KEY_ICON_MASK_ENABLED = "icon_mask_enabled"
     private const val KEY_ICON_OVERRIDES = "icon_overrides"
-    private const val KEY_WIDGET_TEXT_COLOR = "widget_text_color"
+    private const val KEY_WIDGET_ACCENT = "widget_accent_color"
     private const val KEY_WIDGET_SHORTCUT = "widget_shortcut"
     private const val KEY_MUSIC_WIDGET_SOURCE = "music_widget_source"
     private const val KEY_MUSIC_WIDGET_PACKAGE = "music_widget_package"
@@ -509,8 +509,8 @@ object AppPrefs {
                     }
                     val cellSize = jsonPage.optInt(
                         "cellWidthDp",
-                        jsonPage.optInt("rowHeightDp", 64)
-                    ).coerceIn(40, 120)
+                        jsonPage.optInt("rowHeightDp", 30)
+                    ).coerceIn(20, 120)
                     add(
                         WidgetPanelPage(
                             jsonPage.optString("id", UUID.randomUUID().toString()),
@@ -568,8 +568,8 @@ object AppPrefs {
                     .put("name", page.name)
                     .put("columns", page.columns.coerceIn(1, maxGridColumns(landscape)))
                     .put("rows", page.rows.coerceIn(1, maxGridRows(landscape)))
-                    .put("cellWidthDp", page.cellWidthDp.coerceIn(40, 120))
-                    .put("rowHeightDp", page.cellWidthDp.coerceIn(40, 120))
+                    .put("cellWidthDp", page.cellWidthDp.coerceIn(20, 120))
+                    .put("rowHeightDp", page.cellWidthDp.coerceIn(20, 120))
                     .put("areaColumns", page.areaColumns.coerceIn(1, 30))
                     .put("areaRows", page.areaRows.coerceIn(1, 30))
                     .put("areaPaddingDp", page.areaPaddingDp.coerceIn(0, 100))
@@ -892,12 +892,30 @@ object AppPrefs {
         store(context).edit().putBoolean(KEY_ICON_MASK_ENABLED, enabled).apply()
     }
 
-    /** Text color shared by every home-screen widget. */
-    fun widgetTextColor(context: Context) =
-        store(context).getInt(KEY_WIDGET_TEXT_COLOR, 0xFF182434.toInt())
+    /**
+     * Saturated presets for the widget accent. Deliberately deeper than the
+     * pale theme swatches: the colour is painted over a frosted white card,
+     * so a light tint looked washed out there.
+     */
+    val WIDGET_ACCENT_PALETTE = intArrayOf(
+        0xFF1F6BFF.toInt(),
+        0xFF00A884.toInt(),
+        0xFFFF5A36.toInt(),
+        0xFFE0266B.toInt(),
+        0xFF7B4DFF.toInt(),
+        0xFFF0A020.toInt()
+    )
 
-    fun setWidgetTextColor(context: Context, color: Int) {
-        store(context).edit().putInt(KEY_WIDGET_TEXT_COLOR, color).apply()
+    /**
+     * Accent used by the home-screen widgets. Widgets used to inherit the
+     * theme accent, which made a pale theme leave the Play disc washed out;
+     * they now have their own saturated palette, independent of "Giao diện".
+     */
+    fun widgetAccent(context: Context): Int =
+        store(context).getInt(KEY_WIDGET_ACCENT, WIDGET_ACCENT_PALETTE[0])
+
+    fun setWidgetAccent(context: Context, color: Int) {
+        store(context).edit().putInt(KEY_WIDGET_ACCENT, color).apply()
     }
 
     /** App opened when a widget card is tapped; empty keeps the Panels activity. */
@@ -1136,8 +1154,10 @@ object AppPrefs {
         store(context).edit().putInt(KEY_FLOAT_BALL_OPACITY, opacity.coerceIn(15, 100)).apply()
     }
 
+    // Fresh installs start as a full circle; lowering the slider rounds the
+    // corners into a squircle.
     fun floatBallCorner(context: Context) =
-        store(context).getInt(KEY_FLOAT_BALL_CORNER, 34).coerceIn(0, 100)
+        store(context).getInt(KEY_FLOAT_BALL_CORNER, 100).coerceIn(0, 100)
 
     fun setFloatBallCorner(context: Context, percent: Int) {
         store(context).edit().putInt(KEY_FLOAT_BALL_CORNER, percent.coerceIn(0, 100)).apply()

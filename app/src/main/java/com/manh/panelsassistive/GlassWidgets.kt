@@ -34,7 +34,8 @@ import kotlin.math.roundToInt
 /**
  * Home-screen widgets in the white frosted-glass language of the reference
  * mockup: a white pane that fades into transparency, a thin rim, white icons
- * and a soft white level fill. Only the music Play button is accent-tinted.
+ * and a soft white level fill. Only the music Play button is accent-tinted,
+ * using the widget's own colour (never the app theme).
  * Everything is RemoteViews, so third-party launchers can host them too.
  */
 object GlassWidgets {
@@ -403,7 +404,8 @@ object GlassWidgets {
     /**
      * Neutral frosted pane: white light fading into transparency, a thin white
      * rim and (for value cards) a slim pill shape with a soft white level fill.
-     * No accent or navy tint is used — only the music Play button stays tinted.
+     * No accent or navy tint is used on the pane — only the music Play button
+     * takes the widget colour.
      */
     private fun cardBitmap(
         context: Context,
@@ -688,7 +690,7 @@ abstract class GlassWidgetProvider : AppWidgetProvider() {
 
     private fun render(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val options = manager.getAppWidgetOptions(widgetId)
-        val accent = AppThemes.current(context).accent
+        val accent = AppPrefs.widgetAccent(context)
         val layout = layoutId(context, options)
         val views = RemoteViews(context.packageName, layout)
         try {
@@ -1005,7 +1007,7 @@ class GlassMusicWidget : GlassWidgetProvider() {
             GlassWidgets.MusicSize.COMPACT -> 52
             GlassWidgets.MusicSize.WIDE -> 68
             GlassWidgets.MusicSize.LARGE ->
-                (minOf(cardWidthDp, cardHeightDp) * 0.58f).roundToInt().coerceIn(104, 220)
+                (minOf(cardWidthDp, cardHeightDp) * 0.52f).roundToInt().coerceIn(96, 200)
         }
         // The card background is capped at MAX_CARD_PX; painting the round art
         // any larger would only inflate the RemoteViews payload (two big
@@ -1037,7 +1039,7 @@ class GlassMusicWidget : GlassWidgetProvider() {
             GlassWidgets.circleBitmap(
                 context,
                 GlassWidgets.dp(context, playCircleDp),
-                (accent and 0x00FFFFFF) or 0xE6000000.toInt()
+                (accent and 0x00FFFFFF) or 0xFF000000.toInt()
             )
         )
         views.setImageViewBitmap(

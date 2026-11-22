@@ -2247,11 +2247,11 @@ class FloatBallService : Service() {
     private class FloatBallIconView(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         /**
-         * Default ball face. This is the same PNG used as the launcher icon, so
-         * replacing `panels_assistive_icon.png` restyles both at once.
+         * Default ball face. Same artwork as the launcher icon, but full-bleed
+         * so the corner slider can clip it into a circle or a squircle.
          */
         private val defaultIconBitmap: Bitmap? by lazy {
-            BitmapFactory.decodeResource(resources, R.drawable.panels_assistive_icon)
+            BitmapFactory.decodeResource(resources, R.drawable.panels_assistive_ball)
         }
         private val iconHandler = Handler(Looper.getMainLooper())
         private var sourceMode = AppPrefs.FloatBallIconMode.STATIC
@@ -2267,7 +2267,7 @@ class FloatBallService : Service() {
         private var animationStart = SystemClock.uptimeMillis()
         private var playing = false
         private var screenOn = true
-        private var cornerPercent = 34
+        private var cornerPercent = 100
         private var lastInteraction = SystemClock.uptimeMillis()
 
         private val animationTick = object : Runnable {
@@ -2649,23 +2649,20 @@ class FloatBallService : Service() {
                 return
             }
 
-            // Default face: the app icon artwork, decoded from a real image so
-            // the artwork can be swapped without touching code. The image owns
-            // its own squircle and ring (no centre dot), so the clipped canvas
-            // is released first and the icon is drawn at full size.
+            // Default face: the app artwork, decoded from a real image so the
+            // look can be swapped without touching code. The bitmap is
+            // full-bleed, so the corner slider owns the silhouette: 100% is a
+            // true circle (fresh install) and lower values round the corners
+            // back into a squircle.
             val icon = defaultIconBitmap
             if (icon != null) {
-                canvas.restoreToCount(saveCount)
-                paint.shader = null
-                paint.color = Color.WHITE
-                paint.style = Paint.Style.FILL
-                paint.strokeCap = Paint.Cap.BUTT
                 canvas.drawBitmap(
                     icon,
                     null,
                     RectF(0f, 0f, width.toFloat(), height.toFloat()),
                     paint
                 )
+                canvas.restoreToCount(saveCount)
                 return
             }
             canvas.restoreToCount(saveCount)

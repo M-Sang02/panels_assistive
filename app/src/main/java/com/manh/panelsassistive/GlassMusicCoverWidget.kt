@@ -123,7 +123,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             R.id.cover_next,
             sideCircleBitmap(context, "skip-forward", glyphAlpha)
         )
-        val playAlpha = if (idle) 0xB3 else 0xE6
+        val playAlpha = if (idle) 0xD9 else 0xFF
         views.setImageViewBitmap(
             R.id.cover_play_bg,
             GlassWidgets.circleBitmap(
@@ -202,7 +202,7 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
 
     /**
      * White transport disc with a dark glyph, like the reference mock-up.
-     * The Play button stays the only accent-coloured element.
+     * The Play disc is the only element tinted with the widget colour.
      */
     private fun sideCircleBitmap(context: Context, glyphName: String, glyphAlpha: Int): Bitmap {
         val size = GlassWidgets.dp(context, 26).coerceAtLeast(12)
@@ -289,19 +289,25 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), veil)
 
-        // Legibility scrim: transparent at the top, only reaching its tint at
-        // the bottom edge of the card. Extending the rect to the very bottom
-        // means there is no hard edge left in the middle of the artwork.
-        val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // Soft glass reflection: a diagonal band of light sweeping across the
+        // card, like the compact music widget's glossy highlight. Kept faint
+        // so the artwork stays readable.
+        val glare = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             shader = LinearGradient(
-                0f, height * 0.34f, 0f, height.toFloat(),
-                Color.TRANSPARENT,
-                Color.argb(92, 6, 10, 18),
+                -width * 0.2f, 0f, width * 1.05f, height * 0.95f,
+                intArrayOf(
+                    Color.TRANSPARENT,
+                    Color.TRANSPARENT,
+                    Color.argb(46, 255, 255, 255),
+                    Color.TRANSPARENT,
+                    Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, 0.36f, 0.5f, 0.64f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, height * 0.34f, width.toFloat(), height.toFloat(), scrim)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), glare)
 
         // Brighter hairline along the top edge: the card catches the light.
         val edge = (GlassWidgets.dp(context, 1) * scale).coerceAtLeast(1f)
@@ -331,20 +337,25 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
             radius, radius, rim
         )
 
-        // Bottom fade: only the last few percent of the card dissolves into the
-        // wallpaper. It used to start at 70% height, which cut the transport row
-        // off from the glass and exposed the placeholder drawable underneath.
+        // Bottom dissolve: the lower half thins out gradually and is nearly
+        // clear at the very base, leaving only a hint of the artwork. The
+        // transport buttons are separate ImageViews, so they stay readable.
         val fade = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             isDither = true
             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
             shader = LinearGradient(
-                0f, height * 0.93f, 0f, height.toFloat(),
-                Color.TRANSPARENT,
-                Color.argb(120, 0, 0, 0),
+                0f, height * 0.30f, 0f, height.toFloat(),
+                intArrayOf(
+                    Color.TRANSPARENT,
+                    Color.argb(50, 0, 0, 0),
+                    Color.argb(150, 0, 0, 0),
+                    Color.argb(232, 0, 0, 0)
+                ),
+                floatArrayOf(0f, 0.30f, 0.70f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, height * 0.93f, width.toFloat(), height.toFloat(), fade)
+        canvas.drawRect(0f, height * 0.30f, width.toFloat(), height.toFloat(), fade)
         return bitmap
     }
 

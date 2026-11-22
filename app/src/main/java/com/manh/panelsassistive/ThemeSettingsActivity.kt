@@ -34,11 +34,10 @@ class ThemeSettingsActivity : Activity() {
         root.addView(GlassUi.pageHeader(
             this,
             "Giao diện",
-            "Một bảng màu áp dụng cho widget, bảng nổi và toàn ứng dụng."
+            "Một bảng màu áp dụng cho bảng nổi và toàn ứng dụng."
         ))
         root.addView(paletteCard())
         root.addView(iconPackCard())
-        root.addView(widgetLinkCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
 
@@ -180,17 +179,6 @@ class ThemeSettingsActivity : Activity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             ))
         }
-
-    private fun widgetLinkCard(): LinearLayout = GlassUi.glassCard(this).apply {
-        addView(GlassUi.cardTitle(this@ThemeSettingsActivity, "Widget dùng chung bảng màu"))
-        addView(hint("Widget dùng nền kính trong suốt cố định; bảng màu chỉ đổi màu nút + / − và nút phát nhạc."))
-        addView(GlassUi.actionButton(
-            this@ThemeSettingsActivity,
-            "Mở cài đặt widget"
-        ) {
-            startActivity(Intent(this@ThemeSettingsActivity, WidgetSettingsActivity::class.java))
-        })
-    }
 
     private fun iconPackCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(GlassUi.cardTitle(this@ThemeSettingsActivity, "Icon pack"))

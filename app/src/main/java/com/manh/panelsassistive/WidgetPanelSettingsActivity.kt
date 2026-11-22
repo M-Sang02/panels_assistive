@@ -570,7 +570,7 @@ class WidgetPanelSettingsActivity : Activity() {
         addView(valueControl(
             getString(R.string.grid_cell_width),
             selectedPage().cellWidthDp,
-            40,
+            20,
             120
         ) { value -> updatePage { it.copy(cellWidthDp = value, rowHeightDp = value) } })
         addView(valueControl(

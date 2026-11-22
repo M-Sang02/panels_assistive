@@ -5,10 +5,14 @@ import android.app.AlertDialog
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
+import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -94,7 +98,7 @@ class WidgetSettingsActivity : Activity() {
         ))
         root.addView(musicCard())
         root.addView(quickOpenCard())
-        root.addView(themeHint())
+        root.addView(widgetColorCard())
         root.addView(styleCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
@@ -325,14 +329,74 @@ class WidgetSettingsActivity : Activity() {
             .show()
     }
 
-    private fun themeHint(): LinearLayout = GlassUi.glassCard(this).apply {
-        addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Màu chữ widget"))
+    /**
+     * Widget-only accent. Independent from "Giao diện": the cards keep their
+     * white frost and only the music Play/Pause disc takes this colour, so the
+     * widget never inherits a pale theme tint.
+     */
+    private fun widgetColorCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Màu của widget"))
         addView(hint(
-            "Mọi widget dùng chung kính trắng gần như trong suốt: sáng nhẹ ở góc trên rồi " +
-                "tan vào hình nền, viền trắng mảnh 0,9dp, chữ và icon trắng. Màu chủ đạo chỉ " +
-                "tô duy nhất nút Play của hai widget nhạc — không pha màu vào nền âm lượng, " +
-                "độ sáng hay đồng hồ."
+            "Chọn màu nhấn riêng cho widget, tách khỏi bảng màu Giao diện. Màu này tô " +
+                "nút Phát / Tạm dừng của cả hai widget nhạc; nền widget vẫn là kính trắng."
         ))
+        val current = AppPrefs.widgetAccent(this@WidgetSettingsActivity)
+        val row = LinearLayout(this@WidgetSettingsActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), dp(4), dp(4))
+            AppPrefs.WIDGET_ACCENT_PALETTE.forEach { color ->
+                addView(swatch(color, color == current),
+                    LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(7) })
+            }
+            addView(FrameLayout(this@WidgetSettingsActivity).apply {
+                background = GlassUi.fieldBackground(this@WidgetSettingsActivity, 12)
+                contentDescription = "Bảng màu widget tùy chỉnh"
+                isClickable = true
+                isFocusable = true
+                addView(
+                    LucideGlyphView(this@WidgetSettingsActivity, "palette", GlassUi.ACCENT),
+                    FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER)
+                )
+                setOnClickListener {
+                    PanelColorPicker.show(
+                        this@WidgetSettingsActivity,
+                        current,
+                        "Màu của widget"
+                    ) { color -> applyWidgetColor(color) }
+                }
+            }, LinearLayout.LayoutParams(dp(36), dp(36)))
+        }
+        addView(HorizontalScrollView(this@WidgetSettingsActivity).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(6) })
+    }
+
+    private fun swatch(color: Int, selected: Boolean): FrameLayout =
+        FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(color)
+                setStroke(
+                    dp(if (selected) 3 else 1),
+                    if (selected) Color.WHITE else Color.argb(90, 255, 255, 255)
+                )
+            }
+            contentDescription = "Màu widget"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { applyWidgetColor(color) }
+        }
+
+    private fun applyWidgetColor(color: Int) {
+        AppPrefs.setWidgetAccent(this, color)
+        GlassWidgets.refreshAll(this)
+        render()
+        Toast.makeText(this, "Đã áp dụng màu cho widget", Toast.LENGTH_SHORT).show()
     }
 
     private fun assignedLabel(): String {
@@ -380,9 +444,9 @@ class WidgetSettingsActivity : Activity() {
         addView(GlassUi.cardTitle(this@WidgetSettingsActivity, "Giao diện của widget"))
         addView(hint(
             "Widget dùng kính trắng rất trong: sáng nhẹ ở góc trên và tan nhanh thành trong " +
-                "suốt, không pha xanh hay màu nhấn. Viền trắng mảnh 0,9dp, bo góc lớn; " +
-                "chữ/icon trắng có bóng mềm. Nhấn giữ widget để đổi kích thước; icon tăng/giảm " +
-                "luôn bám mép ngoài khi kéo dài."
+                "suốt, không pha màu nền. Viền trắng mảnh 0,9dp, bo góc lớn; chữ/icon trắng " +
+                "có bóng mềm. Màu nhấn chỉ tô nút phát/tạm dừng của widget nhạc — đổi ở thẻ " +
+                "Màu của widget phía trên. Nhấn giữ widget để đổi kích thước."
         ))
         addView(GlassUi.actionButton(
             this@WidgetSettingsActivity,
