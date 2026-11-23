@@ -203,15 +203,8 @@
     <string name="action_nav_home">Điều hướng: Trang chủ (Trợ năng)</string>
     <string name="action_call_assistant">Gọi trợ lý hệ thống (Trợ năng)</string>
     <string name="action_auto_rotation">Bật/tắt tự động xoay</string>
-    <string name="action_circle_search">Khoanh vùng tìm kiếm (MiCTS)</string>
-    <string name="micts_required_title">Cần cài MiCTS</string>
-    <string name="micts_required_message">Khoanh vùng tìm kiếm dùng MiCTS để gọi Circle to Search. Panels chỉ ẩn bảng rồi mở MiCTS; việc quét, độ trễ và rung đều do MiCTS xử lý.</string>
-    <string name="micts_download_github">Tải MiCTS trên GitHub</string>
-    <string name="micts_assign_anyway">Vẫn gán</string>
-    <string name="micts_assign_later">Để sau</string>
-    <string name="micts_close">Đóng</string>
-    <string name="micts_launch_failed">Không mở được MiCTS.</string>
-    <string name="micts_browser_unavailable">Không có trình duyệt để tải MiCTS.</string>
+    <string name="action_circle_search">Khoanh vùng tìm kiếm</string>
+    <string name="circle_search_failed">Không mở được khoanh vùng tìm kiếm.</string>
     <string name="expansion_freeform_disabled">Bật Cửa sổ tự do trong Cài đặt nâng cao để nhấn giữ mở app trong cửa sổ nổi.</string>
     <string name="expansion_freeform_apps_only">Chỉ lối tắt ứng dụng mới mở được cửa sổ nổi.</string>
     <string name="action_none">Không làm gì</string>

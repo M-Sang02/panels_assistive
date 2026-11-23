@@ -160,12 +160,6 @@ class QuickActionTileService : TileService() {
             collapseTo(GestureSettingsActivity::class.java)
             return
         }
-        // MiCTS has to start its own activity; from the tile that goes through
-        // the system's collapse trampoline when the float ball service is idle.
-        if (action == ActionDispatcher.CIRCLE_SEARCH && !FloatBallService.running) {
-            collapseTo(MiCtsActivity::class.java)
-            return
-        }
         if (QuickSettingsTiles.actionNeedsOverlay(action) && !Settings.canDrawOverlays(this)) {
             collapseTo(MainActivity::class.java)
             return

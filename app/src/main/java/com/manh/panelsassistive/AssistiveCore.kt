@@ -152,6 +152,8 @@ object AppPrefs {
     private const val FILE_NAME = "panels_assistive"
     private const val KEY_FLOAT_BALL_ENABLED = "float_ball_enabled"
     private const val KEY_START_ON_BOOT = "start_on_boot"
+    private const val KEY_CIRCLE_SEARCH_DELAY = "circle_search_delay"
+    private const val KEY_CIRCLE_SEARCH_VIBRATE = "circle_search_vibrate"
     private const val KEY_EXPANSION_SHORTCUTS = "expansion_shortcuts"
     private const val MAX_FLOAT_BALL_ICON_BYTES = 16 * 1024 * 1024
     private const val KEY_FLOAT_BALL_SIZE = "float_ball_size"
@@ -276,6 +278,20 @@ object AppPrefs {
 
     fun setStartOnBoot(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_START_ON_BOOT, enabled).apply()
+    }
+
+    fun circleSearchDelay(context: Context) =
+        store(context).getInt(KEY_CIRCLE_SEARCH_DELAY, 300).coerceIn(0, 2000)
+
+    fun setCircleSearchDelay(context: Context, value: Int) {
+        store(context).edit().putInt(KEY_CIRCLE_SEARCH_DELAY, value.coerceIn(0, 2000)).apply()
+    }
+
+    fun circleSearchVibrate(context: Context) =
+        store(context).getBoolean(KEY_CIRCLE_SEARCH_VIBRATE, true)
+
+    fun setCircleSearchVibrate(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_CIRCLE_SEARCH_VIBRATE, enabled).apply()
     }
 
     const val EXPANSION_SHORTCUT_SLOTS = 8
@@ -1713,7 +1729,7 @@ object ActionDispatcher {
                     }
                 }
             }
-            CIRCLE_SEARCH -> MiCts.trigger(context)
+            CIRCLE_SEARCH -> CircleSearch.trigger(context)
             TOGGLE_FLOAT_BALL -> {
                 if (FloatBallService.running && AppPrefs.floatBallEnabled(context)) {
                     FloatBallService.stop(context)

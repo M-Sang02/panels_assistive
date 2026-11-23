@@ -49,7 +49,6 @@
         </intent>
         <package android:name="moe.shizuku.privileged.api" />
         <package android:name="com.android.vending" />
-        <package android:name="com.parallelc.micts" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
@@ -226,12 +225,8 @@
             android:configChanges="orientation|screenSize"
             android:exported="false" />
         <activity
-            android:name=".MiCtsActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:noHistory="true"
-            android:taskAffinity="${applicationId}.micts"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+            android:name=".CircleSearchSettingsActivity"
+            android:exported="false" />
         <activity
             android:name=".WidgetPanelSettingsActivity"
             android:configChanges="orientation|screenSize"

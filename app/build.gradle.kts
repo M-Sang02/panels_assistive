@@ -28,6 +28,8 @@ android {
 dependencies {
     // Required by LucideGlyphView for ResourcesCompat.getFont().
     implementation("androidx.core:core-ktx:1.15.0")
+    // Lets the circle-search trigger call the hidden voice interaction service.
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
     // Optional shell bridge for freeform windows; inactive when Shizuku is missing.
     // 13.0.0 is the newest release whose manifest still allows minSdk 23.
     implementation("dev.rikka.shizuku:api:13.0.0")

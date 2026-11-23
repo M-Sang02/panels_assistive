@@ -83,7 +83,7 @@ class FloatBallService : Service() {
     private var popupEditMode = false
     private var popupScroller: android.widget.HorizontalScrollView? = null
     private var popupViewport: ScrollView? = null
-    /** True between hiding the overlays and MiCTS taking its screenshot. */
+    /** True between hiding the overlays and the scan taking its screenshot. */
     private var screenSearchActive = false
     private var widgetHostListening = false
     private var crossWindowBlurListener: Consumer<Boolean>? = null
@@ -1240,66 +1240,27 @@ class FloatBallService : Service() {
     }
 
     /**
-     * Circle to Search: every Panels overlay is removed first so MiCTS captures
-     * a clean screen, then MiCTS is launched immediately. The ball comes back
-     * once the scan has had time to take its screenshot.
+     * Circle to Search: every Panels overlay is removed first so the scan sees
+     * a clean screen, then the system omni session is started. The ball comes
+     * back once the scan has had time to take its screenshot.
      */
     private fun showScreenSearch() {
         screenSearchActive = true
         removePopup(stopIfEmpty = false)
         removeFloatBall()
         handler.postDelayed({
-            if (!MiCts.isInstalled(this)) {
-                showMiCtsMissingSheet()
-                return@postDelayed
-            }
-            MiCts.launch(this)
-            if (AppPrefs.floatBallEnabled(this)) {
-                handler.postDelayed({
+            CircleSearch.fire(this, AppPrefs.circleSearchDelay(this)) {
+                if (AppPrefs.floatBallEnabled(this)) {
+                    handler.postDelayed({
+                        screenSearchActive = false
+                        if (floatBall == null && popup == null) showFloatBall()
+                    }, SCREEN_SEARCH_RESTORE_DELAY_MS)
+                } else {
                     screenSearchActive = false
-                    if (floatBall == null && popup == null) showFloatBall()
-                }, SCREEN_SEARCH_RESTORE_DELAY_MS)
-            } else {
-                screenSearchActive = false
-                if (!BackgroundRecordingService.isActive) stopSelf()
+                    if (!BackgroundRecordingService.isActive) stopSelf()
+                }
             }
         }, SCREEN_SEARCH_HIDE_DELAY_MS)
-    }
-
-    /** MiCTS is required for this action; offer the download inside the panel theme. */
-    private fun showMiCtsMissingSheet() {
-        val sheet = GlassDialogs.sheetOverlay(
-            this,
-            getString(R.string.micts_required_title),
-            getString(R.string.micts_required_message)
-        )
-        sheet.onDismiss = {
-            screenSearchActive = false
-            if (AppPrefs.floatBallEnabled(this)) {
-                showFloatBall()
-            } else if (!BackgroundRecordingService.isActive) {
-                stopSelf()
-            }
-        }
-        sheet.content.addView(GlassUi.actionButton(
-            this,
-            getString(R.string.micts_download_github),
-            prominent = true
-        ) {
-            sheet.dismiss()
-            MiCts.openGithub(this)
-        })
-        try {
-            sheet.show(overlayWindowType())
-        } catch (error: Exception) {
-            Log.w(TAG, "Unable to show the MiCTS reminder", error)
-            screenSearchActive = false
-            if (AppPrefs.floatBallEnabled(this)) {
-                showFloatBall()
-            } else if (!BackgroundRecordingService.isActive) {
-                stopSelf()
-            }
-        }
     }
 
     private fun showBrightnessSlider() {
@@ -2393,7 +2354,7 @@ class FloatBallService : Service() {
 
 
     private fun keepFloatBallAvailable() {
-        // While MiCTS is about to scan, nothing may reappear on screen.
+        // While the scan is about to start, nothing may reappear on screen.
         if (screenSearchActive) return
         if (AppPrefs.floatBallEnabled(this) && Settings.canDrawOverlays(this)) {
             showFloatBall()
@@ -2902,9 +2863,9 @@ class FloatBallService : Service() {
         const val ACTION_UPDATE_POPUP_APPEARANCE =
             "com.manh.panelsassistive.action.UPDATE_POPUP_APPEARANCE"
         private const val MEDIA_VOLUME_RELEASE_DELAY_MS = 500L
-        /** Small pause so the removed overlay windows are gone before MiCTS scans. */
+        /** Small pause so the removed overlay windows are gone before the scan. */
         private const val SCREEN_SEARCH_HIDE_DELAY_MS = 120L
-        /** MiCTS shoots its screenshot right after launch; restore the ball afterwards. */
+        /** The scan grabs its screenshot right after the trigger; restore afterwards. */
         private const val SCREEN_SEARCH_RESTORE_DELAY_MS = 2200L
         const val ACTION_SHOW_BRIGHTNESS_SLIDER = "com.manh.panelsassistive.action.SHOW_BRIGHTNESS_SLIDER"
         private const val ACTION_RECORDING_STARTED = "com.manh.panelsassistive.action.RECORDING_STARTED"

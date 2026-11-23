@@ -102,11 +102,9 @@ class SettingsScreen(private val activity: Activity) {
         addRow(
             icon = "scan-search",
             title = "Khoanh vùng tìm kiếm",
-            subtitle = "Gọi Circle to Search qua MiCTS; ẩn bảng trước khi quét"
+            subtitle = "Độ trễ kích hoạt và rung khi quét"
         ) {
-            if (!MiCts.isInstalled(activity) || !MiCts.openSettings(activity)) {
-                MiCts.openGithub(activity)
-            }
+            activity.startActivity(Intent(activity, CircleSearchSettingsActivity::class.java))
         }
 
         addRow(

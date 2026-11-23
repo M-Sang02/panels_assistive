@@ -241,10 +241,7 @@ class GestureSettingsActivity : Activity() {
                                 }
                                 .show()
                         }
-                        else -> MiCts.remindIfNeeded(
-                            this@GestureSettingsActivity,
-                            choice.id
-                        ) {
+                        else -> {
                             currentId = choice.id
                             onSelected(choice.id)
                             button.removeViewAt(0)

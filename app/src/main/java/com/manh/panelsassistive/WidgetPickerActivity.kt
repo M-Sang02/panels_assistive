@@ -243,25 +243,23 @@ class WidgetPickerActivity : Activity() {
                     setPadding(dp(12), 0, 0, 0)
                 })
                 setOnClickListener {
-                    MiCts.remindIfNeeded(this@WidgetPickerActivity, action.id) {
-                        val slot = expansionSlot
-                        if (slot >= 0) {
-                            AppPrefs.setExpansionShortcut(
-                                this@WidgetPickerActivity,
-                                slot,
-                                ExpansionShortcut(PanelItemType.ACTION, action.id, action.label)
-                            )
-                        } else {
-                            AppPrefs.addPanelItem(
-                                this@WidgetPickerActivity,
-                                landscapeLayout,
-                                panelId,
-                                PanelItem(PanelItemType.ACTION, action.id, action.label, targetPosition),
-                                allowOverlap = AppPrefs.panelFreeMode(this@WidgetPickerActivity)
-                            )
-                        }
-                        finishPicking()
+                    val slot = expansionSlot
+                    if (slot >= 0) {
+                        AppPrefs.setExpansionShortcut(
+                            this@WidgetPickerActivity,
+                            slot,
+                            ExpansionShortcut(PanelItemType.ACTION, action.id, action.label)
+                        )
+                    } else {
+                        AppPrefs.addPanelItem(
+                            this@WidgetPickerActivity,
+                            landscapeLayout,
+                            panelId,
+                            PanelItem(PanelItemType.ACTION, action.id, action.label, targetPosition),
+                            allowOverlap = AppPrefs.panelFreeMode(this@WidgetPickerActivity)
+                        )
                     }
+                    finishPicking()
                 }
             }
             row.layoutParams = LinearLayout.LayoutParams(
