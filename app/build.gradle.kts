@@ -34,4 +34,8 @@ dependencies {
     // 13.0.0 is the newest release whose manifest still allows minSdk 23.
     implementation("dev.rikka.shizuku:api:13.0.0")
     implementation("dev.rikka.shizuku:provider:13.0.0")
+    // Offline QR rendering for the image widget; pure Java, no runtime network.
+    implementation("com.google.zxing:core:3.5.3")
+    // Reads the EXIF rotation of photos picked for the image widget (API 23+).
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 }

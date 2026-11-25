@@ -99,13 +99,24 @@ class WidgetSettingsActivity : Activity() {
             "Một widget nhạc thứ hai, độc lập: ảnh bìa sắc nét (cắt giữa, không làm mờ) " +
                 "làm nền, lớp kính trắng rất nhẹ phía trên và đáy ảnh tan dần vào hình nền; " +
                 "tên bài và nghệ sĩ ở trên, cụm Previous / Play / Next tròn ở dưới. " +
-                "Bo góc 24dp, viền trắng mảnh; dùng chung app nhạc đã gán và " +
-                "\"Play music now\".",
+                "Bo góc 32dp đồng bộ widget nhạc, viền trắng mảnh. Chạm vào tên bài để " +
+                "ẩn tên (giữ nguyên khoảng trống), chạm lại đúng vùng đó để hiện lại; " +
+                "dùng chung app nhạc đã gán và \"Play music now\".",
             GlassMusicCoverWidget::class.java,
             assignedPackage = AppPrefs.musicWidgetPackage(this),
             badgeGlyph = if (AppPrefs.musicWidgetNoApp(this)) "ban" else "music",
             appHint = "Chọn ứng dụng nhạc dùng chung"
         ) { chooseMusicApp() })
+        root.addView(widgetCard(
+            "image",
+            "Ảnh / mã QR (2×2 → 2×3 → 3×2 …)",
+            "Kính trong giống widget nhạc khi chưa có nội dung. Chạm để mở cửa sổ nổi " +
+                "thêm mã QR (STK, ngân hàng, người nhận, ghi chú) hoặc chọn một/nhiều ảnh. " +
+                "Khi đã có ảnh, chạm mở màn hình xem toàn màn hình: phóng to tuỳ ý, vuốt " +
+                "đổi ảnh khi đã thu về 100%, nhấn giữ để chia sẻ, sửa hoặc sao chép thông " +
+                "tin QR. Ảnh nền trong suốt được nền kính bám theo hình ảnh.",
+            GlassImageWidget::class.java
+        ))
         root.addView(musicCard())
         root.addView(widgetColorCard())
         setContentView(ScrollView(this).apply { addView(root) })

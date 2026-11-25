@@ -46,6 +46,7 @@ object GlassWidgets {
     const val ACTION_MEDIA_PREV = "com.manh.panelsassistive.widget.MEDIA_PREV"
     const val ACTION_MEDIA_TOGGLE = "com.manh.panelsassistive.widget.MEDIA_TOGGLE"
     const val ACTION_MEDIA_NEXT = "com.manh.panelsassistive.widget.MEDIA_NEXT"
+    const val ACTION_COVER_TITLE = "com.manh.panelsassistive.widget.COVER_TITLE"
     const val EXTRA_WIDGET_ID = "com.manh.panelsassistive.widget.WIDGET_ID"
 
     /**
@@ -63,7 +64,8 @@ object GlassWidgets {
         GlassBrightnessHorizontalWidget::class.java,
         GlassClockWidget::class.java,
         GlassMusicWidget::class.java,
-        GlassMusicCoverWidget::class.java
+        GlassMusicCoverWidget::class.java,
+        GlassImageWidget::class.java
     )
 
     /** Every music card, so media notifications repaint both variants. */

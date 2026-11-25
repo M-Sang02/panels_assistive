@@ -1150,6 +1150,86 @@ object AppPrefs {
         store(context).edit().putString(KEY_MUSIC_WIDGET_PACKAGE, packageName.orEmpty()).apply()
     }
 
+    /** Per-widget: the cover card hides the track title but keeps its space. */
+    fun musicCoverTitleHidden(context: Context, widgetId: Int): Boolean =
+        store(context).getBoolean("cover_title_hidden_$widgetId", false)
+
+    fun setMusicCoverTitleHidden(context: Context, widgetId: Int, hidden: Boolean) {
+        store(context).edit().putBoolean("cover_title_hidden_$widgetId", hidden).apply()
+    }
+
+    /** One bank-transfer QR: the info typed by the user, kept per widget id. */
+    data class ImageWidgetQr(
+        val account: String = "",
+        val bank: String = "",
+        val name: String = "",
+        val note: String = ""
+    ) {
+        fun isEmpty(): Boolean =
+            account.isBlank() && bank.isBlank() && name.isBlank() && note.isBlank()
+
+        /** Plain-text payload encoded into the QR; empty lines are dropped. */
+        fun payload(): String = buildList {
+            if (bank.isNotBlank()) add("NGÂN HÀNG: ${bank.trim()}")
+            if (account.isNotBlank()) add("SỐ TÀI KHOẢN: ${account.trim()}")
+            if (name.isNotBlank()) add("NGƯỜI NHẬN: ${name.trim()}")
+            if (note.isNotBlank()) add("GHI CHÚ: ${note.trim()}")
+        }.joinToString("\n")
+    }
+
+    fun imageWidgetUris(context: Context, widgetId: Int): List<String> =
+        store(context).getString("image_widget_uris_$widgetId", null).orEmpty()
+            .split('\n')
+            .filter { it.isNotBlank() }
+
+    fun setImageWidgetUris(context: Context, widgetId: Int, uris: List<String>) {
+        store(context).edit()
+            .putString("image_widget_uris_$widgetId", uris.filter { it.isNotBlank() }
+                .joinToString("\n"))
+            .apply()
+    }
+
+    fun imageWidgetQr(context: Context, widgetId: Int): ImageWidgetQr? {
+        val raw = store(context).getString("image_widget_qr_$widgetId", null) ?: return null
+        return try {
+            val json = JSONObject(raw)
+            ImageWidgetQr(
+                account = json.optString("account"),
+                bank = json.optString("bank"),
+                name = json.optString("name"),
+                note = json.optString("note")
+            ).takeIf { !it.isEmpty() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun setImageWidgetQr(context: Context, widgetId: Int, qr: ImageWidgetQr?) {
+        val editor = store(context).edit()
+        if (qr == null || qr.isEmpty()) {
+            editor.remove("image_widget_qr_$widgetId")
+        } else {
+            val json = JSONObject()
+                .put("account", qr.account)
+                .put("bank", qr.bank)
+                .put("name", qr.name)
+                .put("note", qr.note)
+            editor.putString("image_widget_qr_$widgetId", json.toString())
+        }
+        editor.apply()
+    }
+
+    fun hasImageWidgetContent(context: Context, widgetId: Int): Boolean =
+        imageWidgetUris(context, widgetId).isNotEmpty() ||
+            imageWidgetQr(context, widgetId) != null
+
+    fun clearImageWidget(context: Context, widgetId: Int) {
+        store(context).edit()
+            .remove("image_widget_uris_$widgetId")
+            .remove("image_widget_qr_$widgetId")
+            .apply()
+    }
+
     private fun iconOverrideStore(context: Context) =
         store(context).getString(KEY_ICON_OVERRIDES, null)?.let {
             try { JSONObject(it) } catch (_: Exception) { JSONObject() }

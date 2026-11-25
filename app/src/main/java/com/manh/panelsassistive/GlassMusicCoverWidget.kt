@@ -88,7 +88,11 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 assignedLabel != null -> "Chạm để mở $assignedLabel"
                 else -> "Chạm để mở ứng dụng nhạc"
             }
-        views.setTextViewText(R.id.cover_title, title)
+        // Tapping the title hides the text only: a single space keeps the line
+        // height, margins and tap area exactly where the title was, so tapping
+        // that same strip brings the title back.
+        val titleHidden = AppPrefs.musicCoverTitleHidden(context, widgetId)
+        views.setTextViewText(R.id.cover_title, if (titleHidden) " " else title)
         views.setTextViewText(R.id.cover_artist, artist)
         val wide = widthDp >= 230 && widthDp >= heightDp * 3 / 2
         val big = widthDp >= 250 && heightDp >= 210
@@ -169,14 +173,29 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 GlassWidgets.musicPlayNowPending(context, widgetId)
             }
         )
+        // The title strip toggles its own visibility instead of opening the app.
+        views.setOnClickPendingIntent(
+            R.id.cover_title,
+            GlassWidgets.pending(
+                context, javaClass, GlassWidgets.ACTION_COVER_TITLE, widgetId * 16 + 6, widgetId
+            )
+        )
         val tap = GlassWidgets.musicTapPending(context, widgetId)
         views.setOnClickPendingIntent(R.id.cover_bg, tap)
-        views.setOnClickPendingIntent(R.id.cover_title, tap)
         views.setOnClickPendingIntent(R.id.cover_artist, tap)
         views.setOnClickPendingIntent(R.id.cover_root, tap)
     }
 
     override fun handleAction(context: Context, action: String, widgetId: Int): Boolean {
+        if (action == GlassWidgets.ACTION_COVER_TITLE) {
+            if (widgetId < 0) return false
+            AppPrefs.setMusicCoverTitleHidden(
+                context,
+                widgetId,
+                !AppPrefs.musicCoverTitleHidden(context, widgetId)
+            )
+            return true
+        }
         if (action != GlassWidgets.ACTION_MEDIA_PREV &&
             action != GlassWidgets.ACTION_MEDIA_TOGGLE &&
             action != GlassWidgets.ACTION_MEDIA_NEXT
@@ -235,7 +254,9 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val radius = (GlassWidgets.dp(context, 24) * scale).coerceAtMost(minOf(width, height) / 2f)
+        // Same 32dp corner as the round-art music card (GlassWidgets.cardBitmap)
+        // so both music widgets share one silhouette.
+        val radius = (GlassWidgets.dp(context, 32) * scale).coerceAtMost(minOf(width, height) / 2f)
         val path = Path().apply {
             addRoundRect(
                 RectF(0f, 0f, width.toFloat(), height.toFloat()),
