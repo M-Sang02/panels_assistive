@@ -99,9 +99,9 @@ class WidgetSettingsActivity : Activity() {
             "Một widget nhạc thứ hai, độc lập: ảnh bìa sắc nét (cắt giữa, không làm mờ) " +
                 "làm nền, lớp kính trắng rất nhẹ phía trên và đáy ảnh tan dần vào hình nền; " +
                 "tên bài và nghệ sĩ ở trên, cụm Previous / Play / Next tròn ở dưới. " +
-                "Bo góc 32dp đồng bộ widget nhạc, viền trắng mảnh. Chạm vào tên bài để " +
-                "ẩn tên (giữ nguyên khoảng trống), chạm lại đúng vùng đó để hiện lại; " +
-                "dùng chung app nhạc đã gán và \"Play music now\".",
+                "Bo góc 32dp đồng bộ widget nhạc, viền trắng mảnh. Chạm vào dòng tên bài " +
+                "hoặc nghệ sĩ để ẩn cả hai dòng (giữ nguyên khoảng trống), chạm lại đúng " +
+                "vùng đó để hiện lại; dùng chung app nhạc đã gán và \"Play music now\".",
             GlassMusicCoverWidget::class.java,
             assignedPackage = AppPrefs.musicWidgetPackage(this),
             badgeGlyph = if (AppPrefs.musicWidgetNoApp(this)) "ban" else "music",
@@ -111,11 +111,12 @@ class WidgetSettingsActivity : Activity() {
             "image",
             "Ảnh / mã QR (2×2 → 2×3 → 3×2 …)",
             "Kính trong giống widget nhạc khi chưa có nội dung. Chạm để mở cửa sổ nổi: " +
-                "chọn ảnh mã QR của bạn, cắt vuông 1:1 rồi thêm thông tin chuyển khoản " +
-                "(không bắt buộc), hoặc chọn một/nhiều ảnh. Khi đã có nội dung, chạm mở " +
-                "màn hình xem: phóng to tuỳ ý, kéo ngang để ảnh mờ dần rồi đổi khi đang " +
-                "100%, thông tin QR là trang cuối; chạm giữ để chia sẻ, sửa hoặc sao chép " +
-                "thông tin. Ảnh nền trong suốt được nền kính bám theo hình ảnh.",
+                "chọn ảnh mã QR của bạn, cắt vuông 1:1 (khung bo góc, có xoay và lật ảnh) " +
+                "rồi thêm thông tin chuyển khoản (không bắt buộc), hoặc chọn một/nhiều ảnh. " +
+                "Khi đã có nội dung, chạm mở màn hình xem: phóng to tuỳ ý, kéo ngang để ảnh " +
+                "mờ dần rồi đổi khi đang 100%, thông tin QR là trang cuối; ảnh xem cuối cùng " +
+                "sẽ hiện ra widget; chạm giữ để chia sẻ, sửa hoặc sao chép thông tin. Ảnh nền " +
+                "trong suốt được nền kính bám theo hình ảnh.",
             GlassImageWidget::class.java
         ))
         root.addView(musicCard())

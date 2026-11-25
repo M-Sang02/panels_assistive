@@ -9,7 +9,7 @@
         android:shortcutShortLabel="@string/shortcut_toggle_float_ball">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.manh.panelsassistive.MainActivity"
+            android:targetClass="com.manh.panelsassistive.QuickTileActionsActivity"
             android:targetPackage="com.manh.panelsassistive">
             <extra
                 android:name="com.manh.panelsassistive.extra.SHORTCUT_ACTION"

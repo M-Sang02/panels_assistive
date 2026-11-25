@@ -172,7 +172,7 @@ class GestureSettingsActivity : Activity() {
             .setShortLabel(choice.label)
             .setLongLabel(choice.label)
             .setIcon(Icon.createWithResource(this, R.drawable.panels_assistive_icon))
-            .setIntent(Intent(this, MainActivity::class.java).apply {
+            .setIntent(Intent(this, QuickTileActionsActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
                 putExtra(MainActivity.EXTRA_SHORTCUT_ACTION, choice.id)
             })

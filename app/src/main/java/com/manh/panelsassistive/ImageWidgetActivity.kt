@@ -754,6 +754,7 @@ class ImageViewerActivity : Activity() {
     private var dragging = false
     private var dragDistance = 0f
     private var flingDirection = 0
+    private var coverChanged = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -764,11 +765,24 @@ class ImageViewerActivity : Activity() {
             finish()
             return
         }
+        // Continue at the picture the widget is showing, i.e. the last one seen.
+        index = AppPrefs.imageWidgetCover(this, widgetId)
+            ?.let { uris.indexOf(it) }
+            ?.takeIf { it >= 0 } ?: 0
         window.statusBarColor = 0xFF050B12.toInt()
         window.navigationBarColor = 0xFF050B12.toInt()
         buildUi()
         prepareGestureDetectors()
         load(index, animate = false)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // The widget shows the picture the viewer settled on last.
+        if (coverChanged) {
+            coverChanged = false
+            GlassWidgets.refreshAll(this)
+        }
     }
 
     override fun onResume() {
@@ -999,6 +1013,13 @@ class ImageViewerActivity : Activity() {
             Toast.makeText(this, "Không mở được ảnh này.", Toast.LENGTH_SHORT).show()
             image.alpha = 1f
             return
+        }
+        if (!isInfoPage()) {
+            val shown = uris.getOrNull(index)
+            if (!shown.isNullOrBlank() && shown != AppPrefs.imageWidgetCover(this, widgetId)) {
+                AppPrefs.setImageWidgetCover(this, widgetId, shown)
+                coverChanged = true
+            }
         }
         counter.text = if (isInfoPage()) "Thông tin" else "${index + 1} / ${uris.size}"
         swapTo(next, animate, fromDrag)

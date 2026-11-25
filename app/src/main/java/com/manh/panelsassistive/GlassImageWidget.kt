@@ -67,13 +67,17 @@ class GlassImageWidget : GlassWidgetProvider() {
 
         val uris = AppPrefs.imageWidgetUris(context, widgetId)
         val qrMode = AppPrefs.imageWidgetQrMode(context, widgetId)
+        // The picture viewed last wins; fall back to the first when it is gone.
+        val shown = AppPrefs.imageWidgetCover(context, widgetId)
+            ?.takeIf { it in uris }
+            ?: uris.firstOrNull().orEmpty()
         // A stored picture whose persisted permission was lost can no longer be
         // decoded; the card then behaves as empty so the editor can repair it.
         var showContent = uris.isNotEmpty()
         val painted = runCatching {
             val art = ImageWidgetMedia.loadBitmap(
                 context,
-                uris.firstOrNull().orEmpty(),
+                shown,
                 maxOf(bitmapWidth, bitmapHeight) * 2
             )
             if (art == null) {
@@ -214,7 +218,7 @@ class GlassImageWidget : GlassWidgetProvider() {
         return bitmap
     }
 
-    /** QR mode: the whole picture on the glass, never cropped. */
+    /** QR mode: the whole picture on the glass, never cropped, rounded like the card. */
     private fun containCard(
         context: Context,
         width: Int,
@@ -227,10 +231,18 @@ class GlassImageWidget : GlassWidgetProvider() {
         val radius = corner(context, width, height, scale)
         paintGlass(canvas, context, width, height, scale)
         val pad = GlassWidgets.dp(context, 8) * scale
+        val target = fitRect(art, width, height, pad)
+        val artRadius = (GlassWidgets.dp(context, 20) * scale)
+            .coerceAtMost(min(target.width(), target.height()) / 2f)
+        canvas.save()
+        canvas.clipPath(Path().apply {
+            addRoundRect(target, artRadius, artRadius, Path.Direction.CW)
+        })
         canvas.drawBitmap(
-            art, null, fitRect(art, width, height, pad),
+            art, null, target,
             Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         )
+        canvas.restore()
         paintRim(canvas, context, width, height, scale, radius)
         return bitmap
     }

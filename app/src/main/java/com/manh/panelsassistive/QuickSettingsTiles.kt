@@ -213,6 +213,16 @@ class QuickActionTileService : TileService() {
 class QuickTileActionsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Launcher shortcuts also land here: the hidden task runs the action and
+        // closes, so the settings page never comes to the front. A missing
+        // overlay permission is handled by FloatBallService with the system
+        // screen, so the app itself still never opens.
+        val shortcut = intent.getStringExtra(MainActivity.EXTRA_SHORTCUT_ACTION)
+        if (shortcut != null) {
+            ActionDispatcher.dispatch(this, shortcut)
+            finish()
+            return
+        }
         val action = AppPrefs.quickTileSecondaryAction(this)
         if (action != ActionDispatcher.NONE) {
             if (QuickSettingsTiles.actionNeedsOverlay(action) && !Settings.canDrawOverlays(this)) {

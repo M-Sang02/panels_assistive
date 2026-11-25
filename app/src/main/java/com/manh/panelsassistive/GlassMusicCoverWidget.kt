@@ -88,12 +88,12 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 assignedLabel != null -> "Chạm để mở $assignedLabel"
                 else -> "Chạm để mở ứng dụng nhạc"
             }
-        // Tapping the title hides the text only: a single space keeps the line
-        // height, margins and tap area exactly where the title was, so tapping
-        // that same strip brings the title back.
+        // Tapping either text line hides both lines: a single space keeps the
+        // line heights, margins and tap strips exactly where the text was, so
+        // tapping the same strips brings the title and artist back.
         val titleHidden = AppPrefs.musicCoverTitleHidden(context, widgetId)
         views.setTextViewText(R.id.cover_title, if (titleHidden) " " else title)
-        views.setTextViewText(R.id.cover_artist, artist)
+        views.setTextViewText(R.id.cover_artist, if (titleHidden) " " else artist)
         val wide = widthDp >= 230 && widthDp >= heightDp * 3 / 2
         val big = widthDp >= 250 && heightDp >= 210
         views.setTextViewTextSize(
@@ -173,16 +173,14 @@ class GlassMusicCoverWidget : GlassWidgetProvider() {
                 GlassWidgets.musicPlayNowPending(context, widgetId)
             }
         )
-        // The title strip toggles its own visibility instead of opening the app.
-        views.setOnClickPendingIntent(
-            R.id.cover_title,
-            GlassWidgets.pending(
-                context, javaClass, GlassWidgets.ACTION_COVER_TITLE, widgetId * 16 + 6, widgetId
-            )
+        // Both text strips toggle their own visibility instead of opening the app.
+        val textPending = GlassWidgets.pending(
+            context, javaClass, GlassWidgets.ACTION_COVER_TITLE, widgetId * 16 + 6, widgetId
         )
+        views.setOnClickPendingIntent(R.id.cover_title, textPending)
+        views.setOnClickPendingIntent(R.id.cover_artist, textPending)
         val tap = GlassWidgets.musicTapPending(context, widgetId)
         views.setOnClickPendingIntent(R.id.cover_bg, tap)
-        views.setOnClickPendingIntent(R.id.cover_artist, tap)
         views.setOnClickPendingIntent(R.id.cover_root, tap)
     }
 

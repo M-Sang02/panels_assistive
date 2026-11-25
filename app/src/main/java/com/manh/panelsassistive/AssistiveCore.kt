@@ -1191,6 +1191,20 @@ object AppPrefs {
             .apply()
     }
 
+    /** The picture the viewer showed last; the widget displays it when valid. */
+    fun imageWidgetCover(context: Context, widgetId: Int): String? =
+        store(context).getString("image_widget_cover_$widgetId", null)?.takeIf { it.isNotBlank() }
+
+    fun setImageWidgetCover(context: Context, widgetId: Int, uri: String?) {
+        val editor = store(context).edit()
+        if (uri.isNullOrBlank()) {
+            editor.remove("image_widget_cover_$widgetId")
+        } else {
+            editor.putString("image_widget_cover_$widgetId", uri)
+        }
+        editor.apply()
+    }
+
     /**
      * True while the card came from the "thêm mã QR" flow: the picture is
      * shown whole (never centre-cropped) so a square code stays square.
@@ -1240,6 +1254,7 @@ object AppPrefs {
             .remove("image_widget_uris_$widgetId")
             .remove("image_widget_qr_$widgetId")
             .remove("image_widget_qr_mode_$widgetId")
+            .remove("image_widget_cover_$widgetId")
             .apply()
     }
 
