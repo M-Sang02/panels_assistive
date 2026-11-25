@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cropped QR pictures live under files/image_widget and are shared from there;
+     picked pictures keep their own content:// URI. -->
+<paths>
+    <files-path
+        name="qr"
+        path="image_widget/" />
+</paths>
