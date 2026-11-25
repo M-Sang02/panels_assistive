@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The QR plate is stored as a normal picture under files/image_widget and is
-     the only file shared from app storage; picked images keep their own
-     content:// URI. -->
-<paths>
-    <files-path
-        name="qr"
-        path="image_widget/" />
-</paths>
