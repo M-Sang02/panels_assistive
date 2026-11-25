@@ -76,8 +76,6 @@ class FloatBallService : Service() {
     }
     private var floatBall: FloatBallIconView? = null
     private var floatBallParams: WindowManager.LayoutParams? = null
-    /** Set once the ROM rejects accessibility overlays; stops retrying them. */
-    private var accessibilityOverlayRejected = false
     private var popup: View? = null
     private var popupDialog: Dialog? = null
     private var popupList: GridLayout? = null
@@ -356,10 +354,6 @@ class FloatBallService : Service() {
                 applyEnvironment()
                 return START_STICKY
             }
-            ACTION_SET_MAX_DISPLAY -> {
-                applyEnvironment()
-                return START_STICKY
-            }
             ACTION_UPDATE_POPUP_APPEARANCE -> {
                 popupDialog?.window?.let { window -> applyPopupBlur(window, overlaySurface) }
                 if (popupDialog?.isShowing == true) {
@@ -518,7 +512,6 @@ class FloatBallService : Service() {
             val position = AppPrefs.position(this@FloatBallService) ?: Pair(1f, 0.5f)
             x = (position.first * maxX(size)).toInt()
             y = safeTop() + (position.second * maxY(size)).toInt()
-            applyKeyboardAvoidance(this, size)
             if (AppPrefs.floatBallEdgeHideEnabled(this@FloatBallService)) {
                 applyEdgeHide(this, size)
             }
@@ -529,49 +522,19 @@ class FloatBallService : Service() {
             floatBallParams = params
             scheduleIdleDim()
         } catch (error: WindowManager.BadTokenException) {
-            if (params.type == WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY) {
-                accessibilityOverlayRejected = true
-                params.type = legacyOverlayWindowType()
-                try {
-                    windowManager.addView(view, params)
-                    floatBall = view
-                    floatBallParams = params
-                    scheduleIdleDim()
-                    return
-                } catch (retryError: Exception) {
-                    Log.w(TAG, "Accessibility overlay was rejected by the system", retryError)
-                }
-            }
             Log.e(TAG, "Unable to display floating shortcut", error)
             Toast.makeText(this, R.string.overlay_permission_required, Toast.LENGTH_LONG).show()
             stopSelf()
         } catch (error: SecurityException) {
-            // Some ROMs refuse accessibility overlays from a plain service.
-            if (params.type == WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY) {
-                accessibilityOverlayRejected = true
-                params.type = legacyOverlayWindowType()
-                try {
-                    windowManager.addView(view, params)
-                    floatBall = view
-                    floatBallParams = params
-                    scheduleIdleDim()
-                    return
-                } catch (retryError: Exception) {
-                    Log.w(TAG, "Accessibility overlay was rejected by the system", retryError)
-                }
-            }
             Log.e(TAG, "Overlay permission was revoked before the floating shortcut appeared", error)
             AppPrefs.setFloatBallEnabled(this, false)
             stopSelf()
         }
     }
 
-    /** True while the blacklist or the keyboard relation asks for no ball. */
-    private fun floatBallSuppressed(): Boolean {
-        if (PanelsAccessibilityEnvironment.isBlocked(this)) return true
-        return AppPrefs.floatBallKeyboardMode(this) == AppPrefs.FloatBallKeyboard.HIDE &&
-            PanelsAccessibilityEnvironment.isKeyboardVisible()
-    }
+    /** True while the blacklist asks for no ball. */
+    private fun floatBallSuppressed(): Boolean =
+        PanelsAccessibilityEnvironment.isBlocked(this)
 
     private fun applyEnvironment() {
         if (!AppPrefs.floatBallEnabled(this)) return
@@ -887,7 +850,6 @@ class FloatBallService : Service() {
         view.setCornerPercent(AppPrefs.floatBallCorner(this))
         params.x = (position.first * maxX(size)).toInt()
         params.y = safeTop() + (position.second * maxY(size)).toInt()
-        applyKeyboardAvoidance(params, size)
         if (AppPrefs.floatBallEdgeHideEnabled(this)) {
             applyEdgeHide(params, size)
         }
@@ -1650,26 +1612,6 @@ class FloatBallService : Service() {
     private fun clampPosition(params: WindowManager.LayoutParams, size: Int) {
         params.x = params.x.coerceIn(0, maxX(size))
         params.y = (params.y - safeTop()).coerceIn(0, maxY(size)) + safeTop()
-        val top = keyboardTop()
-        if (AppPrefs.floatBallKeyboardMode(this) == AppPrefs.FloatBallKeyboard.OUTSIDE &&
-            top != null
-        ) {
-            params.y = params.y.coerceAtMost(
-                (top - size - dp(4)).coerceAtLeast(safeTop())
-            )
-        }
-    }
-
-    private fun keyboardTop(): Int? =
-        PanelsAccessibilityEnvironment.keyboardBounds()
-            ?.takeIf { it.height() > 0 && it.top > 0 }
-            ?.top
-
-    private fun applyKeyboardAvoidance(params: WindowManager.LayoutParams, size: Int) {
-        if (AppPrefs.floatBallKeyboardMode(this) != AppPrefs.FloatBallKeyboard.OUTSIDE) return
-        val top = keyboardTop() ?: return
-        val limit = (top - size - dp(4)).coerceAtLeast(safeTop())
-        if (params.y > limit) params.y = limit
     }
 
     private fun persistPosition(params: WindowManager.LayoutParams, size: Int) {
@@ -2464,9 +2406,7 @@ class FloatBallService : Service() {
         if (screenSearchActive) return
         if (AppPrefs.floatBallEnabled(this) && Settings.canDrawOverlays(this)) {
             showFloatBall()
-        } else if (!BackgroundRecordingService.isActive && !AppPrefs.maxDisplayEnabled(this)) {
-            // Max display keeps the service alive so the ball can come back
-            // from the lock screen and the notification shade.
+        } else if (!BackgroundRecordingService.isActive) {
             stopSelf()
         }
     }
@@ -2514,17 +2454,6 @@ class FloatBallService : Service() {
 
 
     private fun overlayWindowType(): Int =
-        if (!accessibilityOverlayRejected &&
-            (PanelsAccessibilityEnvironment.overlayOnTopAllowed(this) ||
-                (AppPrefs.floatBallKeyboardMode(this) == AppPrefs.FloatBallKeyboard.ABOVE &&
-                    PanelsAccessibilityEnvironment.isAttached()))
-        ) {
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-        } else {
-            legacyOverlayWindowType()
-        }
-
-    private fun legacyOverlayWindowType(): Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -2980,7 +2909,6 @@ class FloatBallService : Service() {
         const val ACTION_REFRESH_PANEL_LAYOUT =
             "com.manh.panelsassistive.action.REFRESH_PANEL_LAYOUT"
         const val ACTION_UPDATE_FLOAT_BALL = "com.manh.panelsassistive.action.UPDATE_FLOAT_BALL"
-        const val ACTION_SET_MAX_DISPLAY = "com.manh.panelsassistive.action.SET_MAX_DISPLAY"
         const val ACTION_UPDATE_POPUP_APPEARANCE =
             "com.manh.panelsassistive.action.UPDATE_POPUP_APPEARANCE"
         private const val MEDIA_VOLUME_RELEASE_DELAY_MS = 500L

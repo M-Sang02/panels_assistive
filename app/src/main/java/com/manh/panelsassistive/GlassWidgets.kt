@@ -926,9 +926,26 @@ class GlassClockWidget : GlassWidgetProvider() {
         options: Bundle,
         accent: Int
     ) {
+        // Text scales with the card area, so a 2x2 stays compact while 2x3 and
+        // 3x3 grow instead of looking small inside a bigger frame.
+        val (width, height) = GlassWidgets.sizeDp(options)
+        val area = kotlin.math.sqrt(
+            (width.coerceAtLeast(80) * height.coerceAtLeast(80)).toFloat()
+        )
+        val timeSp = (area * 0.27f)
+            .coerceAtMost((width - 22).coerceAtLeast(60) / 2.65f)
+            .coerceIn(30f, 68f)
+        views.setTextViewTextSize(R.id.widget_value, TypedValue.COMPLEX_UNIT_SP, timeSp)
+        views.setTextViewTextSize(R.id.widget_label, TypedValue.COMPLEX_UNIT_SP, timeSp * 0.30f)
+        views.setTextViewTextSize(R.id.widget_lunar, TypedValue.COMPLEX_UNIT_SP, timeSp * 0.25f)
         // The lunar line only changes at midnight; the provider wakes twice an
         // hour and keeps it in sync without any app-side polling.
         views.setTextViewText(R.id.widget_lunar, LunarCalendar.todayLabel())
+        views.setViewVisibility(
+            R.id.widget_lunar,
+            if (AppPrefs.clockLunarEnabled(context)) android.view.View.VISIBLE
+            else android.view.View.GONE
+        )
         val openTarget = GlassWidgets.targetPending(context, widgetId * 16 + 8)
         // No assignment: clear any previous target so the card opens nothing.
         views.setOnClickPendingIntent(R.id.widget_value, openTarget)

@@ -178,40 +178,6 @@ class FloatBallSettingsActivity : Activity() {
             setTextColor(GlassUi.TEXT_PRIMARY)
         })
         addView(hint(getString(R.string.snap_to_edge_description)))
-        addView(GlassUi.switch(
-            this@FloatBallSettingsActivity,
-            AppPrefs.maxDisplayEnabled(this@FloatBallSettingsActivity)
-        ) { enabled ->
-            if (enabled && !AccessibilityActionService.isEnabled(this@FloatBallSettingsActivity)) {
-                AppPrefs.setMaxDisplayEnabled(this@FloatBallSettingsActivity, false)
-                AlertDialog.Builder(this@FloatBallSettingsActivity)
-                    .setTitle("Hiển thị tối đa")
-                    .setMessage("Chế độ này cần quyền trợ năng để bóng nổi hiện trên màn hình khoá, thanh thông báo và cài đặt hệ thống.")
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton("Mở trợ năng") { _, _ ->
-                        startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                    }
-                    .show()
-                render()
-                return@switch
-            }
-            AppPrefs.setMaxDisplayEnabled(this@FloatBallSettingsActivity, enabled)
-            if (FloatBallService.running) {
-                startService(Intent(this@FloatBallSettingsActivity, FloatBallService::class.java).apply {
-                    action = FloatBallService.ACTION_SET_MAX_DISPLAY
-                })
-            }
-        }.apply {
-            text = "Hiển thị tối đa"
-            setTextColor(GlassUi.TEXT_PRIMARY)
-        })
-        addView(hint(
-            if (AccessibilityActionService.isEnabled(this@FloatBallSettingsActivity)) {
-                "Bóng nổi hiện cả trên màn hình khoá, thanh thông báo và cài đặt hệ thống."
-            } else {
-                "Bật cần quyền trợ năng; nếu thiếu, bóng nổi vẫn chạy ở lớp phủ thường."
-            }
-        ))
         val idleControls = idleDimControls().apply {
             visibility = if (AppPrefs.dimWhenIdle(this@FloatBallSettingsActivity)) View.VISIBLE else View.GONE
         }

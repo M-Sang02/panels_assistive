@@ -325,7 +325,7 @@
     <string name="float_ball_notification_title">Bóng nổi đang hoạt động</string>
     <string name="float_ball_notification_text">Chạm bóng nổi để thực hiện thao tác đã gán.</string>
     <string name="float_ball_fgs_subtype">Phím tắt hỗ trợ và bảng tiện ích nổi do người dùng bật</string>
-    <string name="accessibility_service_description">Chỉ thực hiện thao tác điều hướng hệ thống mà bạn gán, chẳng hạn mở bảng thông báo. Dịch vụ không đọc nội dung màn hình.</string>
+    <string name="accessibility_service_description">Chỉ thực hiện thao tác điều hướng hệ thống mà bạn gán, chẳng hạn mở bảng thông báo. Đồng thời đọc tên gói ứng dụng đang mở để tự ẩn bóng nổi trong ứng dụng thuộc danh sách đen.</string>
 
     <string name="float_ball_static_image">Ảnh tĩnh</string>
     <string name="float_ball_gif_image">GIF</string>

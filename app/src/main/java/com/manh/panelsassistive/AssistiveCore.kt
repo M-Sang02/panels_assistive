@@ -10,7 +10,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.net.Uri
@@ -270,8 +269,7 @@ object AppPrefs {
     private const val KEY_FLASHLIGHT_ENABLED = "flashlight_enabled"
     private const val KEY_PENDING_OVERLAY_ENABLE = "pending_overlay_enable"
     private const val KEY_BLACKLIST = "blacklist_apps"
-    private const val KEY_FLOAT_BALL_KEYBOARD_MODE = "float_ball_keyboard_mode"
-    private const val KEY_FLOAT_BALL_MAX_DISPLAY = "float_ball_max_display"
+    private const val KEY_CLOCK_LUNAR = "clock_lunar_enabled"
     private const val KEY_HIDE_FROM_RECENTS = "hide_from_recents"
     private const val KEY_PENDING_IMAGE_WIDGETS = "pending_image_widgets"
     private const val KEY_PENDING_BOARD_WIDGETS = "pending_board_widgets"
@@ -279,23 +277,6 @@ object AppPrefs {
     private const val KEY_BOARD_BIND_IN_FLIGHT = "pending_board_bind_in_flight"
     private const val MAX_BACKUP_IMAGE_BYTES = 4 * 1024 * 1024
     private const val MAX_BACKUP_IMAGE_TOTAL_BYTES = 24 * 1024 * 1024
-
-    /** How the Float Ball behaves while the on-screen keyboard is visible. */
-    object FloatBallKeyboard {
-        const val BEHIND = "behind"
-        const val ABOVE = "above"
-        const val HIDE = "hide"
-        const val OUTSIDE = "outside"
-
-        val options = listOf(
-            BEHIND to "Sau bàn phím",
-            ABOVE to "Trên bàn phím",
-            HIDE to "Tạm ẩn khi dùng phím",
-            OUTSIDE to "Không vào phạm vi phím"
-        )
-
-        val values: List<String> = options.map { it.first }
-    }
 
     /** Apps whose foreground window hides the Float Ball until the user leaves. */
     fun blacklistedPackages(context: Context): Set<String> =
@@ -311,23 +292,12 @@ object AppPrefs {
         store(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
     }
 
-    fun floatBallKeyboardMode(context: Context): String {
-        val saved = store(context).getString(KEY_FLOAT_BALL_KEYBOARD_MODE, FloatBallKeyboard.BEHIND)
-        return if (saved != null && saved in FloatBallKeyboard.values) saved
-        else FloatBallKeyboard.BEHIND
-    }
+    /** Lunar line under the clock widget's date; on by default. */
+    fun clockLunarEnabled(context: Context) =
+        store(context).getBoolean(KEY_CLOCK_LUNAR, true)
 
-    fun setFloatBallKeyboardMode(context: Context, mode: String) {
-        if (mode !in FloatBallKeyboard.values) return
-        store(context).edit().putString(KEY_FLOAT_BALL_KEYBOARD_MODE, mode).apply()
-    }
-
-    /** Draw the ball as an accessibility overlay so it survives the keyguard and the shade. */
-    fun maxDisplayEnabled(context: Context) =
-        store(context).getBoolean(KEY_FLOAT_BALL_MAX_DISPLAY, false)
-
-    fun setMaxDisplayEnabled(context: Context, enabled: Boolean) {
-        store(context).edit().putBoolean(KEY_FLOAT_BALL_MAX_DISPLAY, enabled).apply()
+    fun setClockLunarEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_CLOCK_LUNAR, enabled).apply()
     }
 
     fun hideFromRecents(context: Context) =
@@ -2783,25 +2753,8 @@ private class PanelsVoiceInteractionSession(private val appContext: Context) :
 }
 
 /**
- * Unlocks hidden framework members through the bundled hidden-API bypass; the
- * accessibility "show over lock screen" switch lives behind such a member.
- */
-object ObjectWebHook {
-    @Volatile
-    private var applied = false
-
-    fun bypass() {
-        if (applied) return
-        applied = true
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
-        runCatching { org.lsposed.hiddenapibypass.HiddenApiBypass.setHiddenApiExemptions("L") }
-    }
-}
-
-/**
- * Tracks the foreground app and the keyboard through the accessibility service
- * so the float ball can follow the blacklist and the keyboard relation rules.
- * Everything is event driven: no polling.
+ * Tracks the foreground app through the accessibility service so the float
+ * ball can follow the blacklist. Everything is event driven: no polling.
  */
 object PanelsAccessibilityEnvironment {
     @Volatile
@@ -2809,19 +2762,11 @@ object PanelsAccessibilityEnvironment {
     @Volatile
     private var lastEventPackage: String? = null
     @Volatile
-    private var imeRect: Rect? = null
-    @Volatile
     private var blockedPackage: String? = null
 
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
     private val handler = Handler(Looper.getMainLooper())
     private var scheduled = false
-
-    fun isAttached(): Boolean = serviceRef != null
-
-    fun keyboardBounds(): Rect? = imeRect?.let { Rect(it) }
-
-    fun isKeyboardVisible(): Boolean = imeRect != null
 
     fun blockedPackage(): String? = blockedPackage
 
@@ -2838,13 +2783,11 @@ object PanelsAccessibilityEnvironment {
 
     fun attach(service: AccessibilityService) {
         serviceRef = service
-        applyOverLockScreen(service)
         refresh(service)
     }
 
     fun detach(service: AccessibilityService) {
         if (serviceRef === service) serviceRef = null
-        imeRect = null
         if (blockedPackage != null) {
             blockedPackage = null
             notifyListeners()
@@ -2867,15 +2810,6 @@ object PanelsAccessibilityEnvironment {
         serviceRef?.let(::scheduleRefresh)
     }
 
-    fun updateMaxDisplay(service: AccessibilityService?) {
-        service?.let(::applyOverLockScreen)
-        serviceRef?.let(::scheduleRefresh)
-    }
-
-    /** True when the ball must use an accessibility overlay window. */
-    fun overlayOnTopAllowed(context: Context): Boolean =
-        AppPrefs.maxDisplayEnabled(context) && serviceRef != null
-
     private fun scheduleRefresh(service: AccessibilityService) {
         if (scheduled) return
         scheduled = true
@@ -2887,11 +2821,6 @@ object PanelsAccessibilityEnvironment {
 
     private fun refresh(service: AccessibilityService) {
         val windows = runCatching { service.windows }.getOrNull().orEmpty()
-        val ime = windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-        val keyboardWasVisible = imeRect != null
-        imeRect = ime?.let { window ->
-            Rect().also { bounds -> window.getBoundsInScreen(bounds) }
-        }
         var foreground: String? = null
         windows.forEach { window ->
             if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION && window.isFocused) {
@@ -2902,27 +2831,13 @@ object PanelsAccessibilityEnvironment {
         val blocked = foreground?.takeIf {
             it != service.packageName && AppPrefs.isBlacklisted(service, it)
         }
-        val changed = blocked != blockedPackage || keyboardWasVisible != (imeRect != null)
+        val changed = blocked != blockedPackage
         blockedPackage = blocked
         if (changed) notifyListeners()
     }
 
     private fun notifyListeners() {
         listeners.forEach { listener -> runCatching { listener() } }
-    }
-
-    private fun applyOverLockScreen(service: AccessibilityService) {
-        if (Build.VERSION.SDK_INT < 34) return
-        runCatching {
-            ObjectWebHook.bypass()
-            val info = service.serviceInfo ?: return@runCatching
-            val setter = info.javaClass.getMethod(
-                "setShowOverLockScreen",
-                java.lang.Boolean.TYPE
-            )
-            setter.invoke(info, AppPrefs.maxDisplayEnabled(service))
-            service.serviceInfo = info
-        }
     }
 }
 

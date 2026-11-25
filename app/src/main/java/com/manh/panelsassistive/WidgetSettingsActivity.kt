@@ -73,14 +73,16 @@ class WidgetSettingsActivity : Activity() {
         ))
         root.addView(widgetCard(
             "clock",
-            "Đồng hồ (2×2)",
+            "Đồng hồ (2×2 → 3×3)",
             "Chữ trắng trên nền kính trắng rất trong giống thẻ nhạc; tự cập nhật theo múi " +
-                "giờ và định dạng 12/24 giờ của máy, kèm ngày âm lịch Việt Nam. Chạm vào " +
-                "widget sẽ mở app được gán bên phải tên widget; không gán thì không mở gì.",
+                "giờ và định dạng 12/24 giờ của máy, kèm ngày âm lịch Việt Nam. Chữ tự to " +
+                "lên khi kéo widget rộng hoặc cao hơn. Nút lịch cạnh tên widget bật/tắt " +
+                "dòng âm lịch; chạm widget sẽ mở app được gán bên phải tên widget.",
             GlassClockWidget::class.java,
             assignedPackage = AppPrefs.widgetShortcut(this).substringBefore('/'),
             badgeGlyph = "clock",
-            appHint = "Chọn app mở khi chạm đồng hồ"
+            appHint = "Chọn app mở khi chạm đồng hồ",
+            lunarBadge = true
         ) { chooseApp() })
         root.addView(widgetCard(
             "music",
@@ -132,6 +134,7 @@ class WidgetSettingsActivity : Activity() {
         assignedPackage: String? = null,
         badgeGlyph: String = "smartphone",
         appHint: String = "Chọn ứng dụng",
+        lunarBadge: Boolean = false,
         onPickApp: (() -> Unit)? = null
     ): LinearLayout = GlassUi.glassCard(this).apply {
         addView(LinearLayout(this@WidgetSettingsActivity).apply {
@@ -141,6 +144,13 @@ class WidgetSettingsActivity : Activity() {
             addView(GlassUi.cardTitle(this@WidgetSettingsActivity, title).apply {
                 setPadding(dp(12), 0, 0, 0)
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            if (lunarBadge) {
+                addView(glyphBadge(
+                    "calendar",
+                    "Bật hoặc tắt ngày âm lịch",
+                    AppPrefs.clockLunarEnabled(this@WidgetSettingsActivity)
+                ) { showLunarDialog() })
+            }
             if (onPickApp != null) {
                 addView(appBadge(assignedPackage, badgeGlyph, appHint, onPickApp))
             }
@@ -185,6 +195,55 @@ class WidgetSettingsActivity : Activity() {
         }
         setOnClickListener { onClick() }
         layoutParams = LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginStart = dp(6) }
+    }
+
+    /** Compact glyph button next to the app badge, e.g. the clock's calendar toggle. */
+    private fun glyphBadge(
+        glyph: String,
+        hint: String,
+        active: Boolean,
+        onClick: () -> Unit
+    ): FrameLayout = FrameLayout(this).apply {
+        background = GradientDrawable().apply {
+            setColor(Color.argb(26, 224, 236, 255))
+            cornerRadius = dp(13).toFloat()
+            setStroke(dp(1).coerceAtLeast(1), Color.argb(48, 255, 255, 255))
+        }
+        isClickable = true
+        isFocusable = true
+        contentDescription = hint
+        addView(
+            LucideGlyphView(
+                this@WidgetSettingsActivity,
+                glyph,
+                if (active) GlassUi.ACCENT else GlassUi.TEXT_MUTED
+            ),
+            FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER)
+        )
+        setOnClickListener { onClick() }
+        layoutParams = LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginStart = dp(6) }
+    }
+
+    /** The calendar button on the clock card: show or hide the lunar line. */
+    private fun showLunarDialog() {
+        val sheet = GlassDialogs.sheet(
+            this,
+            "Âm lịch",
+            "Ngày âm lịch Việt Nam hiện dưới ngày dương lịch trên widget Đồng hồ."
+        )
+        sheet.content.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(4))
+            addView(label("Hiện ngày âm lịch", 15, GlassUi.TEXT_PRIMARY),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(GlassUi.switch(this@WidgetSettingsActivity, AppPrefs.clockLunarEnabled(this@WidgetSettingsActivity)) { on ->
+                AppPrefs.setClockLunarEnabled(this@WidgetSettingsActivity, on)
+                GlassWidgets.refreshAll(this@WidgetSettingsActivity)
+            })
+        })
+        sheet.onDismiss = { render() }
+        sheet.show()
     }
 
     /** MediaSession access, the one shared music app, and "play now". */

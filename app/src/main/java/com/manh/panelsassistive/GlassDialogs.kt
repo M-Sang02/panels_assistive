@@ -91,22 +91,35 @@ object GlassDialogs {
             background = sheetBackground(activity)
             setPadding(dp(activity, 18), dp(activity, 16), dp(activity, 18), dp(activity, 8))
         }
-        root.addView(TextView(activity).apply {
-            text = title
-            textSize = 18f
-            setTextColor(GlassUi.TEXT_PRIMARY)
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            includeFontPadding = false
+        root.addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            // The sheet wears the Float Ball's default artwork as its mark.
+            addView(ImageView(activity).apply {
+                setImageResource(R.drawable.panels_assistive_ball)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(activity, 38), dp(activity, 38)))
+            addView(LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(activity, 12), 0, 0, 0)
+                addView(TextView(activity).apply {
+                    text = title
+                    textSize = 18f
+                    setTextColor(GlassUi.TEXT_PRIMARY)
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    includeFontPadding = false
+                })
+                if (subtitle != null) {
+                    addView(TextView(activity).apply {
+                        text = subtitle
+                        textSize = 12f
+                        setTextColor(GlassUi.TEXT_SECONDARY)
+                        includeFontPadding = false
+                        setPadding(0, dp(activity, 5), 0, 0)
+                    })
+                }
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         })
-        if (subtitle != null) {
-            root.addView(TextView(activity).apply {
-                text = subtitle
-                textSize = 12f
-                setTextColor(GlassUi.TEXT_SECONDARY)
-                includeFontPadding = false
-                setPadding(0, dp(activity, 5), 0, 0)
-            })
-        }
         val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         root.addView(content, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,

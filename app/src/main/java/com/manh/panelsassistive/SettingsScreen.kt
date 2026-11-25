@@ -92,8 +92,6 @@ class SettingsScreen(private val activity: Activity) {
             activity.startActivity(Intent(activity, FloatBallSettingsActivity::class.java))
         }
 
-        content.addView(keyboardOptionsCard(rowEntries))
-
         addRow(
             icon = "hand",
             title = "Thao tác và cử chỉ",
@@ -299,63 +297,6 @@ class SettingsScreen(private val activity: Activity) {
                     Uri.parse("package:${activity.packageName}")
                 )
             )
-        }
-    }
-
-    /** Keyboard relation for the ball, right under its row. */
-    private fun keyboardOptionsCard(entries: MutableList<Pair<View, String>>): LinearLayout {
-        val card = GlassUi.glassCard(activity).apply {
-            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(10)
-        }
-        card.addView(label("Bàn phím", 11, GlassUi.TEXT_MUTED, true).apply {
-            letterSpacing = 0.14f
-        })
-        card.addView(label("Vị trí bóng nổi khi bàn phím đang mở", 13, GlassUi.TEXT_SECONDARY).apply {
-            setPadding(0, dp(4), 0, 0)
-        })
-        val checks = mutableListOf<Pair<String, View>>()
-        AppPrefs.FloatBallKeyboard.options.forEachIndexed { index, (value, title) ->
-            val check = LucideGlyphView(activity, "check", GlassUi.ACCENT).apply {
-                visibility = if (AppPrefs.floatBallKeyboardMode(activity) == value) {
-                    View.VISIBLE
-                } else {
-                    View.INVISIBLE
-                }
-            }
-            checks.add(value to check)
-            val row = LinearLayout(activity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(10), dp(9), dp(10), dp(9))
-                background = GlassUi.fieldBackground(activity, 12)
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    AppPrefs.setFloatBallKeyboardMode(activity, value)
-                    checks.forEach { (option, marker) ->
-                        marker.visibility = if (option == value) View.VISIBLE else View.INVISIBLE
-                    }
-                    refreshFloatBall()
-                }
-            }
-            row.addView(label(title, 14, GlassUi.TEXT_PRIMARY), LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-            ))
-            row.addView(check, LinearLayout.LayoutParams(dp(16), dp(16)))
-            card.addView(row, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = if (index == 0) dp(10) else dp(6) })
-            entries.add(row to searchText("Bàn phím", title))
-        }
-        return card
-    }
-
-    private fun refreshFloatBall() {
-        if (FloatBallService.running) {
-            activity.startService(Intent(activity, FloatBallService::class.java).apply {
-                action = FloatBallService.ACTION_UPDATE_FLOAT_BALL
-            })
         }
     }
 

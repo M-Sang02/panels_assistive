@@ -325,7 +325,7 @@
     <string name="float_ball_notification_title">Float Ball is active</string>
     <string name="float_ball_notification_text">Tap the floating shortcut to run its assigned action.</string>
     <string name="float_ball_fgs_subtype">User-enabled floating assistive shortcut and widget popup</string>
-    <string name="accessibility_service_description">Performs only system navigation actions you assign, such as opening the notification shade. It does not retrieve screen content.</string>
+    <string name="accessibility_service_description">Performs only system navigation actions you assign, such as opening the notification shade. It also reads the foreground app's package name to hide the floating shortcut in apps on your blacklist.</string>
 
     <string name="float_ball_static_image">Static image</string>
     <string name="float_ball_gif_image">GIF</string>
