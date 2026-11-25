@@ -414,6 +414,42 @@ class WidgetSettingsActivity : Activity() {
             ).show()
             return
         }
+        val music = provider == GlassMusicWidget::class.java ||
+            provider == GlassMusicCoverWidget::class.java
+        if (music && !WidgetMedia.notificationAccessEnabled(this)) {
+            promptMusicAccess { requestPin(manager, provider) }
+            return
+        }
+        requestPin(manager, provider)
+    }
+
+    /**
+     * The first music widget asks for notification access: the song title,
+     * artwork and "play now" come from the playing app's notification.
+     */
+    private fun promptMusicAccess(onContinue: () -> Unit) {
+        val sheet = GlassDialogs.sheet(
+            this,
+            "Bật quyền truy cập thông báo",
+            "Widget nhạc đọc thông báo của ứng dụng đang phát để hiện tên bài, ảnh bìa và " +
+                "chạy \"Phát nhạc ngay\". Chưa cấp quyền, widget vẫn hiển thị trạng thái chờ."
+        )
+        sheet.content.addView(GlassUi.actionButton(
+            this,
+            "Cấp quyền truy cập thông báo",
+            prominent = true
+        ) {
+            sheet.dismiss()
+            WidgetMedia.openNotificationAccess(this)
+        })
+        sheet.content.addView(GlassUi.actionButton(this, "Thêm widget luôn") {
+            sheet.dismiss()
+            onContinue()
+        })
+        sheet.show()
+    }
+
+    private fun requestPin(manager: AppWidgetManager, provider: Class<*>) {
         val requested = try {
             manager.requestPinAppWidget(ComponentName(this, provider), null, null)
         } catch (error: IllegalStateException) {

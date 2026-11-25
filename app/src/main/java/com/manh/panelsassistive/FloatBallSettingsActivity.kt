@@ -458,22 +458,11 @@ class FloatBallSettingsActivity : Activity() {
     }
 
     private fun pickStaticImage() {
-        startActivityForResult(
-            Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("image/*")
-                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
-            REQUEST_STATIC
-        )
+        ImagePicker.start(this, REQUEST_STATIC, multiple = true)
     }
 
     private fun pickGifImage() {
-        startActivityForResult(
-            Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("image/gif"),
-            REQUEST_GIF
-        )
+        ImagePicker.start(this, REQUEST_GIF, mime = "image/gif")
     }
 
     private fun openCrop(mode: AppPrefs.FloatBallIconMode) {
@@ -503,7 +492,13 @@ class FloatBallSettingsActivity : Activity() {
         if (uris.isEmpty()) return
         try {
             uris.forEach { uri ->
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                // Best effort: gallery URIs keep working for this session anyway.
+                runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
             }
             if (requestCode == REQUEST_GIF) {
                 AppPrefs.setFloatBallGifUri(this, uris.first().toString())

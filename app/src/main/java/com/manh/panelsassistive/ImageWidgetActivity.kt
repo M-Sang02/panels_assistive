@@ -349,22 +349,11 @@ class ImageWidgetActivity : Activity() {
     // ------------------------------------------------------------------ picking
 
     private fun pickImages() {
-        startActivityForResult(
-            Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("image/*")
-                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
-            REQUEST_PICK_IMAGES
-        )
+        ImagePicker.start(this, REQUEST_PICK_IMAGES, multiple = true)
     }
 
     private fun pickQrImage() {
-        startActivityForResult(
-            Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("image/*"),
-            REQUEST_PICK_QR
-        )
+        ImagePicker.start(this, REQUEST_PICK_QR)
     }
 
     @Deprecated("Handles the system document picker result on supported versions")
@@ -431,10 +420,17 @@ class ImageWidgetActivity : Activity() {
         cropView = ImageView(this).apply {
             scaleType = ImageView.ScaleType.MATRIX
             setBackgroundColor(0xFF0B1624.toInt())
+            setImageBitmap(source)
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
                     if (view.width > 0 && view.height > 0) {
-                        outline.setRect(0, 0, view.width, view.height)
+                        outline.setRoundRect(
+                            0,
+                            0,
+                            view.width,
+                            view.height,
+                            GlassUi.dp(this@ImageWidgetActivity, 24).toFloat()
+                        )
                     } else {
                         outline.setEmpty()
                     }
@@ -451,14 +447,30 @@ class ImageWidgetActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.TOP
         ))
-        root.addView(GlassUi.actionRow(
-            this,
-            "Huỷ",
-            "Dùng ảnh",
-            prominentSecond = true,
-            onFirst = { cancelCrop() },
-            onSecond = { confirmCrop() }
-        ), FrameLayout.LayoutParams(
+        val tools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        tools.addView(GlassUi.actionButton(this, "Xoay 90°") { rotateCrop() },
+            LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                marginEnd = dp(4)
+                topMargin = dp(8)
+            })
+        tools.addView(GlassUi.actionButton(this, "Lật ngang") { flipCrop() },
+            LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                marginStart = dp(4)
+                topMargin = dp(8)
+            })
+        val bottom = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(tools)
+            addView(GlassUi.actionRow(
+                this@ImageWidgetActivity,
+                "Huỷ",
+                "Dùng ảnh",
+                prominentSecond = true,
+                onFirst = { cancelCrop() },
+                onSecond = { confirmCrop() }
+            ))
+        }
+        root.addView(bottom, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM
@@ -505,6 +517,7 @@ class ImageWidgetActivity : Activity() {
 
     private fun resetCrop() {
         val source = cropSource ?: return
+        cropView.setImageBitmap(source)
         val side = cropView.width.coerceAtLeast(1).toFloat()
         cropBase = max(side / source.width, side / source.height)
         cropScale = 1f
@@ -541,6 +554,22 @@ class ImageWidgetActivity : Activity() {
         cropTx += dx
         cropTy += dy
         applyCropMatrix()
+    }
+
+    private fun rotateCrop() = transformCrop(Matrix().apply { postRotate(90f) })
+
+    private fun flipCrop() = transformCrop(Matrix().apply { postScale(-1f, 1f) })
+
+    private fun transformCrop(matrix: Matrix) {
+        val source = cropSource ?: return
+        val transformed = try {
+            Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+        } catch (_: Exception) {
+            null
+        } ?: return
+        if (transformed !== source) source.recycle()
+        cropSource = transformed
+        resetCrop()
     }
 
     private fun cancelCrop() {

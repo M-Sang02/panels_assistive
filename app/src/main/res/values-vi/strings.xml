@@ -198,6 +198,8 @@
     <string name="action_flashlight">Bật/tắt đèn pin</string>
     <string name="action_background_recording">Ghi âm nền nhanh</string>
     <string name="action_toggle_float_ball">Bật/tắt bóng nổi</string>
+    <string name="shortcut_toggle_float_ball">Bật/tắt bóng nổi</string>
+    <string name="shortcut_toggle_float_ball_long">Bật hoặc tắt bóng nổi trên màn hình</string>
     <string name="action_nav_back">Điều hướng: Quay lại (Trợ năng)</string>
     <string name="action_nav_recents">Điều hướng: Ứng dụng gần đây (Trợ năng)</string>
     <string name="action_nav_home">Điều hướng: Trang chủ (Trợ năng)</string>

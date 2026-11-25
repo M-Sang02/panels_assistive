@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher long-press shortcuts; MainActivity runs the extra action and closes. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/panels_assistive_icon"
+        android:shortcutId="toggle_float_ball"
+        android:shortcutLongLabel="@string/shortcut_toggle_float_ball_long"
+        android:shortcutShortLabel="@string/shortcut_toggle_float_ball">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.manh.panelsassistive.MainActivity"
+            android:targetPackage="com.manh.panelsassistive">
+            <extra
+                android:name="com.manh.panelsassistive.extra.SHORTCUT_ACTION"
+                android:value="toggle_float_ball" />
+        </intent>
+    </shortcut>
+</shortcuts>

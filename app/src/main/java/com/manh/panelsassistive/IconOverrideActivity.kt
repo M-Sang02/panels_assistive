@@ -185,12 +185,7 @@ class IconOverrideActivity : Activity() {
     private fun pickImage(key: String) {
         pendingKey = key
         try {
-            startActivityForResult(
-                Intent(Intent.ACTION_OPEN_DOCUMENT)
-                    .addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("image/*"),
-                REQUEST_IMAGE
-            )
+            ImagePicker.start(this, REQUEST_IMAGE)
         } catch (_: Exception) {
             Toast.makeText(this, "Không mở được trình chọn ảnh", Toast.LENGTH_SHORT).show()
         }

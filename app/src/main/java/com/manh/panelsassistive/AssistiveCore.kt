@@ -1,6 +1,7 @@
 package com.manh.panelsassistive
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -13,6 +14,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.MediaStore
 import android.provider.Settings
 import android.speech.RecognitionService
 import android.speech.SpeechRecognizer
@@ -1886,6 +1888,48 @@ object ActionDispatcher {
             @Suppress("DEPRECATION")
             vibrator.vibrate(duration)
         }
+    }
+}
+
+/**
+ * Picks pictures from the gallery: the Android photo picker where it exists,
+ * a gallery ACTION_PICK below Android 13 and ACTION_GET_CONTENT only when
+ * several pictures are needed. Never the document browser.
+ */
+object ImagePicker {
+    fun start(
+        activity: Activity,
+        requestCode: Int,
+        multiple: Boolean = false,
+        mime: String = "image/*"
+    ) {
+        val photoPicker = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Intent(MediaStore.ACTION_PICK_IMAGES).apply {
+                type = mime
+                if (multiple) {
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                    runCatching {
+                        putExtra(
+                            MediaStore.EXTRA_PICK_IMAGES_MAX,
+                            MediaStore.getPickImagesMaxLimit()
+                        )
+                    }
+                }
+            }
+        } else {
+            null
+        }
+        val multiplePicker = Intent(Intent.ACTION_GET_CONTENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(mime)
+            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        val singlePicker = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            .apply { if (mime != "image/*") type = mime }
+        val fallback = if (multiple) multiplePicker else singlePicker
+        val resolved = listOfNotNull(photoPicker, fallback, multiplePicker)
+            .firstOrNull { it.resolveActivity(activity.packageManager) != null }
+            ?: multiplePicker
+        activity.startActivityForResult(resolved, requestCode)
     }
 }
 

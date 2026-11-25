@@ -198,6 +198,8 @@
     <string name="action_flashlight">Toggle flashlight</string>
     <string name="action_background_recording">Quick background recording</string>
     <string name="action_toggle_float_ball">Toggle Float Ball</string>
+    <string name="shortcut_toggle_float_ball">Toggle Float Ball</string>
+    <string name="shortcut_toggle_float_ball_long">Turn the floating ball on or off</string>
     <string name="action_nav_back">Navigation: Back (Accessibility)</string>
     <string name="action_nav_recents">Navigation: Recent apps (Accessibility)</string>
     <string name="action_nav_home">Navigation: Home (Accessibility)</string>

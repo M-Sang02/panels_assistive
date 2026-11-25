@@ -24,6 +24,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (consumeShortcutAction()) return
         val background = GlassUi.PAGE_COLOR
         window.statusBarColor = background
         window.navigationBarColor = background
@@ -75,13 +76,7 @@ class MainActivity : Activity() {
     fun openFloatBallIconPicker() = openFloatBallStaticPicker()
 
     fun openFloatBallStaticPicker() {
-        startActivityForResult(
-            Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("image/*")
-                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
-            REQUEST_FLOAT_ICON_STATIC
-        )
+        ImagePicker.start(this, REQUEST_FLOAT_ICON_STATIC, multiple = true)
     }
 
     fun openFloatBallIconCrop(mode: AppPrefs.FloatBallIconMode) {
@@ -95,12 +90,7 @@ class MainActivity : Activity() {
     }
 
     fun openFloatBallGifPicker() {
-        startActivityForResult(
-            Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("image/gif"),
-            REQUEST_FLOAT_ICON_GIF
-        )
+        ImagePicker.start(this, REQUEST_FLOAT_ICON_GIF, mime = "image/gif")
     }
 
     fun exportSettingsFile() {
@@ -125,7 +115,17 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (consumeShortcutAction()) return
         launchRequestedPicker()
+    }
+
+    /** Launcher shortcuts act and close without showing the settings page. */
+    private fun consumeShortcutAction(): Boolean {
+        val action = intent.getStringExtra(EXTRA_SHORTCUT_ACTION) ?: return false
+        intent.removeExtra(EXTRA_SHORTCUT_ACTION)
+        ActionDispatcher.dispatch(this, action)
+        finish()
+        return true
     }
 
     private fun launchRequestedPicker() {
@@ -244,10 +244,13 @@ class MainActivity : Activity() {
             if (uris.isEmpty()) return
             try {
                 uris.forEach { uri ->
-                    contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
+                    // Best effort: gallery URIs keep working for this session anyway.
+                    runCatching {
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
                 }
                 if (requestCode == REQUEST_FLOAT_ICON_GIF) {
                     AppPrefs.setFloatBallGifUri(this, uris.first().toString())
@@ -433,6 +436,8 @@ class MainActivity : Activity() {
             "com.manh.panelsassistive.extra.START_BACKGROUND_RECORDING"
         const val EXTRA_RECORDING_OVERLAY_REQUESTED =
             "com.manh.panelsassistive.extra.RECORDING_OVERLAY_REQUESTED"
+        const val EXTRA_SHORTCUT_ACTION =
+            "com.manh.panelsassistive.extra.SHORTCUT_ACTION"
         private const val REQUEST_CAMERA = 41
         private const val REQUEST_FLOAT_ICON_STATIC = 42
         private const val REQUEST_FLOAT_ICON_GIF = 43

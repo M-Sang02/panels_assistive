@@ -4,7 +4,10 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.role.RoleManager
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
 import android.graphics.Typeface
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -13,6 +16,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 
 class GestureSettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +45,7 @@ class GestureSettingsActivity : Activity() {
         ))
         root.addView(gestureCard())
         root.addView(quickTileCard())
+        root.addView(shortcutCard())
         root.addView(assistantCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
@@ -108,6 +113,79 @@ class GestureSettingsActivity : Activity() {
             "Android không cho ô cài đặt nhanh nhận nhấn giữ trực tiếp; " +
                 "nhấn giữ ô sẽ mở màn hình ẩn chạy hành động 2 (một số ROM có thể mở cài đặt ô thay thế)."
         ))
+    }
+
+    private fun shortcutCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(GlassUi.cardTitle(this@GestureSettingsActivity, "Lối tắt màn hình chính"))
+        addView(hint(
+            "Chọn một tính năng như khi gán thao tác bóng nổi, sau đó ghim lối tắt ra màn " +
+                "hình chính — launcher sẽ hỏi xác nhận trước khi thêm. Nhấn giữ icon ứng " +
+                "dụng trên launcher để thấy sẵn lối tắt Bật/tắt bóng nổi."
+        ))
+        addView(GlassUi.actionButton(
+            this@GestureSettingsActivity,
+            "Tạo lối tắt tính năng",
+            prominent = true
+        ) { chooseShortcutAction() })
+    }
+
+    private fun chooseShortcutAction() {
+        val actions = ActionDispatcher.selectableActions(this)
+            .filter { it.id != ActionDispatcher.NONE }
+        val items = actions.map { choice ->
+            GlassDialogs.Item(
+                id = choice.id,
+                label = choice.label,
+                actionId = choice.id
+            )
+        }
+        GlassDialogs.show(
+            this,
+            "Chọn tính năng cho lối tắt",
+            items,
+            "Tính năng chạy khi chạm lối tắt"
+        ) { picked ->
+            val choice = actions.firstOrNull { it.id == picked.id } ?: return@show
+            pinShortcut(choice)
+        }
+    }
+
+    /** Dynamic launcher shortcut that runs one action, pinned on confirmation. */
+    private fun pinShortcut(choice: ActionChoice) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Toast.makeText(this, "Lối tắt cần Android 8 trở lên.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val manager = getSystemService(ShortcutManager::class.java)
+        if (manager == null || !manager.isRequestPinShortcutSupported) {
+            Toast.makeText(
+                this,
+                "Launcher này không hỗ trợ ghim lối tắt trực tiếp.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        val shortcut = ShortcutInfo.Builder(
+            this,
+            "action_" + choice.id + "_" + System.currentTimeMillis()
+        )
+            .setShortLabel(choice.label)
+            .setLongLabel(choice.label)
+            .setIcon(Icon.createWithResource(this, R.drawable.panels_assistive_icon))
+            .setIntent(Intent(this, MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                putExtra(MainActivity.EXTRA_SHORTCUT_ACTION, choice.id)
+            })
+            .build()
+        val requested = runCatching {
+            manager.requestPinShortcut(shortcut, null)
+        }.getOrDefault(false)
+        Toast.makeText(
+            this,
+            if (requested) "Xác nhận thêm lối tắt trên màn hình chính."
+            else "Không tạo được lối tắt lúc này.",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun assistantCard(): LinearLayout = GlassUi.glassCard(this).apply {
