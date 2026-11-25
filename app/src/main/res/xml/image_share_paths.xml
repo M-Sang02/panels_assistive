@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Only the generated QR PNG is shared from cache; picked images are shared
-     through their own content:// URI. -->
-<paths>
-    <cache-path
-        name="share"
-        path="share" />
-</paths>
