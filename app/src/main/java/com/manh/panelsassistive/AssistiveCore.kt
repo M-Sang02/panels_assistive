@@ -728,7 +728,12 @@ object AppPrefs {
         sheet.content.addView(LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, GlassUi.dp(10), 0, GlassUi.dp(10))
+            setPadding(
+                0,
+                GlassUi.dp(activity, 10),
+                0,
+                GlassUi.dp(activity, 10)
+            )
             addView(
                 restoreIconButton(activity, "x", prominent = false) {
                     removePendingHomeImageWidgets(activity)
