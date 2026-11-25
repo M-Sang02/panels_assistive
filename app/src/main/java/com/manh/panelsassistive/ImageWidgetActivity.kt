@@ -374,7 +374,7 @@ class ImageWidgetActivity : Activity() {
 
     private fun hint(text: String): TextView = label(text, 12, GlassUi.TEXT_MUTED).apply {
         setPadding(0, dp(8), 0, 0)
-        lineSpacing(dp(2).toFloat(), 1f)
+        setLineSpacing(dp(2).toFloat(), 1f)
     }
 
     private fun label(
