@@ -2844,6 +2844,9 @@ object PanelsAccessibilityEnvironment {
 /** Removes the task from Recents right after the user leaves the app. */
 object HideFromRecents {
     private val started = java.util.concurrent.atomic.AtomicInteger(0)
+    private val resumed = java.util.concurrent.atomic.AtomicInteger(0)
+    private val handler = Handler(Looper.getMainLooper())
+    private var pendingHide: Runnable? = null
 
     @Volatile
     private var installed = false
@@ -2854,26 +2857,59 @@ object HideFromRecents {
         application.registerActivityLifecycleCallbacks(
             object : android.app.Application.ActivityLifecycleCallbacks {
                 override fun onActivityStarted(activity: Activity) {
-                    started.incrementAndGet()
+                    if (started.incrementAndGet() == 1 &&
+                        !AppPrefs.hideFromRecents(activity)
+                    ) {
+                        setExcluded(activity, false)
+                    }
+                }
+
+                override fun onActivityResumed(activity: Activity) {
+                    resumed.incrementAndGet()
+                    pendingHide?.let { handler.removeCallbacks(it) }
+                    pendingHide = null
+                }
+
+                override fun onActivityPaused(activity: Activity) {
+                    if (resumed.decrementAndGet() > 0) return
+                    if (activity.isChangingConfigurations || activity.isFinishing) return
+                    if (!AppPrefs.hideFromRecents(activity)) {
+                        setExcluded(activity, false)
+                        return
+                    }
+                    // Some ROMs ignore a late finish-on-stop and keep the task
+                    // card; excluding the task at pause time keeps it out of the
+                    // overview before its snapshot is taken.
+                    setExcluded(activity, true)
+                    val runnable = Runnable {
+                        pendingHide = null
+                        if (resumed.get() > 0) return@Runnable
+                        if (!AppPrefs.hideFromRecents(activity)) return@Runnable
+                        if (activity.isFinishing || activity.isDestroyed) return@Runnable
+                        runCatching { activity.finishAndRemoveTask() }
+                    }
+                    pendingHide = runnable
+                    handler.postDelayed(runnable, 400L)
                 }
 
                 override fun onActivityStopped(activity: Activity) {
-                    if (started.decrementAndGet() > 0) return
-                    if (!AppPrefs.hideFromRecents(activity)) return
-                    if (activity.isChangingConfigurations || activity.isFinishing) return
-                    runCatching { activity.finishAndRemoveTask() }
+                    started.decrementAndGet()
                 }
 
                 override fun onActivityCreated(activity: Activity, state: Bundle?) = Unit
-
-                override fun onActivityResumed(activity: Activity) = Unit
-
-                override fun onActivityPaused(activity: Activity) = Unit
 
                 override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) = Unit
 
                 override fun onActivityDestroyed(activity: Activity) = Unit
             }
         )
+    }
+
+    private fun setExcluded(activity: Activity, excluded: Boolean) {
+        val manager = activity.getSystemService(Context.ACTIVITY_SERVICE)
+            as? android.app.ActivityManager ?: return
+        manager.appTasks.forEach { task ->
+            runCatching { task.setExcludeFromRecents(excluded) }
+        }
     }
 }
