@@ -32,6 +32,7 @@ import java.io.InputStream
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Image / QR card. One painted bitmap fills the slot at every launcher size
@@ -61,7 +62,9 @@ class GlassImageWidget : GlassWidgetProvider() {
         val (widthDp, heightDp) = GlassWidgets.sizeDp(options)
         val width = GlassWidgets.dp(context, widthDp.coerceIn(64, 420))
         val height = GlassWidgets.dp(context, heightDp.coerceIn(64, 420))
-        val scale = (MAX_CARD_PX.toFloat() / maxOf(width, height).toFloat()).coerceAtMost(1f)
+        val scale = sqrt(MAX_CARD_PIXELS.toDouble() / (width.toDouble() * height.toDouble()))
+            .toFloat()
+            .coerceAtMost(1f)
         val bitmapWidth = (width * scale).roundToInt().coerceAtLeast(48)
         val bitmapHeight = (height * scale).roundToInt().coerceAtLeast(48)
 
@@ -78,7 +81,7 @@ class GlassImageWidget : GlassWidgetProvider() {
             val art = ImageWidgetMedia.loadBitmap(
                 context,
                 shown,
-                maxOf(bitmapWidth, bitmapHeight) * 2
+                maxOf(bitmapWidth, bitmapHeight)
             )
             if (art == null) {
                 showContent = false
@@ -391,8 +394,14 @@ class GlassImageWidget : GlassWidgetProvider() {
     }
 
     companion object {
-        /** Same payload budget as the music cards; the pane is mostly smooth. */
-        private const val MAX_CARD_PX = 288
+        /**
+         * RemoteViews bitmaps travel through a Binder transaction of about
+         * 1 MB, so the painted card is capped by area instead of by its
+         * longest side: a 288 px side limit left big widgets visibly soft,
+         * while 190k pixels (~760 KB as ARGB_8888) stays well inside the
+         * budget and keeps square cards near 1:1 on the screen.
+         */
+        private const val MAX_CARD_PIXELS = 190_000
     }
 }
 

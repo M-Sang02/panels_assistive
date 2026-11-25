@@ -1141,7 +1141,7 @@ class ImageViewerActivity : Activity() {
         load(index, animate = true, fromDrag = fromDrag)
     }
 
-    /** White info card with the typed transfer details, drawn once per change. */
+    /** White info card with the typed transfer details, centred as one block. */
     private fun infoPage(): Bitmap? {
         val qr = info ?: return null
         val cached = infoBitmap
@@ -1153,29 +1153,48 @@ class ImageViewerActivity : Activity() {
             RectF(0f, 0f, size.toFloat(), size.toFloat()), 64f, 64f,
             Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
         )
-        val title = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        val horizontal = 120f
+        val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF0B1522.toInt()
-            textSize = 58f
+            textSize = 56f
             typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("Thông tin", 72f, 132f, title)
         val body = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFF24303C.toInt()
             textSize = 44f
             typeface = Typeface.DEFAULT
         }
         val text = qr.payload()
-        val layout = StaticLayout.Builder
-            .obtain(text, 0, text.length, body, size - 144)
-            .setLineSpacing(14f, 1f)
-            .build()
+        val width = (size - horizontal * 2f).toInt()
+        // Long notes shrink a little so the whole block still fits the card.
+        var layout = bodyLayout(text, body, width)
+        var textSize = body.textSize
+        while (layout.height > size - 260 && textSize > 28f) {
+            textSize -= 2f
+            body.textSize = textSize
+            layout = bodyLayout(text, body, width)
+        }
+        val gap = 56f
+        val metrics = titlePaint.fontMetrics
+        val titleHeight = metrics.descent - metrics.ascent
+        val blockHeight = titleHeight + gap + layout.height
+        val blockTop = (size - blockHeight) / 2f
+        canvas.drawText("Thông tin", size / 2f, blockTop - metrics.ascent, titlePaint)
         canvas.save()
-        canvas.translate(72f, 196f)
+        canvas.translate(horizontal, blockTop + titleHeight + gap)
         layout.draw(canvas)
         canvas.restore()
         infoBitmap = bitmap
         return bitmap
     }
+
+    private fun bodyLayout(text: String, paint: TextPaint, width: Int): StaticLayout =
+        StaticLayout.Builder
+            .obtain(text, 0, text.length, paint, width)
+            .setAlignment(android.text.Layout.Alignment.ALIGN_CENTER)
+            .setLineSpacing(20f, 1f)
+            .build()
 
     private fun showOptions() {
         val qr = info
