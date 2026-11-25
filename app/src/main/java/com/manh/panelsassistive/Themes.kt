@@ -147,5 +147,6 @@ class PanelsApp : Application() {
         GlassUi.applyTheme(this)
         // Realtime redraw of volume/brightness cards after hardware-key changes.
         WidgetLevelObserver.ensure(this)
+        HideFromRecents.install(this)
     }
 }

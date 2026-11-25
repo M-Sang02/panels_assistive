@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -91,6 +92,8 @@ class SettingsScreen(private val activity: Activity) {
             activity.startActivity(Intent(activity, FloatBallSettingsActivity::class.java))
         }
 
+        content.addView(keyboardOptionsCard(rowEntries))
+
         addRow(
             icon = "hand",
             title = "Thao tác và cử chỉ",
@@ -165,6 +168,14 @@ class SettingsScreen(private val activity: Activity) {
             subtitle = "Bảng màu cho bảng nổi và toàn ứng dụng"
         ) {
             activity.startActivity(Intent(activity, ThemeSettingsActivity::class.java))
+        }
+
+        addRow(
+            icon = "ban",
+            title = "Danh sách đen",
+            subtitle = blacklistSubtitle()
+        ) {
+            showBlacklistSheet()
         }
 
         addRow(
@@ -289,6 +300,148 @@ class SettingsScreen(private val activity: Activity) {
                 )
             )
         }
+    }
+
+    /** Keyboard relation for the ball, right under its row. */
+    private fun keyboardOptionsCard(entries: MutableList<Pair<View, String>>): LinearLayout {
+        val card = GlassUi.glassCard(activity).apply {
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(10)
+        }
+        card.addView(label("Bàn phím", 11, GlassUi.TEXT_MUTED, true).apply {
+            letterSpacing = 0.14f
+        })
+        card.addView(label("Vị trí bóng nổi khi bàn phím đang mở", 13, GlassUi.TEXT_SECONDARY).apply {
+            setPadding(0, dp(4), 0, 0)
+        })
+        val checks = mutableListOf<Pair<String, View>>()
+        AppPrefs.FloatBallKeyboard.options.forEachIndexed { index, (value, title) ->
+            val check = LucideGlyphView(activity, "check", GlassUi.ACCENT).apply {
+                visibility = if (AppPrefs.floatBallKeyboardMode(activity) == value) {
+                    View.VISIBLE
+                } else {
+                    View.INVISIBLE
+                }
+            }
+            checks.add(value to check)
+            val row = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(9), dp(10), dp(9))
+                background = GlassUi.fieldBackground(activity, 12)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    AppPrefs.setFloatBallKeyboardMode(activity, value)
+                    checks.forEach { (option, marker) ->
+                        marker.visibility = if (option == value) View.VISIBLE else View.INVISIBLE
+                    }
+                    refreshFloatBall()
+                }
+            }
+            row.addView(label(title, 14, GlassUi.TEXT_PRIMARY), LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            ))
+            row.addView(check, LinearLayout.LayoutParams(dp(16), dp(16)))
+            card.addView(row, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = if (index == 0) dp(10) else dp(6) })
+            entries.add(row to searchText("Bàn phím", title))
+        }
+        return card
+    }
+
+    private fun refreshFloatBall() {
+        if (FloatBallService.running) {
+            activity.startService(Intent(activity, FloatBallService::class.java).apply {
+                action = FloatBallService.ACTION_UPDATE_FLOAT_BALL
+            })
+        }
+    }
+
+    private fun blacklistSubtitle(): String {
+        val count = AppPrefs.blacklistedPackages(activity).size
+        return if (count == 0) {
+            "Tự động ẩn bóng nổi trong ứng dụng đã chọn"
+        } else {
+            "$count ứng dụng tự động ẩn bóng nổi"
+        }
+    }
+
+    private fun showBlacklistSheet() {
+        val sheet = GlassDialogs.sheet(
+            activity,
+            "Danh sách đen",
+            "Bật ứng dụng để bóng nổi tự ẩn khi bạn đang dùng. Cần quyền trợ năng.",
+            "Đóng"
+        )
+        if (!AccessibilityActionService.isEnabled(activity)) {
+            val hint = label(
+                "Trợ năng chưa bật nên danh sách đen chưa có tác dụng.",
+                12,
+                GlassUi.ACCENT
+            ).apply { setPadding(0, dp(6), 0, dp(2)) }
+            sheet.content.addView(hint)
+            sheet.content.addView(GlassUi.actionButton(activity, "Mở cài đặt trợ năng") {
+                sheet.dismiss()
+                activity.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            })
+        }
+        val packageManager = activity.packageManager
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val apps = packageManager.queryIntentActivities(launcher, 0)
+            .mapNotNull { it.activityInfo?.packageName }
+            .distinct()
+            .filter { it != activity.packageName }
+            .map { packageName ->
+                val label = runCatching {
+                    packageManager.getApplicationLabel(
+                        packageManager.getApplicationInfo(packageName, 0)
+                    ).toString()
+                }.getOrDefault(packageName)
+                packageName to label
+            }
+            .sortedBy { it.second.lowercase() }
+        val list = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        apps.forEach { (packageName, name) ->
+            list.addView(blacklistRow(packageName, name))
+        }
+        sheet.content.addView(ScrollView(activity).apply {
+            isVerticalScrollBarEnabled = false
+            addView(list)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(340)
+            )
+        })
+        sheet.show()
+    }
+
+    private fun blacklistRow(packageName: String, name: String): LinearLayout {
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(6), dp(4), dp(6))
+        }
+        runCatching {
+            row.addView(ImageView(activity).apply {
+                setImageDrawable(activity.packageManager.getApplicationIcon(packageName))
+            }, LinearLayout.LayoutParams(dp(32), dp(32)))
+        }
+        row.addView(label(name, 14, GlassUi.TEXT_PRIMARY).apply {
+            setPadding(dp(10), 0, dp(8), 0)
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(GlassUi.switch(
+            activity,
+            AppPrefs.isBlacklisted(activity, packageName)
+        ) { enabled ->
+            AppPrefs.setBlacklisted(activity, packageName, enabled)
+            PanelsAccessibilityEnvironment.onAppsChanged(activity)
+        })
+        return row
     }
 
     /** Diacritic-insensitive search so "bong noi" also finds "Bóng nổi". */

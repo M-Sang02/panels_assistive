@@ -8,6 +8,12 @@ import android.provider.Settings
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
+        if (action == AppPrefs.ACTION_RESTORE_IMAGE_WIDGETS) {
+            // The launcher confirmed the pin: fill the new card with saved data.
+            AppPrefs.applyPendingImageWidgets(context)
+            GlassWidgets.refreshAll(context.applicationContext)
+            return
+        }
         if (action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             // After an update, re-send every card so a launcher that cached a
             // "problem loading widget" panel gets fresh RemoteViews at once.

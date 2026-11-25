@@ -2,9 +2,16 @@ package com.manh.panelsassistive
 
 import android.accessibilityservice.AccessibilityService
 import android.app.Activity
+import android.app.PendingIntent
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
@@ -23,12 +30,19 @@ import android.service.voice.VoiceInteractionSessionService
 import android.service.voice.VoiceInteractionService
 import android.text.TextUtils
 import android.util.Log
+import android.view.Gravity
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -255,6 +269,73 @@ object AppPrefs {
     private const val KEY_ASSISTANT_REPLACEMENT_ACTION = "assistant_replacement_action"
     private const val KEY_FLASHLIGHT_ENABLED = "flashlight_enabled"
     private const val KEY_PENDING_OVERLAY_ENABLE = "pending_overlay_enable"
+    private const val KEY_BLACKLIST = "blacklist_apps"
+    private const val KEY_FLOAT_BALL_KEYBOARD_MODE = "float_ball_keyboard_mode"
+    private const val KEY_FLOAT_BALL_MAX_DISPLAY = "float_ball_max_display"
+    private const val KEY_HIDE_FROM_RECENTS = "hide_from_recents"
+    private const val KEY_PENDING_IMAGE_WIDGETS = "pending_image_widgets"
+    private const val KEY_PENDING_BOARD_WIDGETS = "pending_board_widgets"
+    private const val KEY_IMAGE_WIDGET_BASELINE = "pending_image_widget_baseline"
+    private const val KEY_BOARD_BIND_IN_FLIGHT = "pending_board_bind_in_flight"
+    private const val MAX_BACKUP_IMAGE_BYTES = 4 * 1024 * 1024
+    private const val MAX_BACKUP_IMAGE_TOTAL_BYTES = 24 * 1024 * 1024
+
+    /** How the Float Ball behaves while the on-screen keyboard is visible. */
+    object FloatBallKeyboard {
+        const val BEHIND = "behind"
+        const val ABOVE = "above"
+        const val HIDE = "hide"
+        const val OUTSIDE = "outside"
+
+        val options = listOf(
+            BEHIND to "Sau bàn phím",
+            ABOVE to "Trên bàn phím",
+            HIDE to "Tạm ẩn khi dùng phím",
+            OUTSIDE to "Không vào phạm vi phím"
+        )
+
+        val values: List<String> = options.map { it.first }
+    }
+
+    /** Apps whose foreground window hides the Float Ball until the user leaves. */
+    fun blacklistedPackages(context: Context): Set<String> =
+        store(context).getStringSet(KEY_BLACKLIST, emptySet()) ?: emptySet()
+
+    fun isBlacklisted(context: Context, packageName: String?): Boolean =
+        !packageName.isNullOrBlank() && packageName in blacklistedPackages(context)
+
+    fun setBlacklisted(context: Context, packageName: String, blocked: Boolean) {
+        if (packageName.isBlank()) return
+        val current = blacklistedPackages(context).toMutableSet()
+        if (blocked) current.add(packageName) else current.remove(packageName)
+        store(context).edit().putStringSet(KEY_BLACKLIST, current).apply()
+    }
+
+    fun floatBallKeyboardMode(context: Context): String {
+        val saved = store(context).getString(KEY_FLOAT_BALL_KEYBOARD_MODE, FloatBallKeyboard.BEHIND)
+        return if (saved != null && saved in FloatBallKeyboard.values) saved
+        else FloatBallKeyboard.BEHIND
+    }
+
+    fun setFloatBallKeyboardMode(context: Context, mode: String) {
+        if (mode !in FloatBallKeyboard.values) return
+        store(context).edit().putString(KEY_FLOAT_BALL_KEYBOARD_MODE, mode).apply()
+    }
+
+    /** Draw the ball as an accessibility overlay so it survives the keyguard and the shade. */
+    fun maxDisplayEnabled(context: Context) =
+        store(context).getBoolean(KEY_FLOAT_BALL_MAX_DISPLAY, false)
+
+    fun setMaxDisplayEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_FLOAT_BALL_MAX_DISPLAY, enabled).apply()
+    }
+
+    fun hideFromRecents(context: Context) =
+        store(context).getBoolean(KEY_HIDE_FROM_RECENTS, false)
+
+    fun setHideFromRecents(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_HIDE_FROM_RECENTS, enabled).apply()
+    }
 
     private fun store(context: Context) =
         context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
@@ -358,6 +439,8 @@ object AppPrefs {
     fun exportSettings(context: Context): String {
         val values = JSONObject()
         store(context).all.forEach { (key, value) ->
+            // Restore bookkeeping is transient and must not travel with a backup.
+            if (key.startsWith("pending_")) return@forEach
             val encoded = JSONObject()
             when (value) {
                 is Boolean -> encoded.put("type", "boolean").put("value", value)
@@ -407,7 +490,87 @@ object AppPrefs {
                 )
             }
         }
+        // The panel JSON is already part of the preferences above; the widget
+        // providers are recorded too so the cards can be re-bound on restore.
+        val boardWidgets = JSONArray()
+        val widgetManager = AppWidgetManager.getInstance(context)
+        listOf(false, true).forEach { landscape ->
+            panelPages(context, landscape).forEach pageLoop@ { page ->
+                page.items.filter { it.type == PanelItemType.WIDGET }.forEach itemLoop@ { item ->
+                    val widgetId = item.value.toIntOrNull() ?: return@itemLoop
+                    val info = widgetManager.getAppWidgetInfo(widgetId) ?: return@itemLoop
+                    boardWidgets.put(
+                        JSONObject()
+                            .put("landscape", landscape)
+                            .put("pageId", page.id)
+                            .put("instanceId", item.instanceId)
+                            .put("provider", info.provider.flattenToString())
+                            .put("label", item.label)
+                            .put("sourceId", widgetId)
+                    )
+                }
+            }
+        }
+        result.put("boardWidgets", boardWidgets)
+        // Gallery URIs rarely survive another device, so each image card is
+        // embedded as one picture (the cover) inside the JSON backup.
+        val imageWidgets = JSONArray()
+        var imageBudget = MAX_BACKUP_IMAGE_TOTAL_BYTES
+        imageWidgetIds(context).forEach { widgetId ->
+            val uris = imageWidgetUris(context, widgetId)
+            val cover = imageWidgetCover(context, widgetId)?.takeIf { it in uris }
+                ?: uris.first()
+            val entry = JSONObject()
+                .put("sourceId", widgetId)
+                .put("uris", JSONArray(uris))
+                .put("cover", cover)
+                .put("qrMode", imageWidgetQrMode(context, widgetId))
+                .put("qr", imageWidgetQr(context, widgetId)?.toJson().orEmpty())
+            if (!cover.isNullOrBlank()) {
+                val bytes = readImageBytes(context, cover, minOf(imageBudget, MAX_BACKUP_IMAGE_BYTES))
+                if (bytes != null && bytes.isNotEmpty()) {
+                    imageBudget -= bytes.size
+                    entry.put(
+                        "image",
+                        JSONObject()
+                            .put(
+                                "mimeType",
+                                context.contentResolver.getType(Uri.parse(cover)) ?: "image/*"
+                            )
+                            .put(
+                                "base64",
+                                android.util.Base64.encodeToString(
+                                    bytes,
+                                    android.util.Base64.NO_WRAP
+                                )
+                            )
+                    )
+                }
+            }
+            imageWidgets.put(entry)
+        }
+        result.put("imageWidgets", imageWidgets)
         return result.toString(2)
+    }
+
+    private fun readImageBytes(context: Context, uri: String, limit: Int): ByteArray? {
+        if (limit <= 0) return null
+        return runCatching {
+            val input = context.contentResolver.openInputStream(Uri.parse(uri)) ?: return null
+            input.use { stream ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val read = stream.read(buffer)
+                    if (read < 0) break
+                    total += read
+                    if (total > limit) return null
+                    output.write(buffer, 0, read)
+                }
+                output.toByteArray()
+            }
+        }.getOrNull()
     }
 
     fun importSettings(context: Context, serialized: String) {
@@ -479,7 +642,291 @@ object AppPrefs {
                 editor.putBoolean(KEY_FLOAT_BALL_SLIDESHOW, false)
             }
         }
+        val homeWidgetBaseline = homeImageWidgetIds(context).joinToString(",")
+        val pendingImages = JSONArray()
+        val importedImages = root.optJSONArray("imageWidgets")
+        if (importedImages != null) {
+            for (index in 0 until importedImages.length()) {
+                val entry = importedImages.optJSONObject(index) ?: continue
+                val stored = JSONObject()
+                    .put("sourceId", entry.optInt("sourceId", -1))
+                    .put("uris", entry.optJSONArray("uris") ?: JSONArray())
+                    .put("cover", entry.optString("cover", ""))
+                    .put("qrMode", entry.optBoolean("qrMode", false))
+                    .put("qr", entry.optString("qr", ""))
+                val image = entry.optJSONObject("image")
+                if (image != null) {
+                    val bytes = runCatching {
+                        android.util.Base64.decode(
+                            image.optString("base64"),
+                            android.util.Base64.DEFAULT
+                        )
+                    }.getOrNull()
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val file = java.io.File(
+                            context.filesDir,
+                            "restored-image-${UUID.randomUUID()}.png"
+                        )
+                        runCatching { file.outputStream().use { it.write(bytes) } }
+                        stored.put("imageUri", Uri.fromFile(file).toString())
+                    }
+                }
+                if (stored.optJSONArray("uris")?.length() == 0 &&
+                    stored.optString("imageUri").isBlank()
+                ) {
+                    continue
+                }
+                pendingImages.put(stored)
+            }
+        }
+        if (pendingImages.length() > 0) {
+            editor.putString(KEY_PENDING_IMAGE_WIDGETS, pendingImages.toString())
+            editor.putString(KEY_IMAGE_WIDGET_BASELINE, homeWidgetBaseline)
+        } else {
+            editor.remove(KEY_PENDING_IMAGE_WIDGETS)
+            editor.remove(KEY_IMAGE_WIDGET_BASELINE)
+        }
+        val importedBoardWidgets = root.optJSONArray("boardWidgets")
+        if (importedBoardWidgets != null && importedBoardWidgets.length() > 0) {
+            editor.putString(KEY_PENDING_BOARD_WIDGETS, importedBoardWidgets.toString())
+        } else {
+            editor.remove(KEY_PENDING_BOARD_WIDGETS)
+        }
         editor.apply()
+    }
+
+    const val REQUEST_BIND_BOARD = 47
+
+    const val ACTION_RESTORE_IMAGE_WIDGETS =
+        "com.manh.panelsassistive.action.RESTORE_IMAGE_WIDGETS"
+
+    fun widgetsPending(context: Context): Boolean =
+        pendingImageWidgets(context).isNotEmpty() || pendingBoardWidgets(context).isNotEmpty()
+
+    /**
+     * Runs after a settings import: offers the saved image cards to the home
+     * screen, then re-binds the panel widgets into the widget panel.
+     */
+    fun restoreWidgets(activity: Activity) {
+        if (applyPendingImageWidgets(activity) > 0) {
+            GlassWidgets.refreshAll(activity)
+        }
+        if (pendingHomeImageWidgets(activity).isNotEmpty()) {
+            askRestoreImageWidgets(activity)
+        } else {
+            restoreBoardWidgets(activity)
+        }
+    }
+
+    private fun askRestoreImageWidgets(activity: Activity) {
+        val sheet = GlassDialogs.sheet(
+            activity,
+            "Tìm thấy widgets ảnh",
+            "Bạn có muốn xuất widget ảnh đã lưu ra màn hình chính?",
+            cancelLabel = null
+        )
+        sheet.content.addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, GlassUi.dp(10), 0, GlassUi.dp(10))
+            addView(
+                restoreIconButton(activity, "x", prominent = false) {
+                    removePendingHomeImageWidgets(activity)
+                    sheet.dismiss()
+                    restoreBoardWidgets(activity)
+                },
+                LinearLayout.LayoutParams(0, GlassUi.dp(activity, 52), 1f)
+            )
+            addView(
+                restoreIconButton(activity, "check", prominent = true) {
+                    sheet.dismiss()
+                    requestPinImageWidgets(activity)
+                    restoreBoardWidgets(activity)
+                },
+                LinearLayout.LayoutParams(0, GlassUi.dp(activity, 52), 1f).apply {
+                    marginStart = GlassUi.dp(activity, 10)
+                }
+            )
+        })
+        sheet.show()
+    }
+
+    private fun restoreIconButton(
+        activity: Activity,
+        glyph: String,
+        prominent: Boolean,
+        onClick: () -> Unit
+    ): FrameLayout = FrameLayout(activity).apply {
+        background = if (prominent) {
+            GradientDrawable().apply {
+                setColor(GlassUi.ACCENT)
+                cornerRadius = GlassUi.dp(activity, 23).toFloat()
+            }
+        } else {
+            GlassUi.glassSurface(activity, 23)
+        }
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { onClick() }
+        addView(
+            LucideGlyphView(
+                activity,
+                glyph,
+                if (prominent) Color.rgb(6, 18, 31) else GlassUi.TEXT_SECONDARY
+            ),
+            FrameLayout.LayoutParams(GlassUi.dp(activity, 24), GlassUi.dp(activity, 24), Gravity.CENTER)
+        )
+    }
+
+    private fun requestPinImageWidgets(activity: Activity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Toast.makeText(
+                activity,
+                "Thiết bị không hỗ trợ ghim widget; hãy thêm widget ảnh vào màn hình chính.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 330)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 300)
+        }
+        val accepted = runCatching {
+            AppWidgetManager.getInstance(activity).requestPinAppWidget(
+                ComponentName(activity, GlassImageWidget::class.java),
+                options,
+                PendingIntent.getBroadcast(
+                    activity,
+                    0,
+                    Intent(ACTION_RESTORE_IMAGE_WIDGETS).setPackage(activity.packageName),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+        }.getOrDefault(false)
+        Toast.makeText(
+            activity,
+            if (accepted) {
+                "Hãy xác nhận để thêm widget ảnh vào màn hình chính."
+            } else {
+                "Hãy thêm widget ảnh vào màn hình chính để khôi phục nội dung."
+            },
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    private fun restoreBoardWidgets(activity: Activity) {
+        val pending = pendingBoardWidgets(activity)
+        if (pending.isEmpty()) return
+        val manager = AppWidgetManager.getInstance(activity)
+        val host = AppWidgetHost(activity, FloatBallService.WIDGET_HOST_ID)
+        var missing = 0
+        pending.toList().forEach { entry ->
+            val info = manager.installedProviders.firstOrNull { providerInfo ->
+                providerInfo.provider.flattenToString() == entry.provider
+            } ?: manager.installedProviders.firstOrNull { providerInfo ->
+                val flattened = entry.provider.split('/', limit = 2)
+                flattened.size == 2 &&
+                    providerInfo.provider.packageName == flattened[0] &&
+                    providerInfo.provider.className == flattened[1]
+            }
+            if (info == null) {
+                missing++
+                removePendingBoardWidget(activity, entry.instanceId)
+                return@forEach
+            }
+            val widgetId = runCatching { host.allocateAppWidgetId() }.getOrNull() ?: run {
+                missing++
+                removePendingBoardWidget(activity, entry.instanceId)
+                return@forEach
+            }
+            if (manager.bindAppWidgetIdIfAllowed(widgetId, info.provider)) {
+                completeBoardWidget(activity, entry, info, widgetId)
+                return@forEach
+            }
+            setBoardBindInFlight(activity, entry.instanceId, widgetId)
+            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+            val launched = runCatching {
+                activity.startActivityForResult(intent, REQUEST_BIND_BOARD)
+            }.isSuccess
+            if (!launched) {
+                clearBoardBindInFlight(activity)
+                missing++
+                removePendingBoardWidget(activity, entry.instanceId)
+            } else {
+                return
+            }
+        }
+        if (missing > 0) {
+            Toast.makeText(
+                activity,
+                "Không thể khôi phục $missing widget trong bảng tiện ích.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    fun handleRestoreResult(activity: Activity, requestCode: Int, resultCode: Int): Boolean {
+        if (requestCode != REQUEST_BIND_BOARD) return false
+        val inFlight = boardBindInFlight(activity)
+        clearBoardBindInFlight(activity)
+        if (inFlight == null) return true
+        val (instanceId, widgetId) = inFlight
+        val entry = pendingBoardWidgets(activity).firstOrNull { it.instanceId == instanceId }
+        if (entry != null) {
+            val manager = AppWidgetManager.getInstance(activity)
+            val info = manager.getAppWidgetInfo(widgetId)
+            if (resultCode == Activity.RESULT_OK && info != null &&
+                manager.bindAppWidgetIdIfAllowed(widgetId, info.provider)
+            ) {
+                completeBoardWidget(activity, entry, info, widgetId)
+            } else {
+                removePendingBoardWidget(activity, instanceId)
+            }
+        }
+        restoreBoardWidgets(activity)
+        return true
+    }
+
+    private fun completeBoardWidget(
+        activity: Activity,
+        entry: PendingBoardWidget,
+        info: AppWidgetProviderInfo,
+        widgetId: Int
+    ) {
+        replacePanelWidgetId(activity, entry.landscape, entry.pageId, entry.instanceId, widgetId)
+        removePendingBoardWidget(activity, entry.instanceId)
+        if (info.provider == ComponentName(activity, GlassImageWidget::class.java)) {
+            val pending = pendingImageWidgets(activity)
+            val index = pending.indexOfFirst { it.sourceId == entry.sourceId }
+            if (index >= 0) {
+                applyImageWidgetPayload(activity, widgetId, pending[index])
+                pending.removeAt(index)
+                savePendingImageWidgets(activity, pending)
+            } else {
+                copyImageWidgetData(activity, entry.sourceId, widgetId)
+            }
+            if (entry.sourceId > 0 && entry.sourceId != widgetId) {
+                clearImageWidget(activity, entry.sourceId)
+            }
+        }
+        runCatching {
+            activity.sendBroadcast(Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                component = info.provider
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(widgetId))
+            })
+        }
+        info.configure?.let { configure ->
+            runCatching {
+                activity.startActivity(Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                    component = configure
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                })
+            }
+        }
     }
 
     fun floatBallSize(context: Context) =
@@ -1177,6 +1624,13 @@ object AppPrefs {
             if (name.isNotBlank()) add("NGƯỜI NHẬN: ${name.trim()}")
             if (note.isNotBlank()) add("GHI CHÚ: ${note.trim()}")
         }.joinToString("\n")
+
+        fun toJson(): String = JSONObject()
+            .put("account", account)
+            .put("bank", bank)
+            .put("name", name)
+            .put("note", note)
+            .toString()
     }
 
     fun imageWidgetUris(context: Context, widgetId: Int): List<String> =
@@ -1256,6 +1710,291 @@ object AppPrefs {
             .remove("image_widget_qr_mode_$widgetId")
             .remove("image_widget_cover_$widgetId")
             .apply()
+    }
+
+    /** Every stored image card, including the ones hosted inside the widget panel. */
+    fun imageWidgetIds(context: Context): List<Int> =
+        store(context).all.keys.mapNotNull { key ->
+            key.takeIf { it.startsWith("image_widget_uris_") }
+                ?.removePrefix("image_widget_uris_")
+                ?.toIntOrNull()
+        }.filter { imageWidgetUris(context, it).isNotEmpty() }
+            .distinct()
+            .sorted()
+
+    /** Image cards pinned on the launcher, without the ones hosted by our panel. */
+    fun homeImageWidgetIds(context: Context): Set<Int> {
+        val all = AppWidgetManager.getInstance(context)
+            .getAppWidgetIds(ComponentName(context, GlassImageWidget::class.java))
+            .toSet()
+        val board = (widgetIds(context, false) + widgetIds(context, true))
+            .mapNotNull { it.toIntOrNull() }
+            .toSet()
+        return all - board
+    }
+
+    data class PendingImageWidget(
+        val sourceId: Int,
+        val uris: List<String>,
+        val cover: String,
+        val qrMode: Boolean,
+        val qr: String,
+        val imageUri: String?
+    )
+
+    data class PendingBoardWidget(
+        val landscape: Boolean,
+        val pageId: String,
+        val instanceId: String,
+        val provider: String,
+        val label: String,
+        val sourceId: Int
+    )
+
+    fun pendingImageWidgets(context: Context): MutableList<PendingImageWidget> {
+        val raw = store(context).getString(KEY_PENDING_IMAGE_WIDGETS, null)
+            ?: return mutableListOf()
+        return try {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val entry = array.optJSONObject(index) ?: continue
+                    val uriArray = entry.optJSONArray("uris") ?: JSONArray()
+                    add(
+                        PendingImageWidget(
+                            sourceId = entry.optInt("sourceId", -1),
+                            uris = buildList {
+                                for (uriIndex in 0 until uriArray.length()) {
+                                    uriArray.optString(uriIndex)
+                                        .takeIf { it.isNotBlank() }
+                                        ?.let(::add)
+                                }
+                            },
+                            cover = entry.optString("cover", ""),
+                            qrMode = entry.optBoolean("qrMode", false),
+                            qr = entry.optString("qr", ""),
+                            imageUri = entry.optString("imageUri", "")
+                                .takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+            }.toMutableList()
+        } catch (error: JSONException) {
+            Log.e(TAG, "Unable to read pending image widgets", error)
+            mutableListOf()
+        }
+    }
+
+    fun savePendingImageWidgets(context: Context, items: List<PendingImageWidget>) {
+        val array = JSONArray()
+        items.forEach { item ->
+            array.put(
+                JSONObject()
+                    .put("sourceId", item.sourceId)
+                    .put("uris", JSONArray(item.uris))
+                    .put("cover", item.cover)
+                    .put("qrMode", item.qrMode)
+                    .put("qr", item.qr)
+                    .put("imageUri", item.imageUri.orEmpty())
+            )
+        }
+        val editor = store(context).edit()
+        if (array.length() == 0) {
+            editor.remove(KEY_PENDING_IMAGE_WIDGETS)
+            editor.remove(KEY_IMAGE_WIDGET_BASELINE)
+        } else {
+            editor.putString(KEY_PENDING_IMAGE_WIDGETS, array.toString())
+        }
+        editor.apply()
+    }
+
+    /**
+     * Copies restored cards onto image widgets that now exist: an unchanged
+     * source id (same device) wins, otherwise the first widget added since the
+     * import (through the pin request or manually) takes the next card.
+     */
+    fun applyPendingImageWidgets(context: Context): Int {
+        val all = pendingImageWidgets(context)
+        if (all.isEmpty()) return 0
+        // Cards that belong to a panel widget are restored together with it.
+        val boardSourceIds = pendingBoardWidgets(context).map { it.sourceId }.toSet()
+        val boardImages = all.filter { it.sourceId in boardSourceIds }
+        val pending = all.filterNot { it.sourceId in boardSourceIds }
+        if (pending.isEmpty()) return 0
+        val manager = AppWidgetManager.getInstance(context)
+        val provider = ComponentName(context, GlassImageWidget::class.java)
+        val current = homeImageWidgetIds(context)
+        var baseline = store(context).getString(KEY_IMAGE_WIDGET_BASELINE, null)
+            ?.split(',')
+            ?.mapNotNull { it.trim().toIntOrNull() }
+            ?.toSet()
+        if (baseline == null) {
+            baseline = current
+            store(context).edit()
+                .putString(KEY_IMAGE_WIDGET_BASELINE, current.joinToString(","))
+                .apply()
+        }
+        val candidates = (current - baseline).toMutableList()
+        val used = mutableSetOf<Int>()
+        val remaining = mutableListOf<PendingImageWidget>()
+        var applied = 0
+        pending.forEach { item ->
+            val existing = item.sourceId.takeIf { source ->
+                source > 0 && source in current &&
+                    manager.getAppWidgetInfo(source)?.provider == provider
+            }
+            val target = existing ?: candidates.firstOrNull { it !in used }
+            if (target == null) {
+                remaining.add(item)
+            } else {
+                used.add(target)
+                applyImageWidgetPayload(context, target, item)
+                applied++
+            }
+        }
+        savePendingImageWidgets(context, remaining + boardImages)
+        if (remaining.isEmpty() && boardImages.isEmpty()) {
+            store(context).edit().remove(KEY_IMAGE_WIDGET_BASELINE).apply()
+        }
+        return applied
+    }
+
+    fun pendingHomeImageWidgets(context: Context): List<PendingImageWidget> {
+        val boardSourceIds = pendingBoardWidgets(context).map { it.sourceId }.toSet()
+        return pendingImageWidgets(context).filterNot { it.sourceId in boardSourceIds }
+    }
+
+    private fun removePendingHomeImageWidgets(context: Context) {
+        val boardSourceIds = pendingBoardWidgets(context).map { it.sourceId }.toSet()
+        savePendingImageWidgets(
+            context,
+            pendingImageWidgets(context).filter { it.sourceId in boardSourceIds }
+        )
+    }
+
+    private fun applyImageWidgetPayload(
+        context: Context,
+        targetId: Int,
+        item: PendingImageWidget
+    ) {
+        val uris = if (!item.imageUri.isNullOrBlank()) listOf(item.imageUri) else item.uris
+        if (uris.isEmpty()) return
+        setImageWidgetUris(context, targetId, uris)
+        val cover = item.imageUri?.takeIf { it in uris }
+            ?: item.cover.takeIf { it in uris }
+            ?: uris.first()
+        setImageWidgetCover(context, targetId, cover)
+        setImageWidgetQrMode(context, targetId, item.qrMode)
+        if (item.qr.isNotBlank()) {
+            runCatching {
+                val json = JSONObject(item.qr)
+                setImageWidgetQr(
+                    context,
+                    targetId,
+                    ImageWidgetQr(
+                        account = json.optString("account"),
+                        bank = json.optString("bank"),
+                        name = json.optString("name"),
+                        note = json.optString("note")
+                    )
+                )
+            }
+        }
+    }
+
+    fun pendingBoardWidgets(context: Context): MutableList<PendingBoardWidget> {
+        val raw = store(context).getString(KEY_PENDING_BOARD_WIDGETS, null)
+            ?: return mutableListOf()
+        return try {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val entry = array.optJSONObject(index) ?: continue
+                    add(
+                        PendingBoardWidget(
+                            landscape = entry.optBoolean("landscape", false),
+                            pageId = entry.optString("pageId", ""),
+                            instanceId = entry.optString("instanceId", ""),
+                            provider = entry.optString("provider", ""),
+                            label = entry.optString("label", ""),
+                            sourceId = entry.optInt("sourceId", -1)
+                        )
+                    )
+                }
+            }.toMutableList()
+        } catch (error: JSONException) {
+            Log.e(TAG, "Unable to read pending panel widgets", error)
+            mutableListOf()
+        }
+    }
+
+    fun removePendingBoardWidget(context: Context, instanceId: String) {
+        val remaining = pendingBoardWidgets(context).filterNot { it.instanceId == instanceId }
+        if (remaining.isEmpty()) {
+            store(context).edit().remove(KEY_PENDING_BOARD_WIDGETS).apply()
+            return
+        }
+        val array = JSONArray()
+        remaining.forEach { entry ->
+            array.put(
+                JSONObject()
+                    .put("landscape", entry.landscape)
+                    .put("pageId", entry.pageId)
+                    .put("instanceId", entry.instanceId)
+                    .put("provider", entry.provider)
+                    .put("label", entry.label)
+                    .put("sourceId", entry.sourceId)
+            )
+        }
+        store(context).edit().putString(KEY_PENDING_BOARD_WIDGETS, array.toString()).apply()
+    }
+
+    fun replacePanelWidgetId(
+        context: Context,
+        landscape: Boolean,
+        pageId: String,
+        instanceId: String,
+        newWidgetId: Int
+    ) {
+        val pages = panelPages(context, landscape).map { page ->
+            if (page.id != pageId) page else page.copy(
+                items = page.items.map { item ->
+                    if (item.id == instanceId) item.copy(value = newWidgetId.toString()) else item
+                }
+            )
+        }
+        savePanelPages(context, landscape, pages)
+    }
+
+    fun copyImageWidgetData(context: Context, fromId: Int, toId: Int) {
+        val uris = imageWidgetUris(context, fromId)
+        if (uris.isEmpty()) return
+        setImageWidgetUris(context, toId, uris)
+        setImageWidgetCover(context, toId, imageWidgetCover(context, fromId))
+        setImageWidgetQrMode(context, toId, imageWidgetQrMode(context, fromId))
+        imageWidgetQr(context, fromId)?.let { setImageWidgetQr(context, toId, it) }
+    }
+
+    fun setBoardBindInFlight(context: Context, instanceId: String, widgetId: Int) {
+        store(context).edit().putString(
+            KEY_BOARD_BIND_IN_FLIGHT,
+            JSONObject().put("instanceId", instanceId).put("widgetId", widgetId).toString()
+        ).apply()
+    }
+
+    fun boardBindInFlight(context: Context): Pair<String, Int>? {
+        val raw = store(context).getString(KEY_BOARD_BIND_IN_FLIGHT, null) ?: return null
+        return try {
+            val json = JSONObject(raw)
+            json.optString("instanceId").takeIf { it.isNotBlank() }
+                ?.let { it to json.optInt("widgetId", -1) }
+        } catch (_: JSONException) {
+            null
+        }
+    }
+
+    fun clearBoardBindInFlight(context: Context) {
+        store(context).edit().remove(KEY_BOARD_BIND_IN_FLIGHT).apply()
     }
 
     private fun iconOverrideStore(context: Context) =
@@ -1951,13 +2690,17 @@ object ImagePicker {
 class AccessibilityActionService : AccessibilityService() {
     override fun onServiceConnected() {
         activeService = this
+        PanelsAccessibilityEnvironment.attach(this)
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event != null) PanelsAccessibilityEnvironment.onEvent(this, event)
+    }
 
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        PanelsAccessibilityEnvironment.detach(this)
         if (activeService === this) activeService = null
         super.onDestroy()
     }
@@ -2031,5 +2774,186 @@ private class PanelsVoiceInteractionSession(private val appContext: Context) :
                 hide()
             }
         }
+    }
+}
+
+/**
+ * Unlocks hidden framework members through the bundled hidden-API bypass; the
+ * accessibility "show over lock screen" switch lives behind such a member.
+ */
+object ObjectWebHook {
+    @Volatile
+    private var applied = false
+
+    fun bypass() {
+        if (applied) return
+        applied = true
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
+        runCatching { org.lsposed.hiddenapibypass.HiddenApiBypass.setHiddenApiExemptions("L") }
+    }
+}
+
+/**
+ * Tracks the foreground app and the keyboard through the accessibility service
+ * so the float ball can follow the blacklist and the keyboard relation rules.
+ * Everything is event driven: no polling.
+ */
+object PanelsAccessibilityEnvironment {
+    @Volatile
+    private var serviceRef: AccessibilityService? = null
+    @Volatile
+    private var lastEventPackage: String? = null
+    @Volatile
+    private var imeRect: Rect? = null
+    @Volatile
+    private var blockedPackage: String? = null
+
+    private val listeners = CopyOnWriteArrayList<() -> Unit>()
+    private val handler = Handler(Looper.getMainLooper())
+    private var scheduled = false
+
+    fun isAttached(): Boolean = serviceRef != null
+
+    fun keyboardBounds(): Rect? = imeRect?.let { Rect(it) }
+
+    fun isKeyboardVisible(): Boolean = imeRect != null
+
+    fun blockedPackage(): String? = blockedPackage
+
+    fun isBlocked(context: Context): Boolean =
+        AppPrefs.isBlacklisted(context, blockedPackage)
+
+    fun addListener(listener: () -> Unit) {
+        if (listener !in listeners) listeners.add(listener)
+    }
+
+    fun removeListener(listener: () -> Unit) {
+        listeners.remove(listener)
+    }
+
+    fun attach(service: AccessibilityService) {
+        serviceRef = service
+        applyOverLockScreen(service)
+        refresh(service)
+    }
+
+    fun detach(service: AccessibilityService) {
+        if (serviceRef === service) serviceRef = null
+        imeRect = null
+        if (blockedPackage != null) {
+            blockedPackage = null
+            notifyListeners()
+        }
+    }
+
+    fun onEvent(service: AccessibilityService, event: AccessibilityEvent) {
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                event.packageName?.toString()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { lastEventPackage = it }
+                scheduleRefresh(service)
+            }
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> scheduleRefresh(service)
+        }
+    }
+
+    fun onAppsChanged(context: Context) {
+        serviceRef?.let(::scheduleRefresh)
+    }
+
+    fun updateMaxDisplay(service: AccessibilityService?) {
+        service?.let(::applyOverLockScreen)
+        serviceRef?.let(::scheduleRefresh)
+    }
+
+    /** True when the ball must use an accessibility overlay window. */
+    fun overlayOnTopAllowed(context: Context): Boolean =
+        AppPrefs.maxDisplayEnabled(context) && serviceRef != null
+
+    private fun scheduleRefresh(service: AccessibilityService) {
+        if (scheduled) return
+        scheduled = true
+        handler.post {
+            scheduled = false
+            if (serviceRef === service) refresh(service)
+        }
+    }
+
+    private fun refresh(service: AccessibilityService) {
+        val windows = runCatching { service.windows }.getOrNull().orEmpty()
+        val ime = windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+        val keyboardWasVisible = imeRect != null
+        imeRect = ime?.let { window ->
+            Rect().also { bounds -> window.getBoundsInScreen(bounds) }
+        }
+        var foreground: String? = null
+        windows.forEach { window ->
+            if (window.type == AccessibilityWindowInfo.TYPE_APPLICATION && window.isFocused) {
+                foreground = runCatching { window.root?.packageName?.toString() }.getOrNull()
+            }
+        }
+        if (foreground.isNullOrBlank()) foreground = lastEventPackage
+        val blocked = foreground?.takeIf {
+            it != service.packageName && AppPrefs.isBlacklisted(service, it)
+        }
+        val changed = blocked != blockedPackage || keyboardWasVisible != (imeRect != null)
+        blockedPackage = blocked
+        if (changed) notifyListeners()
+    }
+
+    private fun notifyListeners() {
+        listeners.forEach { listener -> runCatching { listener() } }
+    }
+
+    private fun applyOverLockScreen(service: AccessibilityService) {
+        if (Build.VERSION.SDK_INT < 34) return
+        runCatching {
+            ObjectWebHook.bypass()
+            val info = service.serviceInfo ?: return@runCatching
+            val setter = info.javaClass.getMethod(
+                "setShowOverLockScreen",
+                java.lang.Boolean.TYPE
+            )
+            setter.invoke(info, AppPrefs.maxDisplayEnabled(service))
+            service.serviceInfo = info
+        }
+    }
+}
+
+/** Removes the task from Recents right after the user leaves the app. */
+object HideFromRecents {
+    private val started = java.util.concurrent.atomic.AtomicInteger(0)
+
+    @Volatile
+    private var installed = false
+
+    fun install(application: android.app.Application) {
+        if (installed) return
+        installed = true
+        application.registerActivityLifecycleCallbacks(
+            object : android.app.Application.ActivityLifecycleCallbacks {
+                override fun onActivityStarted(activity: Activity) {
+                    started.incrementAndGet()
+                }
+
+                override fun onActivityStopped(activity: Activity) {
+                    if (started.decrementAndGet() > 0) return
+                    if (!AppPrefs.hideFromRecents(activity)) return
+                    if (activity.isChangingConfigurations || activity.isFinishing) return
+                    runCatching { activity.finishAndRemoveTask() }
+                }
+
+                override fun onActivityCreated(activity: Activity, state: Bundle?) = Unit
+
+                override fun onActivityResumed(activity: Activity) = Unit
+
+                override fun onActivityPaused(activity: Activity) = Unit
+
+                override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) = Unit
+
+                override fun onActivityDestroyed(activity: Activity) = Unit
+            }
+        )
     }
 }

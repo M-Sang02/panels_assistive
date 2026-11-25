@@ -69,6 +69,7 @@ class AdvancedSettingsActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (AppPrefs.handleRestoreResult(this, requestCode, resultCode)) return
         if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         when (requestCode) {
@@ -104,6 +105,7 @@ class AdvancedSettingsActivity : Activity() {
                 }
                 Toast.makeText(this, R.string.settings_imported, Toast.LENGTH_SHORT).show()
                 render()
+                AppPrefs.restoreWidgets(this)
             } catch (error: Exception) {
                 android.util.Log.e(TAG, "Unable to import settings", error)
                 Toast.makeText(this, R.string.settings_file_error, Toast.LENGTH_LONG).show()
@@ -124,6 +126,7 @@ class AdvancedSettingsActivity : Activity() {
             "Quyền hệ thống, ô cài đặt nhanh, sao lưu và trạng thái dự án."
         ))
         root.addView(permissionsCard())
+        root.addView(recentsCard())
         root.addView(freeformCard())
         root.addView(tilesCard())
         root.addView(widgetPromptCard())
@@ -197,6 +200,24 @@ class AdvancedSettingsActivity : Activity() {
         addView(label(getString(R.string.accessibility_optional_description), 12, GlassUi.TEXT_MUTED).apply {
             setPadding(0, dp(8), 0, 0)
         })
+    }
+
+    private fun recentsCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(cardHeader("eye-off", "Ứng dụng"))
+        addView(GlassUi.switch(
+            this@AdvancedSettingsActivity,
+            AppPrefs.hideFromRecents(this@AdvancedSettingsActivity)
+        ) { enabled ->
+            AppPrefs.setHideFromRecents(this@AdvancedSettingsActivity, enabled)
+        }.apply {
+            text = "Tự động ẩn khỏi màn hình gần đây"
+            setTextColor(GlassUi.TEXT_PRIMARY)
+        })
+        addView(label(
+            "Khi rời ứng dụng, tác vụ được đóng và xoá khỏi danh sách ứng dụng gần đây.",
+            12,
+            GlassUi.TEXT_MUTED
+        ).apply { setPadding(0, dp(6), 0, 0) })
     }
 
     private fun freeformCard(): LinearLayout = GlassUi.glassCard(this).apply {

@@ -52,6 +52,10 @@ class MainActivity : Activity() {
         if (AppPrefs.takePendingOverlayEnable(this) && Settings.canDrawOverlays(this)) {
             FloatBallService.start(this)
         }
+        if (AppPrefs.applyPendingImageWidgets(this) > 0) {
+            GlassWidgets.refreshAll(this)
+            Toast.makeText(this, "Đã khôi phục nội dung widget ảnh.", Toast.LENGTH_SHORT).show()
+        }
         val previousScroll = settingsScroll?.scrollY ?: 0
         val scroll = SettingsScreen(this).createView()
         settingsScroll = scroll
@@ -232,6 +236,7 @@ class MainActivity : Activity() {
     @Deprecated("Handles the system picker result on supported Android versions")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (AppPrefs.handleRestoreResult(this, requestCode, resultCode)) return
         if ((requestCode == REQUEST_FLOAT_ICON_STATIC || requestCode == REQUEST_FLOAT_ICON_GIF) &&
             resultCode == RESULT_OK
         ) {
@@ -322,6 +327,7 @@ class MainActivity : Activity() {
                     FloatBallService.stop(this)
                 }
                 Toast.makeText(this, R.string.settings_imported, Toast.LENGTH_SHORT).show()
+                AppPrefs.restoreWidgets(this)
             } catch (error: Exception) {
                 android.util.Log.e("MainActivity", "Unable to import settings", error)
                 Toast.makeText(this, R.string.settings_file_error, Toast.LENGTH_LONG).show()
