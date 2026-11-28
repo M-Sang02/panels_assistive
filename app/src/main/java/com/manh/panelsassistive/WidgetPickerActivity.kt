@@ -5,8 +5,12 @@ import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
+import android.content.res.Resources
+import android.content.res.XmlResourceParser
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -27,6 +31,7 @@ import android.widget.TextView
 import android.widget.Toast
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import org.xmlpull.v1.XmlPullParser
 
 class WidgetPickerActivity : Activity() {
     private val foreground = GlassUi.TEXT_PRIMARY
@@ -52,6 +57,8 @@ class WidgetPickerActivity : Activity() {
     private val providerLabels = mutableMapOf<ComponentName, String>()
     private val appLabels = mutableMapOf<String, String>()
     private val previewExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var appShortcuts: List<AppShortcut>? = null
+    private var shortcutsLoading = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -635,6 +642,18 @@ class WidgetPickerActivity : Activity() {
     }
 
     private fun renderShortcutActivities(query: String) {
+        // Quick actions declared by the installed apps (Chrome's new tab,
+        // NCT's charts/topics/search…) sit above the legacy creator list.
+        val appShortcutTitle = getString(R.string.app_shortcuts_title)
+        val appShortcutHint = getString(R.string.app_shortcuts_hint)
+        val showAppShortcuts = query.isBlank() ||
+            appShortcutTitle.contains(query, ignoreCase = true) ||
+            appShortcutHint.contains(query, ignoreCase = true)
+        if (showAppShortcuts) {
+            list.addView(appShortcutRow(appShortcutTitle, appShortcutHint) {
+                loadAppShortcuts()
+            })
+        }
         val batteryShortcutLabel = getString(R.string.battery_optimization_shortcut)
         val showBatteryShortcut = batteryShortcutLabel.contains(query, ignoreCase = true)
         if (showBatteryShortcut) {
@@ -657,7 +676,7 @@ class WidgetPickerActivity : Activity() {
         val matches = shortcutActivities.filter {
             it.loadLabel(packageManager).toString().contains(query, ignoreCase = true)
         }
-        if (matches.isEmpty() && !showBatteryShortcut) {
+        if (matches.isEmpty() && !showBatteryShortcut && !showAppShortcuts) {
             list.addView(message(getString(R.string.no_shortcuts_available)))
             return
         }
@@ -672,6 +691,217 @@ class WidgetPickerActivity : Activity() {
                 startActivityForResult(createShortcut, REQUEST_SHORTCUT)
             })
         }
+    }
+
+    private fun appShortcutRow(title: String, caption: String, onClick: () -> Unit) =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = roundedBackground()
+            isClickable = true
+            isFocusable = true
+            addView(
+                LucideGlyphView(this@WidgetPickerActivity, "grid-2x2", GlassUi.ACCENT),
+                LinearLayout.LayoutParams(dp(42), dp(42))
+            )
+            addView(LinearLayout(this@WidgetPickerActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), 0, 0, 0)
+                addView(TextView(this@WidgetPickerActivity).apply {
+                    text = title
+                    textSize = 16f
+                    setTextColor(Color.WHITE)
+                })
+                addView(TextView(this@WidgetPickerActivity).apply {
+                    text = caption
+                    textSize = 12f
+                    setTextColor(secondary)
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            setOnClickListener { onClick() }
+        }.also {
+            it.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+        }
+
+    /**
+     * Lists the static shortcuts every installed app declares in its
+     * shortcuts XML (new tab / incognito, charts / topics / search…). Reading
+     * that resource works without the launcher or assistant role.
+     */
+    private fun loadAppShortcuts() {
+        appShortcuts?.let { shortcuts ->
+            if (shortcuts.isEmpty()) {
+                Toast.makeText(this, R.string.no_shortcuts_available, Toast.LENGTH_SHORT).show()
+            } else {
+                openAppShortcutChooser(shortcuts)
+            }
+            return
+        }
+        if (shortcutsLoading) return
+        shortcutsLoading = true
+        Toast.makeText(this, "Đang tải lối tắt…", Toast.LENGTH_SHORT).show()
+        previewExecutor.execute {
+            val shortcuts = collectAppShortcuts()
+            runOnUiThread {
+                shortcutsLoading = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                appShortcuts = shortcuts
+                if (shortcuts.isEmpty()) {
+                    Toast.makeText(this, R.string.no_shortcuts_available, Toast.LENGTH_SHORT).show()
+                } else {
+                    openAppShortcutChooser(shortcuts)
+                }
+            }
+        }
+    }
+
+    private fun openAppShortcutChooser(shortcuts: List<AppShortcut>) {
+        GlassDialogs.show(
+            this,
+            getString(R.string.app_shortcuts_title),
+            shortcuts.mapIndexed { index, shortcut ->
+                GlassDialogs.Item(
+                    id = index.toString(),
+                    label = shortcut.label,
+                    caption = shortcut.appLabel,
+                    iconPackage = shortcut.packageName
+                )
+            },
+            getString(R.string.app_shortcuts_hint)
+        ) { picked ->
+            val shortcut = picked.id.toIntOrNull()?.let { shortcuts.getOrNull(it) } ?: return@show
+            if (saveSelectedShortcut(shortcut.intent, shortcut.label)) finishPicking()
+        }
+    }
+
+    private fun collectAppShortcuts(): List<AppShortcut> {
+        val shortcuts = mutableListOf<AppShortcut>()
+        val seen = mutableSetOf<String>()
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val packages = packageManager.queryIntentActivities(launcher, 0)
+            .mapNotNull { it.activityInfo?.packageName }
+            .distinct()
+        packages.forEach packageLoop@{ packageName ->
+            if (packageName == this.packageName) return@packageLoop
+            val info = try {
+                packageManager.getPackageInfo(
+                    packageName,
+                    PackageManager.GET_ACTIVITIES or PackageManager.GET_META_DATA
+                )
+            } catch (error: PackageManager.NameNotFoundException) {
+                null
+            } ?: return@packageLoop
+            val appInfo = info.applicationInfo ?: return@packageLoop
+            val appLabel = try {
+                packageManager.getApplicationLabel(appInfo).toString()
+            } catch (error: Exception) {
+                packageName
+            }
+            val appContext = try {
+                createPackageContext(packageName, Context.CONTEXT_IGNORE_SECURITY)
+            } catch (error: Exception) {
+                null
+            } ?: return@packageLoop
+            info.activities?.forEach activityLoop@{ activity ->
+                val resourceId = activity.metaData?.getInt(SHORTCUTS_META_DATA) ?: 0
+                if (resourceId == 0) return@activityLoop
+                val parser = try {
+                    appContext.resources.getXml(resourceId)
+                } catch (error: Exception) {
+                    Log.w(TAG, "Unable to read shortcuts of $packageName", error)
+                    null
+                } ?: return@activityLoop
+                try {
+                    readShortcuts(parser, appContext.resources, packageName, appLabel)
+                        .forEach { shortcut ->
+                            if (seen.add(shortcut.intent.toUri(0))) shortcuts += shortcut
+                        }
+                } catch (error: Exception) {
+                    Log.w(TAG, "Malformed shortcuts in $packageName", error)
+                } finally {
+                    parser.close()
+                }
+            }
+        }
+        return shortcuts
+    }
+
+    private fun readShortcuts(
+        parser: XmlResourceParser,
+        resources: Resources,
+        packageName: String,
+        appLabel: String
+    ): List<AppShortcut> {
+        val result = mutableListOf<AppShortcut>()
+        var enabled = true
+        var label: String? = null
+        var shortcutId: String? = null
+        var intent: Intent? = null
+        while (parser.next() != XmlPullParser.END_DOCUMENT) {
+            when (parser.eventType) {
+                XmlPullParser.START_TAG -> when (parser.name) {
+                    "shortcut" -> {
+                        enabled = parser.getAttributeBooleanValue(ANDROID_NS, "enabled", true)
+                        shortcutId = parser.getAttributeValue(ANDROID_NS, "shortcutId")
+                        label = shortcutLabel(parser, resources, "shortcutShortLabel")
+                            ?: shortcutLabel(parser, resources, "shortcutLongLabel")
+                        intent = null
+                    }
+                    "intent" -> intent = shortcutIntent(parser)
+                    "categories", "category" -> parser.getAttributeValue(ANDROID_NS, "name")
+                        ?.let { intent?.addCategory(it) }
+                }
+                XmlPullParser.END_TAG -> if (parser.name == "shortcut") {
+                    val launchIntent = intent
+                    if (enabled && launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        result += AppShortcut(
+                            launchIntent,
+                            label ?: shortcutId?.takeIf { it.isNotBlank() } ?: appLabel,
+                            appLabel,
+                            packageName
+                        )
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    private fun shortcutLabel(
+        parser: XmlResourceParser,
+        resources: Resources,
+        attribute: String
+    ): String? {
+        val resourceId = parser.getAttributeResourceValue(ANDROID_NS, attribute, 0)
+        if (resourceId != 0) {
+            return try {
+                resources.getString(resourceId)
+            } catch (error: Exception) {
+                null
+            }
+        }
+        return parser.getAttributeValue(ANDROID_NS, attribute)?.takeIf { it.isNotBlank() }
+    }
+
+    private fun shortcutIntent(parser: XmlResourceParser): Intent {
+        val intent = Intent()
+        parser.getAttributeValue(ANDROID_NS, "action")?.let { intent.action = it }
+        val targetPackage = parser.getAttributeValue(ANDROID_NS, "targetPackage")
+        val targetClass = parser.getAttributeValue(ANDROID_NS, "targetClass")
+        when {
+            !targetPackage.isNullOrEmpty() && !targetClass.isNullOrEmpty() ->
+                intent.setClassName(targetPackage, targetClass)
+            !targetPackage.isNullOrEmpty() -> intent.setPackage(targetPackage)
+            !targetClass.isNullOrEmpty() -> intent.className = targetClass
+        }
+        parser.getAttributeValue(ANDROID_NS, "data")?.let { intent.data = Uri.parse(it) }
+        return intent
     }
 
     private fun saveShortcut(data: Intent?) {
@@ -908,6 +1138,13 @@ class WidgetPickerActivity : Activity() {
         val providers: List<AppWidgetProviderInfo>
     )
 
+    private data class AppShortcut(
+        val intent: Intent,
+        val label: String,
+        val appLabel: String,
+        val packageName: String
+    )
+
     companion object {
         const val EXTRA_LANDSCAPE_LAYOUT = "com.manh.panelsassistive.extra.LANDSCAPE_LAYOUT"
         const val EXTRA_PANEL_ID = "com.manh.panelsassistive.extra.PANEL_ID"
@@ -924,5 +1161,7 @@ class WidgetPickerActivity : Activity() {
         private const val STATE_PENDING_WIDGET_ID = "pending_widget_id"
         private const val TAG = "WidgetPicker"
         private const val PROVIDER_PAGE_SIZE = 40
+        private const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
+        private const val SHORTCUTS_META_DATA = "android.app.shortcuts"
     }
 }

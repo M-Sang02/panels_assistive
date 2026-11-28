@@ -127,6 +127,8 @@
     <string name="delete_panel_confirmation">Delete "%1$s" and its items?</string>
     <string name="choose_app">Apps</string>
     <string name="choose_shortcut">Shortcuts</string>
+    <string name="app_shortcuts_title">App shortcuts</string>
+    <string name="app_shortcuts_hint">New tab, search, charts… declared by installed apps</string>
     <string name="choose_phone_shortcut">Phone shortcuts</string>
     <string name="choose_phone_action">Phone shortcut</string>
     <string name="select_expansion_shortcut_type">Choose what to add</string>

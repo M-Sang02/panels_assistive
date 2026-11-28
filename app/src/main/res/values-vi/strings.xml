@@ -127,6 +127,8 @@
     <string name="delete_panel_confirmation">Xóa "%1$s" và các mục bên trong?</string>
     <string name="choose_app">Ứng dụng</string>
     <string name="choose_shortcut">Lối tắt</string>
+    <string name="app_shortcuts_title">Lối tắt các ứng dụng</string>
+    <string name="app_shortcuts_hint">Thẻ mới, tìm kiếm, bảng xếp hạng… của các ứng dụng đã tải</string>
     <string name="choose_phone_shortcut">Phím tắt</string>
     <string name="choose_phone_action">Phím tắt điện thoại</string>
     <string name="select_expansion_shortcut_type">Chọn mục cần thêm</string>

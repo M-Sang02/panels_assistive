@@ -135,7 +135,7 @@ class ExpansionSettingsActivity : Activity() {
 
     private fun shortcutCard(): LinearLayout = GlassUi.glassCard(this).apply {
         addView(cardHeader("corner-up-right", "Lối tắt"))
-        addView(hint("Thêm, đổi hoặc xoá lối tắt tại đây. Nhấn giữ lối tắt ứng dụng trong bảng để mở cửa sổ nổi; bảng tự thu gọn khi không có lối tắt."))
+        addView(hint("Thêm, đổi, xoá hoặc đổi thứ tự lối tắt tại đây. Nhấn giữ lối tắt ứng dụng trong bảng để mở cửa sổ nổi; bảng tự thu gọn khi không có lối tắt."))
         val shortcuts = AppPrefs.expansionShortcuts(this@ExpansionSettingsActivity)
         val grid = LinearLayout(this@ExpansionSettingsActivity).apply {
             orientation = LinearLayout.VERTICAL
@@ -166,6 +166,8 @@ class ExpansionSettingsActivity : Activity() {
                     setPadding(dp(10), 0, 0, 0)
                 }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 if (shortcut != null) {
+                    addView(glyphButton("chevron-up", "Đưa lên") { moveShortcut(index, -1) })
+                    addView(glyphButton("chevron-down", "Đưa xuống") { moveShortcut(index, 1) })
                     addView(glyphButton("trash-2", "Xoá lối tắt") {
                         AppPrefs.setExpansionShortcut(this@ExpansionSettingsActivity, index, null)
                         render()
@@ -205,6 +207,21 @@ class ExpansionSettingsActivity : Activity() {
         val moved = choices.removeAt(index)
         choices.add(to, moved)
         AppPrefs.setExpansionRingerModes(this, choices)
+        render()
+    }
+
+    /** Swaps with the nearest filled slot so empty slots never block a move. */
+    private fun moveShortcut(index: Int, delta: Int) {
+        val items = AppPrefs.expansionShortcuts(this).toMutableList()
+        if (index !in items.indices || items[index] == null) return
+        var target = index + delta
+        while (target in items.indices && items[target] == null) target += delta
+        if (target !in items.indices) return
+        val moved = items[index]
+        items[index] = items[target]
+        items[target] = moved
+        AppPrefs.setExpansionShortcut(this, index, items[index])
+        AppPrefs.setExpansionShortcut(this, target, items[target])
         render()
     }
 
