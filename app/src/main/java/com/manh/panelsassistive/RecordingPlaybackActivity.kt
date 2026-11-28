@@ -112,10 +112,10 @@ class RecordingPlaybackActivity : Activity() {
                 seekBar = GlassUi.slider(this@RecordingPlaybackActivity).apply {
                     max = 1
                     isEnabled = false
-                    progressTintList = android.content.res.ColorStateList.valueOf(GlassUi.ACCENT)
+                    progressTintList = android.content.res.ColorStateList.valueOf(GlassUi.SLIDER_COLOR)
                     progressBackgroundTintList =
                         android.content.res.ColorStateList.valueOf(Color.argb(40, 255, 255, 255))
-                    thumbTintList = android.content.res.ColorStateList.valueOf(GlassUi.ACCENT)
+                    thumbTintList = android.content.res.ColorStateList.valueOf(GlassUi.SLIDER_COLOR)
                     setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                         override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
                             if (fromUser) updatePosition(progress)

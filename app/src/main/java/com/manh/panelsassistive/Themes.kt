@@ -84,13 +84,31 @@ object AppThemes {
 
     fun current(context: Context): AppTheme {
         val key = AppPrefs.themeKey(context)
-        if (key == CUSTOM_KEY) return custom(context)
-        return ALL.firstOrNull { it.key == key } ?: ALL.first()
+        val base = if (key == CUSTOM_KEY) {
+            custom(context)
+        } else {
+            ALL.firstOrNull { it.key == key } ?: ALL.first()
+        }
+        val picked = AppPrefs.themeAccent(context)
+        if (picked == 0) return base
+        return base.copy(accent = picked, accentStrong = strongAccent(picked))
+    }
+
+    private fun strongAccent(accent: Int): Int {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(accent, hsv)
+        return Color.HSVToColor(
+            floatArrayOf(
+                hsv[0],
+                (hsv[1] + 0.08f).coerceAtMost(1f),
+                (hsv[2] * 0.78f).coerceIn(0f, 1f)
+            )
+        )
     }
 
     /** Builds a dark page + panel palette from one freely picked accent colour. */
     fun custom(context: Context): AppTheme {
-        val accent = AppPrefs.themeAccent(context)
+        val accent = AppPrefs.themeAccent(context).takeIf { it != 0 } ?: 0xFF7CBEFF.toInt()
         val hsv = FloatArray(3)
         Color.colorToHSV(accent, hsv)
         fun shade(value: Float, saturation: Float): Int =
@@ -105,7 +123,7 @@ object AppThemes {
             key = CUSTOM_KEY,
             label = "Tùy chỉnh",
             accent = accent,
-            accentStrong = shade(hsv[2] * 0.78f, (hsv[1] + 0.08f).coerceAtMost(1f)),
+            accentStrong = strongAccent(accent),
             pageTop = shade(0.085f, 0.55f),
             pageMid = shade(0.16f, 0.50f),
             pageBottom = shade(0.055f, 0.60f),
@@ -118,11 +136,16 @@ object AppThemes {
      * status bars, panel colours for the floating surfaces, then the widgets.
      */
     fun apply(context: Context, theme: AppTheme) {
+        // Background palettes no longer move the accent: keep the accent the
+        // user already sees, then change only the page and panel colours.
+        if (AppPrefs.themeAccent(context) == 0) {
+            AppPrefs.setThemeAccent(context, current(context).accent)
+        }
         AppPrefs.setThemeKey(context, theme.key)
         applyPalette(context, theme)
     }
 
-    /** Free colour pick: becomes the "custom" theme with the same dark page style. */
+    /** Free accent pick: recolours buttons and highlights without touching the background. */
     fun applyAccent(context: Context, accent: Int) {
         AppPrefs.setThemeAccent(context, accent)
         applyPalette(context, current(context))

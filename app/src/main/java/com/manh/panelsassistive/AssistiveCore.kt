@@ -193,6 +193,9 @@ object AppPrefs {
     private const val KEY_QUICK_TILE_SECONDARY = "quick_tile_secondary"
     private const val KEY_THEME = "app_theme"
     private const val KEY_THEME_ACCENT = "app_theme_accent"
+    private const val KEY_THEME_TEXT = "app_theme_text"
+    private const val KEY_THEME_ICON = "app_theme_icon"
+    private const val KEY_THEME_SLIDER = "app_theme_slider"
     private const val KEY_SHARED_PANEL_COLOR = "shared_panel_color"
     private const val KEY_SHARED_PANEL_OPACITY = "shared_panel_opacity"
     private const val KEY_SHARED_PANEL_CORNER = "shared_panel_corner"
@@ -1343,13 +1346,36 @@ object AppPrefs {
         store(context).edit().putString(KEY_THEME, key).apply()
     }
 
+    /** 0 means "follow the selected background palette". */
     fun themeAccent(context: Context): Int =
-        store(context).getInt(KEY_THEME_ACCENT, 0xFF7CBEFF.toInt())
+        store(context).getInt(KEY_THEME_ACCENT, 0)
 
     fun setThemeAccent(context: Context, color: Int) {
+        store(context).edit().putInt(KEY_THEME_ACCENT, color).apply()
+    }
+
+    fun themeTextColor(context: Context): Int = store(context).getInt(KEY_THEME_TEXT, 0)
+    fun setThemeTextColor(context: Context, color: Int) {
+        store(context).edit().putInt(KEY_THEME_TEXT, color).apply()
+    }
+
+    fun themeIconColor(context: Context): Int = store(context).getInt(KEY_THEME_ICON, 0)
+    fun setThemeIconColor(context: Context, color: Int) {
+        store(context).edit().putInt(KEY_THEME_ICON, color).apply()
+    }
+
+    fun themeSliderColor(context: Context): Int = store(context).getInt(KEY_THEME_SLIDER, 0)
+    fun setThemeSliderColor(context: Context, color: Int) {
+        store(context).edit().putInt(KEY_THEME_SLIDER, color).apply()
+    }
+
+    /** Drops the free-picked accent and the three detail colours. */
+    fun resetThemeColors(context: Context) {
         store(context).edit()
-            .putString(KEY_THEME, AppThemes.CUSTOM_KEY)
-            .putInt(KEY_THEME_ACCENT, color)
+            .remove(KEY_THEME_ACCENT)
+            .remove(KEY_THEME_TEXT)
+            .remove(KEY_THEME_ICON)
+            .remove(KEY_THEME_SLIDER)
             .apply()
     }
 

@@ -1123,19 +1123,71 @@ class FloatBallService : Service() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(14), dp(14), dp(12))
         }
+        val audio = getSystemService(android.media.AudioManager::class.java)
+        val sliderKeys = AppPrefs.expansionSliders(this)
+        val hasAudio = audio != null && sliderKeys.any { it != "brightness" }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(6), 0, dp(6), 0)
+            val muted = audio != null &&
+                audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) == 0
+            val volumeIcon = LucideGlyphView(
+                this@FloatBallService,
+                if (muted) "volume-x" else "volume-2",
+                Color.WHITE
+            ).apply {
+                contentDescription = "Tắt hoặc mở âm lượng media"
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    val manager = audio ?: return@setOnClickListener
+                    val stream = android.media.AudioManager.STREAM_MUSIC
+                    val max = manager.getStreamMaxVolume(stream).coerceAtLeast(1)
+                    val next = if (manager.getStreamVolume(stream) == 0) max / 2 else 0
+                    runCatching { manager.setStreamVolume(stream, next, 0) }
+                    setIconName(if (next == 0) "volume-x" else "volume-2")
+                }
+            }
+            addView(volumeIcon, LinearLayout.LayoutParams(dp(20), dp(20)))
+            addView(TextView(this@FloatBallService).apply {
+                text = if (hasAudio) "Âm lượng" else "Độ sáng"
+                textSize = 11f
+                setTextColor(Color.argb(190, 245, 248, 252))
+                includeFontPadding = false
+                setPadding(dp(8), 0, 0, 0)
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            val gear = LucideGlyphView(this@FloatBallService, "settings", Color.argb(210, 245, 248, 252)).apply {
+                contentDescription = "Mở cài đặt bảng mở rộng"
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    removePopup(stopIfEmpty = false)
+                    runCatching {
+                        startActivity(
+                            Intent(this@FloatBallService, ExpansionSettingsActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                }
+            }
+            addView(gear, LinearLayout.LayoutParams(dp(20), dp(20)))
+        }
+        panel.addView(header, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(32)
+        ))
 
         // Bar order and visibility come from Cài đặt → Bản mở rộng; media is last
         // by default so it sits at the far right edge of the panel.
         val volumeRows = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, dp(6))
+            setPadding(0, dp(2), 0, dp(2))
         }
-        val audio = getSystemService(android.media.AudioManager::class.java)
         val brightnessValue = try {
             Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
         } catch (_: Exception) { 128 }
-        val sliderKeys = AppPrefs.expansionSliders(this)
         sliderKeys.forEach { key ->
             if (key == "brightness") {
                 addVerticalLevelSlider(
@@ -1176,6 +1228,11 @@ class FloatBallService : Service() {
             )
         }
         panel.addView(volumeRows)
+        if (audio != null) {
+            panel.addView(ringerModePill(audio), LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(38)
+            ).apply { topMargin = dp(4) })
+        }
 
         // Shortcuts are managed in Cài đặt → Bản mở rộng, so the panel shows
         // only filled slots and shrinks to the bars when there are none.
@@ -1271,13 +1328,13 @@ class FloatBallService : Service() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        // 26dp panel padding + 14dp row padding + 198dp slider column, then the
-        // optional shortcut block (toggle + 54dp rows).
-        val baseHeightDp = 238
+        // Header + slider columns + mode pill + panel padding, then the optional
+        // shortcut block (toggle + 54dp rows).
+        val baseHeightDp = 288
         val shortcutHeightDp = if (shortcutRows.isEmpty()) 0 else {
             33 + shortcutRows.size * 54 + (shortcutRows.size - 1) * 4
         }
-        val widthDp = (28 + 66 * sliderKeys.size).coerceIn(96, 360)
+        val widthDp = (28 + 66 * sliderKeys.size).coerceIn(220, 380)
         showOverlayPanel(
             scroll,
             dp(widthDp),
@@ -1285,6 +1342,54 @@ class FloatBallService : Service() {
             windowBackground = sharedPanelBackground(),
             surface = OverlaySurface.EXPANSION
         )
+    }
+
+    /** Bell / vibrate / silent pill under the expansion bars. */
+    private fun ringerModePill(audio: android.media.AudioManager): LinearLayout {
+        val modes = listOf(
+            Triple(android.media.AudioManager.RINGER_MODE_NORMAL, "bell", "Chuông"),
+            Triple(android.media.AudioManager.RINGER_MODE_VIBRATE, "vibrate", "Rung"),
+            Triple(android.media.AudioManager.RINGER_MODE_SILENT, "bell-off", "Im lặng")
+        )
+        val cells = mutableListOf<Triple<FrameLayout, LucideGlyphView, Int>>()
+        val pill = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(3), dp(3), dp(3), dp(3))
+            background = GradientDrawable().apply {
+                setColor(Color.argb(42, 235, 244, 255))
+                cornerRadius = dp(19).toFloat()
+                setStroke(dp(1), Color.argb(46, 235, 244, 255))
+            }
+        }
+        fun refresh() {
+            val current = runCatching { audio.ringerMode }
+                .getOrDefault(android.media.AudioManager.RINGER_MODE_NORMAL)
+            cells.forEach { (cell, icon, mode) ->
+                val active = mode == current
+                cell.background = if (active) GradientDrawable().apply {
+                    setColor(GlassUi.SLIDER_COLOR)
+                    cornerRadius = dp(16).toFloat()
+                } else null
+                icon.setIconColor(if (active) Color.rgb(10, 20, 30) else Color.argb(190, 245, 248, 252))
+            }
+        }
+        modes.forEach { (mode, glyph, label) ->
+            val icon = LucideGlyphView(this, glyph, Color.WHITE)
+            val cell = FrameLayout(this).apply {
+                contentDescription = label
+                isClickable = true
+                isFocusable = true
+                addView(icon, FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+                setOnClickListener {
+                    runCatching { audio.ringerMode = mode }
+                    refresh()
+                }
+            }
+            cells.add(Triple(cell, icon, mode))
+            pill.addView(cell, LinearLayout.LayoutParams(0, dp(32), 1f))
+        }
+        refresh()
+        return pill
     }
 
     /**
@@ -1316,23 +1421,57 @@ class FloatBallService : Service() {
         val current = try {
             Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
         } catch (_: Exception) { 128 }
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        val valueLabel = TextView(this).apply {
+            text = "${current * 100 / 255}%"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = Gravity.CENTER
-            // Generous top/bottom insets keep the icon and the thumb clear of the
-            // panel rim while making the track taller.
-            setPadding(dp(10), dp(24), dp(10), dp(24))
+            includeFontPadding = false
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             addView(PopupIconView(this@FloatBallService, PopupIcon.BRIGHTNESS).apply {
                 setIconColor(Color.WHITE)
-            }, LinearLayout.LayoutParams(dp(26), dp(26)).apply { bottomMargin = dp(16) })
+            }, LinearLayout.LayoutParams(dp(20), dp(20)))
+            addView(View(this@FloatBallService), LinearLayout.LayoutParams(0, dp(1), 1f))
+            val gear = LucideGlyphView(this@FloatBallService, "settings", Color.argb(210, 245, 248, 252))
+                .apply {
+                    contentDescription = "Mở cài đặt hiển thị"
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        removePopup(stopIfEmpty = false)
+                        runCatching {
+                            startActivity(
+                                Intent(Settings.ACTION_DISPLAY_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    }
+                }
+            addView(gear, LinearLayout.LayoutParams(dp(20), dp(20)))
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(12), dp(16), dp(12), dp(16))
+            addView(header, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(26)))
             addView(VerticalBrightnessTrackView(
-                this@FloatBallService, 255, current, onValueChanged = { updateBrightness(it) }
-            ), LinearLayout.LayoutParams(dp(44), dp(250)))
+                this@FloatBallService, 255, current, onValueChanged = {
+                    updateBrightness(it)
+                    valueLabel.text = "${it * 100 / 255}%"
+                }
+            ), LinearLayout.LayoutParams(dp(48), dp(240)).apply { topMargin = dp(8) })
+            addView(valueLabel, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) })
         }
         showOverlayPanel(
             panel,
-            dp(92),
-            dp(374),
+            dp(104),
+            dp(356),
             windowBackground = sharedPanelBackground(),
             surface = OverlaySurface.BRIGHTNESS
         )
@@ -1346,8 +1485,9 @@ class FloatBallService : Service() {
         private val onFinished: ((Int) -> Unit)? = null
     ) : View(context) {
         private val density = resources.displayMetrics.density
-        private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(95, 230, 240, 250) }
-        private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(132, 198, 255) }
+        private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(78, 235, 244, 255) }
+        private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = GlassUi.SLIDER_COLOR }
+        private val thumbShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(70, 0, 0, 0) }
         private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
         private var value = initialProgress.coerceIn(0, maximum)
         private var tracking = false
@@ -1356,15 +1496,26 @@ class FloatBallService : Service() {
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val cx = width / 2f
-            val top = 10f * density
-            val bottom = height - 10f * density
+            val top = 12f * density
+            val bottom = height - 12f * density
             val fraction = value.toFloat() / maximum
             val y = bottom - (bottom - top) * fraction
-            val radius = 4f * density
+            val radius = 5.5f * density
             canvas.drawRoundRect(cx - radius, top, cx + radius, bottom, radius, radius, trackPaint)
             canvas.drawRoundRect(cx - radius, y, cx + radius, bottom, radius, radius, activePaint)
-            canvas.drawCircle(cx, y, 9f * density, activePaint)
-            canvas.drawCircle(cx, y, 6.5f * density, thumbPaint)
+            val halfWidth = 15f * density
+            val halfHeight = 4.5f * density
+            val shadowOffset = 1.5f * density
+            canvas.drawRoundRect(
+                cx - halfWidth, y - halfHeight + shadowOffset,
+                cx + halfWidth, y + halfHeight + shadowOffset,
+                halfHeight, halfHeight, thumbShadow
+            )
+            canvas.drawRoundRect(
+                cx - halfWidth, y - halfHeight,
+                cx + halfWidth, y + halfHeight,
+                halfHeight, halfHeight, thumbPaint
+            )
         }
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
@@ -1383,8 +1534,8 @@ class FloatBallService : Service() {
         }
         override fun performClick(): Boolean { super.performClick(); return true }
         private fun updateValue(y: Float) {
-            val top = 10f * density
-            val bottom = (height - 10f * density).coerceAtLeast(top + 1f)
+            val top = 12f * density
+            val bottom = (height - 12f * density).coerceAtLeast(top + 1f)
             val next = (((bottom - y) / (bottom - top)).coerceIn(0f, 1f) * maximum).toInt()
             if (next != value) { value = next; changed = true; invalidate(); onValueChanged(value) }
         }
@@ -1403,22 +1554,23 @@ class FloatBallService : Service() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(2), 0, dp(2), 0)
+            addView(VerticalBrightnessTrackView(this@FloatBallService, maximum.coerceAtLeast(1), progress, {
+                onChanged(it)
+            }, onFinished), LinearLayout.LayoutParams(dp(44), dp(142)))
             addView(PopupIconView(this@FloatBallService, icon).apply {
                 setIconColor(Color.WHITE)
                 contentDescription = label
-            }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { bottomMargin = dp(7) })
-            addView(VerticalBrightnessTrackView(this@FloatBallService, maximum.coerceAtLeast(1), progress, {
-                onChanged(it)
-            }, onFinished), LinearLayout.LayoutParams(dp(42), dp(142)))
+            }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { topMargin = dp(7) })
             addView(TextView(this@FloatBallService).apply {
                 text = label
-                textSize = 10f
-                setTextColor(Color.argb(220, 245, 248, 252))
+                textSize = 9f
+                setTextColor(Color.argb(210, 245, 248, 252))
                 gravity = Gravity.CENTER
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(20)).apply {
-                topMargin = dp(5)
+                includeFontPadding = false
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(18)).apply {
+                topMargin = dp(2)
             })
         }
         parent.addView(column, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))

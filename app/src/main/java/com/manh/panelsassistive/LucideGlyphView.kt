@@ -18,7 +18,8 @@ open class LucideGlyphView(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = LucideGlyphs.typeface(context)
         textAlign = Paint.Align.CENTER
-        this.color = color
+        // Accent-tinted icons honour the separate icon colour in Giao diện.
+        this.color = if (color == GlassUi.ACCENT) GlassUi.ICON_COLOR else color
         style = Paint.Style.FILL
     }
 

@@ -31,54 +31,122 @@ class ThemeSettingsActivity : Activity() {
         root.addView(GlassUi.pageHeader(
             this,
             "Giao diện",
-            "Một bảng màu áp dụng cho bảng nổi và toàn ứng dụng."
+            "Màu nền, màu nhấn và màu chi tiết dùng chung cho ứng dụng lẫn bảng nổi."
         ))
         root.addView(paletteCard())
+        root.addView(accentCard())
+        root.addView(sliderColorCard())
+        root.addView(textColorCard())
+        root.addView(iconColorCard())
+        root.addView(resetCard())
         root.addView(iconPackCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
 
     private fun paletteCard(): LinearLayout = GlassUi.glassCard(this).apply {
-        addView(GlassUi.cardTitle(this@ThemeSettingsActivity, "Bảng màu"))
-        addView(hint("Chọn bảng màu để đổi màu nhấn (nút bấm, thanh trượt), nền các bảng nổi và status bar."))
+        addView(cardHeader("mountain", "Màu nền"))
+        addView(hint("Đổi nền trang, nền bảng nổi và màu thanh trạng thái. Màu nhấn được chọn riêng bên dưới."))
 
         val current = AppThemes.current(this@ThemeSettingsActivity)
         AppThemes.ALL.forEach { theme ->
             addView(themeRow(theme, theme.key == current.key))
         }
 
-        addView(accentPicker())
-
-        addView(hint(
-            "Áp dụng bảng màu sẽ ghi đè màu nền bảng bạn đã tự chỉnh trong " +
-                "Bảng tiện ích và Hiệu ứng."
-        ))
+        addView(hint("Bảng màu chỉ đổi nền; màu nhấn đã chọn sẽ được giữ nguyên."))
     }
 
-    /** Only the palette tile stays here: tap it to pick any custom accent. */
-    private fun accentPicker(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, dp(10), 0, 0)
-        addView(GlassUi.divider(this@ThemeSettingsActivity),
-            LinearLayout.LayoutParams(0, dp(1).coerceAtLeast(1), 1f).apply {
-                marginEnd = dp(14)
-            })
-        val accent = AppThemes.current(this@ThemeSettingsActivity).accent
-        addView(GlassUi.paletteButton(
+    private fun accentCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(cardHeader("palette", "Màu nhấn"))
+        addView(hint("Màu của nút, lựa chọn và điểm nhấn. Chạm ô vuông cuối dãy để chọn màu tùy ý."))
+        addView(GlassUi.paletteRow(
             this@ThemeSettingsActivity,
-            accent,
-            "Màu nhấn tùy chỉnh"
-        ) { color -> applyAccent(color) }, LinearLayout.LayoutParams(dp(40), dp(40)))
+            AppThemes.ACCENT_PALETTE,
+            AppThemes.current(this@ThemeSettingsActivity).accent,
+            "Màu nhấn"
+        ) { color -> applyAccent(color) })
+    }
+
+    private fun sliderColorCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(cardHeader("sliders-horizontal", "Màu thanh trượt"))
+        addView(hint("Thanh trượt trong ứng dụng, bảng mở rộng và thanh độ sáng nổi."))
+        addView(GlassUi.paletteRow(
+            this@ThemeSettingsActivity,
+            SLIDER_PALETTE,
+            GlassUi.SLIDER_COLOR,
+            "Màu thanh trượt"
+        ) { color -> applyDetail(color, AppPrefs::setThemeSliderColor) })
+    }
+
+    private fun textColorCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(cardHeader("type", "Màu chữ"))
+        addView(hint("Chữ chính đổi theo màu này; chữ phụ tự giảm độ sáng để vẫn dễ đọc."))
+        addView(GlassUi.paletteRow(
+            this@ThemeSettingsActivity,
+            TEXT_PALETTE,
+            GlassUi.TEXT_PRIMARY,
+            "Màu chữ"
+        ) { color -> applyDetail(color, AppPrefs::setThemeTextColor) })
+    }
+
+    private fun iconColorCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(cardHeader("shapes", "Màu icon"))
+        addView(hint("Icon Lucide và icon hành động trong ứng dụng lẫn bảng nổi."))
+        addView(GlassUi.paletteRow(
+            this@ThemeSettingsActivity,
+            ICON_PALETTE,
+            GlassUi.ICON_COLOR,
+            "Màu icon"
+        ) { color -> applyDetail(color, AppPrefs::setThemeIconColor) })
+    }
+
+    private fun resetCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(cardHeader("rotate-ccw", "Khôi phục"))
+        addView(hint("Xoá màu nhấn tùy chỉnh cùng màu thanh trượt, chữ và icon đã chọn."))
+        addView(GlassUi.actionButton(
+            this@ThemeSettingsActivity,
+            "Đưa màu về mặc định"
+        ) {
+            AppPrefs.resetThemeColors(this@ThemeSettingsActivity)
+            GlassUi.applyTheme(this@ThemeSettingsActivity)
+            refreshChrome()
+            render()
+            Toast.makeText(this@ThemeSettingsActivity, "Đã khôi phục màu mặc định", Toast.LENGTH_SHORT).show()
+        })
     }
 
     private fun applyAccent(color: Int) {
         AppThemes.applyAccent(this, color)
-        window.statusBarColor = GlassUi.PAGE_COLOR
-        window.navigationBarColor = GlassUi.PAGE_COLOR
+        refreshChrome()
         render()
         Toast.makeText(this, "Đã áp dụng màu nhấn", Toast.LENGTH_SHORT).show()
     }
+
+    private fun applyDetail(color: Int, setter: (android.content.Context, Int) -> Unit) {
+        setter(this, color)
+        GlassUi.applyTheme(this)
+        refreshChrome()
+        render()
+        Toast.makeText(this, "Đã áp dụng màu", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun refreshChrome() {
+        window.statusBarColor = GlassUi.PAGE_COLOR
+        window.navigationBarColor = GlassUi.PAGE_COLOR
+        FloatBallService.refreshPopupAppearance(this)
+    }
+
+    private fun cardHeader(icon: String, title: String): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(GlassUi.iconTile(this@ThemeSettingsActivity, icon, sizeDp = 36, glyphDp = 20))
+            addView(
+                GlassUi.cardTitle(this@ThemeSettingsActivity, title).apply {
+                    setPadding(dp(12), 0, 0, 0)
+                },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+        }
 
     private fun themeRow(theme: AppTheme, selected: Boolean): LinearLayout =
         LinearLayout(this).apply {
@@ -94,7 +162,7 @@ class ThemeSettingsActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), 0, dp(8), 0)
                 addView(label(theme.label, 14, GlassUi.TEXT_PRIMARY, true))
-                addView(label("Màu nhấn " + hex(theme.accent), 11, GlassUi.TEXT_MUTED).apply {
+                addView(label("Nền " + hex(theme.pageMid), 11, GlassUi.TEXT_MUTED).apply {
                     setPadding(0, dp(2), 0, 0)
                 })
             }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -253,6 +321,23 @@ class ThemeSettingsActivity : Activity() {
 
     private fun hex(color: Int) =
         "#" + Integer.toHexString(color and 0xFFFFFF).padStart(6, '0').uppercase()
+
+    private val SLIDER_PALETTE: IntArray
+        get() = AppThemes.ACCENT_PALETTE + intArrayOf(0xFFFFFFFF.toInt())
+
+    private val ICON_PALETTE: IntArray
+        get() = AppThemes.ACCENT_PALETTE + intArrayOf(0xFFFFFFFF.toInt())
+
+    private val TEXT_PALETTE = intArrayOf(
+        0xFFF4F6FA.toInt(),
+        0xFFDCE9F7.toInt(),
+        0xFFFFF1D9.toInt(),
+        0xFFE2FAF1.toInt(),
+        0xFFF0E7FF.toInt(),
+        0xFFFFE5EC.toInt(),
+        0xFFC9D6E4.toInt(),
+        0xFFFFFFFF.toInt()
+    )
 
     private fun hint(text: String): TextView = label(text, 12, GlassUi.TEXT_MUTED).apply {
         setPadding(0, dp(4), 0, dp(6))

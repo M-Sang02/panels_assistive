@@ -5,7 +5,7 @@
     android:minResizeHeight="110dp"
     android:minResizeWidth="40dp"
     android:minWidth="40dp"
-    android:previewLayout="@layout/widget_brightness_vertical"
+    android:previewImage="@drawable/widget_preview_brightness_vertical"
     android:resizeMode="vertical"
     android:targetCellHeight="2"
     android:targetCellWidth="1"

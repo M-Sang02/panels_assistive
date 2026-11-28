@@ -32,16 +32,15 @@ class EffectsSettingsActivity : Activity() {
             getString(R.string.effects_settings_title),
             "Làm mờ, rung phản hồi và chuyển động giữa các tab."
         ))
-        root.addView(blurCard())
+        root.addView(panelSurfaceCard())
         root.addView(hapticsCard())
         root.addView(transitionCard())
-        root.addView(backgroundCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
 
-    private fun blurCard(): LinearLayout = GlassUi.glassCard(this).apply {
+    private fun panelSurfaceCard(): LinearLayout = GlassUi.glassCard(this).apply {
         val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-        addView(cardHeader("wand-2", getString(R.string.popup_blur)))
+        addView(cardHeader("layers", "Nền & làm mờ bảng"))
         addView(hint(
             if (supported) getString(R.string.popup_blur_description)
             else "Thiết bị chưa hỗ trợ làm mờ thời gian thực."
@@ -126,6 +125,14 @@ class EffectsSettingsActivity : Activity() {
             isEnabled = supported
         })
         addView(controls)
+        addView(GlassUi.divider(this@EffectsSettingsActivity))
+        addView(hint("Màu nền, độ trong suốt, bo góc và viền trắng dùng chung cho bảng mở rộng và thanh độ sáng."))
+        addView(GlassUi.actionButton(
+            this@EffectsSettingsActivity,
+            getString(R.string.background_panel_settings)
+        ) {
+            startActivity(Intent(this@EffectsSettingsActivity, BackgroundSettingsActivity::class.java))
+        })
     }
 
     private fun hapticsCard(): LinearLayout = GlassUi.glassCard(this).apply {
@@ -237,17 +244,6 @@ class EffectsSettingsActivity : Activity() {
                     preview.animate().rotationY(0f).alpha(1f).setDuration(240L).start()
                 }
             }
-        })
-    }
-
-    private fun backgroundCard(): LinearLayout = GlassUi.glassCard(this).apply {
-        addView(cardHeader("palette", "Nền bảng"))
-        addView(hint("Áp dụng cho bảng mở rộng và thanh độ sáng dọc."))
-        addView(GlassUi.actionButton(
-            this@EffectsSettingsActivity,
-            getString(R.string.background_panel_settings)
-        ) {
-            startActivity(Intent(this@EffectsSettingsActivity, BackgroundSettingsActivity::class.java))
         })
     }
 

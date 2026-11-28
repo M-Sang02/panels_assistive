@@ -3,6 +3,7 @@ package com.manh.panelsassistive
 import android.app.Activity
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -32,9 +33,16 @@ object GlassUi {
         private set
     var ACCENT_SOFT = Color.argb(58, 124, 190, 255)
         private set
-    val TEXT_PRIMARY = 0xFFF4F6FA.toInt()
-    val TEXT_SECONDARY = 0xFFA6ADB9.toInt()
-    val TEXT_MUTED = 0xFF7E8896.toInt()
+    var TEXT_PRIMARY = 0xFFF4F6FA.toInt()
+        private set
+    var TEXT_SECONDARY = 0xFFA6ADB9.toInt()
+        private set
+    var TEXT_MUTED = 0xFF7E8896.toInt()
+        private set
+    var SLIDER_COLOR = ACCENT
+        private set
+    var ICON_COLOR = ACCENT
+        private set
     var PAGE_COLOR = 0xFF091422.toInt()
         private set
 
@@ -57,7 +65,26 @@ object GlassUi {
         PAGE_TOP = theme.pageTop
         PAGE_MID = theme.pageMid
         PAGE_BOTTOM = theme.pageBottom
+        val text = AppPrefs.themeTextColor(context)
+        if (text != 0) {
+            TEXT_PRIMARY = text
+            TEXT_SECONDARY = withAlpha(text, 0.68f)
+            TEXT_MUTED = withAlpha(text, 0.46f)
+        } else {
+            TEXT_PRIMARY = 0xFFF4F6FA.toInt()
+            TEXT_SECONDARY = 0xFFA6ADB9.toInt()
+            TEXT_MUTED = 0xFF7E8896.toInt()
+        }
+        SLIDER_COLOR = AppPrefs.themeSliderColor(context).takeIf { it != 0 } ?: theme.accent
+        ICON_COLOR = AppPrefs.themeIconColor(context).takeIf { it != 0 } ?: theme.accent
     }
+
+    internal fun withAlpha(color: Int, alpha: Float): Int = Color.argb(
+        (alpha.coerceIn(0f, 1f) * 255).toInt(),
+        Color.red(color),
+        Color.green(color),
+        Color.blue(color)
+    )
 
     fun dp(context: Context, value: Int): Int =
         (value * context.resources.displayMetrics.density).toInt()
@@ -232,9 +259,9 @@ object GlassUi {
 
     fun slider(context: Context): SeekBar = SeekBar(context).apply {
         splitTrack = false
-        progressTintList = ColorStateList.valueOf(ACCENT)
+        progressTintList = ColorStateList.valueOf(SLIDER_COLOR)
         progressBackgroundTintList = ColorStateList.valueOf(Color.argb(40, 255, 255, 255))
-        thumbTintList = ColorStateList.valueOf(ACCENT)
+        thumbTintList = ColorStateList.valueOf(SLIDER_COLOR)
     }
 
     /** Slider with a centre notch marking the neutral position. */
@@ -246,7 +273,7 @@ object GlassUi {
             dp(context, 48)
         ))
         container.addView(View(context).apply {
-            setBackgroundColor(ACCENT)
+            setBackgroundColor(SLIDER_COLOR)
             alpha = 0.75f
             isClickable = false
         }, FrameLayout.LayoutParams(dp(context, 2), dp(context, 12), Gravity.CENTER))
@@ -351,7 +378,7 @@ object GlassUi {
         isClickable = true
         isFocusable = true
         addView(
-            LucideGlyphView(context, "palette", ACCENT),
+            LucideGlyphView(context, "palette", ICON_COLOR),
             FrameLayout.LayoutParams(dp(context, 18), dp(context, 18), Gravity.CENTER)
         )
         setOnClickListener {
@@ -404,11 +431,11 @@ object GlassUi {
         glyphDp: Int = 22
     ): FrameLayout = FrameLayout(context).apply {
         background = GradientDrawable().apply {
-            setColor(Color.argb(38, 124, 190, 255))
+            setColor(withAlpha(ICON_COLOR, 0.15f))
             cornerRadius = dp(context, 12).toFloat()
         }
         addView(
-            LucideGlyphView(context, iconName, ACCENT),
+            LucideGlyphView(context, iconName, ICON_COLOR),
             FrameLayout.LayoutParams(
                 dp(context, glyphDp),
                 dp(context, glyphDp),
@@ -439,22 +466,53 @@ object GlassUi {
             layoutParams = LinearLayout.LayoutParams(dp(context, sizeDp), dp(context, sizeDp))
         }
 
+    /** Distinct launcher-shortcut icon: accent tile plus the action's Lucide glyph. */
+    fun shortcutIcon(context: Context, actionId: String, sizePx: Int = 192): Bitmap {
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val plate = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(ACCENT_STRONG, ACCENT)
+        ).apply {
+            cornerRadius = sizePx * 0.24f
+            setBounds(0, 0, sizePx, sizePx)
+        }
+        plate.draw(canvas)
+        val glyph = LucideGlyphs.glyph(context, ActionGlyphView.iconFor(actionId))
+        if (glyph.isNotEmpty()) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = LucideGlyphs.typeface(context)
+                textAlign = Paint.Align.CENTER
+                textSize = sizePx * 0.54f
+                color = Color.WHITE
+            }
+            val metrics = paint.fontMetrics
+            canvas.drawText(
+                glyph,
+                sizePx / 2f,
+                sizePx / 2f - (metrics.ascent + metrics.descent) / 2f,
+                paint
+            )
+        }
+        return bitmap
+    }
+
     /** Ring with a soft outer halo, drawn on a 24-unit grid like the Lucide set. */
     private class HaloGlyphView(context: Context) : View(context) {
         private val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2.6f
-            color = (ACCENT and 0x00FFFFFF) or 0x38000000
+            color = withAlpha(ICON_COLOR, 0.22f)
         }
         private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 1.9f
             strokeCap = Paint.Cap.ROUND
-            color = ACCENT
+            color = ICON_COLOR
         }
         private val glintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = ACCENT
+            color = ICON_COLOR
         }
 
         override fun onDraw(canvas: Canvas) {
