@@ -852,7 +852,7 @@ class WidgetPickerActivity : Activity() {
                             ?: shortcutLabel(parser, resources, "shortcutLongLabel")
                         intent = null
                     }
-                    "intent" -> intent = shortcutIntent(parser)
+                    "intent" -> intent = shortcutIntent(parser, packageName)
                     "categories", "category" -> parser.getAttributeValue(ANDROID_NS, "name")
                         ?.let { intent?.addCategory(it) }
                 }
@@ -889,16 +889,18 @@ class WidgetPickerActivity : Activity() {
         return parser.getAttributeValue(ANDROID_NS, attribute)?.takeIf { it.isNotBlank() }
     }
 
-    private fun shortcutIntent(parser: XmlResourceParser): Intent {
+    private fun shortcutIntent(parser: XmlResourceParser, defaultPackage: String): Intent {
         val intent = Intent()
         parser.getAttributeValue(ANDROID_NS, "action")?.let { intent.action = it }
         val targetPackage = parser.getAttributeValue(ANDROID_NS, "targetPackage")
         val targetClass = parser.getAttributeValue(ANDROID_NS, "targetClass")
         when {
-            !targetPackage.isNullOrEmpty() && !targetClass.isNullOrEmpty() ->
-                intent.setClassName(targetPackage, targetClass)
+            !targetClass.isNullOrEmpty() ->
+                intent.setClassName(
+                    targetPackage?.takeIf { it.isNotEmpty() } ?: defaultPackage,
+                    targetClass
+                )
             !targetPackage.isNullOrEmpty() -> intent.setPackage(targetPackage)
-            !targetClass.isNullOrEmpty() -> intent.className = targetClass
         }
         parser.getAttributeValue(ANDROID_NS, "data")?.let { intent.data = Uri.parse(it) }
         return intent
