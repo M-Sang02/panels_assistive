@@ -442,15 +442,17 @@ class FloatBallService : Service() {
     private fun buildNotification(): Notification {
         val hidden = AppPrefs.hideFloatNotification(this)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // The quiet channel already has sound and vibration disabled.
             Notification.Builder(
                 this,
                 if (hidden) NOTIFICATION_CHANNEL_QUIET else NOTIFICATION_CHANNEL
-            ).apply { if (hidden) setSilent(true) }
+            )
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this).apply {
                 @Suppress("DEPRECATION")
                 setPriority(if (hidden) Notification.PRIORITY_MIN else Notification.PRIORITY_LOW)
+                if (hidden) setSound(null)
             }
         }
         return builder
