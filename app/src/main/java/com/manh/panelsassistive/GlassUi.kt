@@ -19,6 +19,7 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
+import kotlin.math.roundToInt
 
 /**
  * Shared faux-glass design language for settings surfaces, modelled on the
@@ -120,6 +121,18 @@ object GlassUi {
             cornerRadius = dp(context, radiusDp).toFloat()
             setStroke(dp(context, 1).coerceAtLeast(1), Color.argb(26, 255, 255, 255))
         }
+
+    /** Rim around overlay panels; alpha and thickness come from the shared pref. */
+    fun panelBorderColor(context: Context): Int =
+        Color.argb(AppPrefs.panelBorderAlpha(context), 225, 238, 250)
+
+    fun applyPanelBorder(context: Context, drawable: GradientDrawable) {
+        if (!AppPrefs.panelBorderEnabled(context)) return
+        val widthPx = (AppPrefs.panelBorderWidth(context) * context.resources.displayMetrics.density)
+            .roundToInt()
+            .coerceAtLeast(1)
+        drawable.setStroke(widthPx, panelBorderColor(context))
+    }
 
     fun tabSurface(context: Context, selected: Boolean): Drawable =
         if (selected) {

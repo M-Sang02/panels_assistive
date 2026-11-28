@@ -14,6 +14,8 @@ import android.widget.TextView
 import android.widget.Toast
 
 class ExpansionSettingsActivity : Activity() {
+    private var pageScrollY = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = GlassUi.PAGE_COLOR
@@ -40,7 +42,17 @@ class ExpansionSettingsActivity : Activity() {
         root.addView(sliderCard())
         root.addView(ringerCard())
         root.addView(shortcutCard())
-        setContentView(ScrollView(this).apply { addView(root) })
+        // render() runs on every toggle; a fresh ScrollView would jump to the
+        // top, so keep the reader where they were.
+        val savedY = pageScrollY
+        val scroll = ScrollView(this).apply {
+            addView(root)
+            setOnScrollChangeListener { _, _, y, _, _ ->
+                this@ExpansionSettingsActivity.pageScrollY = y
+            }
+        }
+        setContentView(scroll)
+        if (savedY > 0) scroll.post { scroll.scrollTo(0, savedY) }
     }
 
     private fun sliderCard(): LinearLayout = GlassUi.glassCard(this).apply {

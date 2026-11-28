@@ -1,7 +1,6 @@
 package com.manh.panelsassistive
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
@@ -333,12 +332,11 @@ class AdvancedSettingsActivity : Activity() {
             prominentFirst = true,
             onFirst = { exportBackup() },
             onSecond = {
-                AlertDialog.Builder(this@AdvancedSettingsActivity)
-                    .setTitle(R.string.import_settings)
-                    .setMessage(R.string.import_settings_confirmation)
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton(R.string.import_settings) { _, _ -> importBackup() }
-                    .show()
+                GlassDialogs.confirm(
+                    this@AdvancedSettingsActivity,
+                    getString(R.string.import_settings),
+                    getString(R.string.import_settings_confirmation)
+                ) { importBackup() }
             }
         ))
     }

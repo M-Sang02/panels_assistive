@@ -1559,9 +1559,7 @@ class FloatBallService : Service() {
         val alpha = opacity.coerceIn(0, 100) * 255 / 100
         setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
         cornerRadius = dp(corner).toFloat()
-        if (AppPrefs.panelBorderEnabled(this@FloatBallService)) {
-            setStroke(dp(1), Color.argb(65, 225, 238, 250))
-        }
+        GlassUi.applyPanelBorder(this@FloatBallService, this)
     }
 
     private fun sliderTileBackground() = GradientDrawable().apply {
@@ -1771,13 +1769,30 @@ class FloatBallService : Service() {
 
     private fun openWidgetPicker(type: String, position: Int) {
         val page = selectedPopupPage()
-        startActivity(Intent(this, WidgetPickerActivity::class.java).apply {
-            putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, type)
-            putExtra(WidgetPickerActivity.EXTRA_LANDSCAPE_LAYOUT, usesLandscapeLayout())
-            putExtra(WidgetPickerActivity.EXTRA_PANEL_ID, page.id)
-            putExtra(WidgetPickerActivity.EXTRA_POSITION, position)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
+        // Overlay windows sit above activities, so the panel has to step aside
+        // for the picker. ACTION_REFRESH_WIDGETS brings it back when the picker
+        // closes, whether an item was added or not.
+        if (popupDialog?.isShowing == true) {
+            popupTemporarilyHidden = true
+            popupDialog?.hide()
+        }
+        try {
+            startActivity(Intent(this, WidgetPickerActivity::class.java).apply {
+                putExtra(WidgetPickerActivity.EXTRA_ITEM_TYPE, type)
+                putExtra(WidgetPickerActivity.EXTRA_LANDSCAPE_LAYOUT, usesLandscapeLayout())
+                putExtra(WidgetPickerActivity.EXTRA_PANEL_ID, page.id)
+                putExtra(WidgetPickerActivity.EXTRA_POSITION, position)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (error: Exception) {
+            Log.e(TAG, "Unable to open the widget picker", error)
+            // Nothing will refresh the panel if the picker never started.
+            if (popupTemporarilyHidden) {
+                popupTemporarilyHidden = false
+                popupDialog?.show()
+            }
+            Toast.makeText(this, "Không mở được trình chọn", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showPopupItemControls(itemView: FrameLayout, item: PanelItem) {

@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -141,6 +142,66 @@ object GlassDialogs {
         dialog.setContentView(root)
         dialog.setCanceledOnTouchOutside(true)
         return Sheet(dialog, content)
+    }
+
+    /**
+     * Compact glass confirmation: ✕ cancels, ✓ runs [onConfirm] — the same
+     * round-button pair as the widget-creation question.
+     */
+    fun confirm(
+        context: Context,
+        title: String,
+        message: String? = null,
+        onConfirm: () -> Unit
+    ) {
+        val sheet = sheet(context, title, message, cancelLabel = null)
+        sheet.content.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(context, 12), 0, dp(context, 10))
+            addView(
+                roundButton(context, "x", prominent = false) { sheet.dismiss() },
+                LinearLayout.LayoutParams(0, dp(context, 52), 1f)
+            )
+            addView(
+                roundButton(context, "check", prominent = true) {
+                    sheet.dismiss()
+                    onConfirm()
+                },
+                LinearLayout.LayoutParams(0, dp(context, 52), 1f).apply {
+                    marginStart = dp(context, 10)
+                }
+            )
+        })
+        sheet.show()
+    }
+
+    private fun roundButton(
+        context: Context,
+        glyph: String,
+        prominent: Boolean,
+        onClick: () -> Unit
+    ): FrameLayout = FrameLayout(context).apply {
+        background = if (prominent) {
+            GradientDrawable().apply {
+                setColor(GlassUi.ACCENT)
+                cornerRadius = dp(context, 23).toFloat()
+            }
+        } else {
+            GlassUi.glassSurface(context, 23)
+        }
+        isClickable = true
+        isFocusable = true
+        contentDescription = if (prominent) "Đồng ý" else "Huỷ"
+        addView(
+            LucideGlyphView(
+                context,
+                glyph,
+                if (prominent) Color.rgb(6, 18, 31) else GlassUi.TEXT_SECONDARY
+            ),
+            FrameLayout.LayoutParams(dp(context, 24), dp(context, 24), Gravity.CENTER)
+        )
+        setOnClickListener { onClick() }
     }
 
     /** Searchable single-select list with icons and a check mark. */

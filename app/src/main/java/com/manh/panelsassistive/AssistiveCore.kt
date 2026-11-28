@@ -209,6 +209,8 @@ object AppPrefs {
     private const val KEY_POPUP_PANEL_OPACITY = "popup_panel_opacity"
     private const val KEY_POPUP_PANEL_CORNER = "popup_panel_corner"
     private const val KEY_PANEL_BORDER = "panel_border_enabled"
+    private const val KEY_PANEL_BORDER_ALPHA = "panel_border_alpha"
+    private const val KEY_PANEL_BORDER_WIDTH = "panel_border_width"
     private const val KEY_TAB_TRANSITION = "tab_transition"
     private const val KEY_PANEL_FREE_MODE = "panel_free_mode"
     private const val KEY_FREEFORM_APPS = "freeform_apps"
@@ -1448,6 +1450,17 @@ object AppPrefs {
     fun panelBorderEnabled(context: Context) = store(context).getBoolean(KEY_PANEL_BORDER, true)
     fun setPanelBorderEnabled(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_PANEL_BORDER, enabled).apply()
+    }
+    // Rim alpha (0 = invisible, 255 = solid white) and thickness in dp.
+    fun panelBorderAlpha(context: Context) =
+        store(context).getInt(KEY_PANEL_BORDER_ALPHA, 65).coerceIn(0, 255)
+    fun setPanelBorderAlpha(context: Context, value: Int) {
+        store(context).edit().putInt(KEY_PANEL_BORDER_ALPHA, value.coerceIn(0, 255)).apply()
+    }
+    fun panelBorderWidth(context: Context) =
+        store(context).getFloat(KEY_PANEL_BORDER_WIDTH, 1f).coerceIn(0.5f, 3f)
+    fun setPanelBorderWidth(context: Context, value: Float) {
+        store(context).edit().putFloat(KEY_PANEL_BORDER_WIDTH, value.coerceIn(0.5f, 3f)).apply()
     }
 
     fun tabTransition(context: Context): String {

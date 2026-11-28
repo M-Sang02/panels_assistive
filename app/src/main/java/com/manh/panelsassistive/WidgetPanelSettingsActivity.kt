@@ -391,7 +391,8 @@ class WidgetPanelSettingsActivity : Activity() {
             }.apply { contentDescription = "Bật tắt viền trắng" })
         })
         addView(text(
-            "Tắt để bảng tiện ích không còn đường viền sáng quanh nền.",
+            "Tắt để bảng tiện ích không còn đường viền sáng quanh nền. Độ đậm và độ dày " +
+                "chỉnh chung ở Nền bảng trong Cài đặt.",
             12,
             GlassUi.TEXT_MUTED
         ))
@@ -503,9 +504,7 @@ class WidgetPanelSettingsActivity : Activity() {
         previewGrid.background = GradientDrawable().apply {
             setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
             cornerRadius = dp(AppPrefs.popupPanelCorner(this@WidgetPanelSettingsActivity)).toFloat()
-            if (AppPrefs.panelBorderEnabled(this@WidgetPanelSettingsActivity)) {
-                setStroke(dp(1), Color.argb(65, 225, 238, 250))
-            }
+            GlassUi.applyPanelBorder(this@WidgetPanelSettingsActivity, this)
         }
         updatePopupChips(color)
     }

@@ -1,7 +1,6 @@
 package com.manh.panelsassistive
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
@@ -73,16 +72,15 @@ class FloatBallSettingsActivity : Activity() {
             this@FloatBallSettingsActivity,
             getString(R.string.reset_float_ball_icon)
         ) {
-            AlertDialog.Builder(this@FloatBallSettingsActivity)
-                .setTitle(R.string.reset_float_ball_icon)
-                .setMessage(R.string.reset_float_ball_icon_confirmation)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.reset_float_ball_icon) { _, _ ->
-                    AppPrefs.clearFloatBallIcon(this@FloatBallSettingsActivity)
-                    updateFloatBall()
-                    render()
-                }
-                .show()
+            GlassDialogs.confirm(
+                this@FloatBallSettingsActivity,
+                getString(R.string.reset_float_ball_icon),
+                getString(R.string.reset_float_ball_icon_confirmation)
+            ) {
+                AppPrefs.clearFloatBallIcon(this@FloatBallSettingsActivity)
+                updateFloatBall()
+                render()
+            }
         })
         val gifControls = gifAnimationControls().apply {
             visibility = if (

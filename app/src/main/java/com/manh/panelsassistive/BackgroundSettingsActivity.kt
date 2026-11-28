@@ -17,6 +17,8 @@ class BackgroundSettingsActivity : Activity() {
     private lateinit var preview: TextView
     private lateinit var opacityValue: TextView
     private lateinit var cornerValue: TextView
+    private lateinit var borderAlphaValue: TextView
+    private lateinit var borderWidthValue: TextView
     private val colorChips = mutableListOf<Pair<Int, View>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,10 +98,31 @@ class BackgroundSettingsActivity : Activity() {
             }
             addView(borderRow)
             addView(body(
-                "Tắt để nền bảng không còn đường viền sáng 1dp. Áp dụng cho mọi bảng nổi.",
+                "Tắt để nền bảng không còn đường viền sáng. Khi bật, chỉnh được độ trong suốt " +
+                    "và độ dày bên dưới. Áp dụng cho mọi bảng nổi.",
                 12f,
                 GlassUi.TEXT_MUTED
             ))
+            val alphaHeader = valueRow("Độ đậm viền")
+            borderAlphaValue = alphaHeader.second
+            addView(alphaHeader.first.apply { setPadding(0, dp(12), 0, 0) })
+            addView(slider(borderAlphaPercent(), 0, 100, { percent ->
+                AppPrefs.setPanelBorderAlpha(
+                    this@BackgroundSettingsActivity,
+                    (percent * 255 / 100).coerceIn(0, 255)
+                )
+                borderAlphaValue.text = "$percent%"
+                renderPreview()
+            }, ::refreshPanels))
+            val widthHeader = valueRow("Độ dày viền")
+            borderWidthValue = widthHeader.second
+            addView(widthHeader.first.apply { setPadding(0, dp(10), 0, 0) })
+            addView(slider(borderWidthProgress(), 0, 5, { step ->
+                val width = 0.5f + step * 0.5f
+                AppPrefs.setPanelBorderWidth(this@BackgroundSettingsActivity, width)
+                borderWidthValue.text = widthLabel(width)
+                renderPreview()
+            }, ::refreshPanels))
         })
 
         preview = TextView(this).apply {
@@ -163,6 +186,19 @@ class BackgroundSettingsActivity : Activity() {
     private fun updateValues() {
         opacityValue.text = "${AppPrefs.sharedPanelOpacity(this)}%"
         cornerValue.text = "${AppPrefs.sharedPanelCorner(this)}dp"
+        borderAlphaValue.text = "${borderAlphaPercent()}%"
+        borderWidthValue.text = widthLabel(AppPrefs.panelBorderWidth(this))
+    }
+
+    private fun borderAlphaPercent(): Int = AppPrefs.panelBorderAlpha(this) * 100 / 255
+
+    /** Slider position: 0..5 maps to 0.5dp..3dp. */
+    private fun borderWidthProgress(): Int =
+        ((AppPrefs.panelBorderWidth(this) - 0.5f) / 0.5f).toInt().coerceIn(0, 5)
+
+    private fun widthLabel(width: Float): String {
+        val rounded = (width * 2).toInt() / 2f
+        return if (rounded % 1f == 0f) "${rounded.toInt()}dp" else "$rounded dp"
     }
 
     private fun refreshPanels() {
@@ -176,9 +212,7 @@ class BackgroundSettingsActivity : Activity() {
         preview.background = GradientDrawable().apply {
             setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
             cornerRadius = dp(AppPrefs.sharedPanelCorner(this@BackgroundSettingsActivity)).toFloat()
-            if (AppPrefs.panelBorderEnabled(this@BackgroundSettingsActivity)) {
-                setStroke(dp(1), Color.argb(65, 225, 238, 250))
-            }
+            GlassUi.applyPanelBorder(this@BackgroundSettingsActivity, this)
         }
         colorChips.forEach { (chipColor, chip) ->
             GlassUi.paintSwatch(this, chip, chipColor, chipColor == color)
