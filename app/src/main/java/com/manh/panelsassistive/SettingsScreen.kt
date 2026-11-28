@@ -130,8 +130,8 @@ class SettingsScreen(private val activity: Activity) {
 
         addRow(
             icon = "sliders-horizontal",
-            title = "Bản mở rộng",
-            subtitle = "Thứ tự thanh độ sáng, âm lượng và lối tắt"
+            title = "Bảng mở rộng",
+            subtitle = "Thứ tự thanh độ sáng, âm lượng, nút chuông và lối tắt"
         ) {
             activity.startActivity(Intent(activity, ExpansionSettingsActivity::class.java))
         }

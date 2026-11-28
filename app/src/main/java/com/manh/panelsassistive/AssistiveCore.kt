@@ -281,6 +281,7 @@ object AppPrefs {
     private const val KEY_BLACKLIST = "blacklist_apps"
     private const val KEY_CLOCK_LUNAR = "clock_lunar_enabled"
     private const val KEY_HIDE_FROM_RECENTS = "hide_from_recents"
+    private const val KEY_HIDE_FLOAT_NOTIFICATION = "hide_float_notification"
     private const val KEY_PENDING_IMAGE_WIDGETS = "pending_image_widgets"
     private const val KEY_PENDING_BOARD_WIDGETS = "pending_board_widgets"
     private const val KEY_IMAGE_WIDGET_BASELINE = "pending_image_widget_baseline"
@@ -315,6 +316,13 @@ object AppPrefs {
 
     fun setHideFromRecents(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_HIDE_FROM_RECENTS, enabled).apply()
+    }
+
+    fun hideFloatNotification(context: Context) =
+        store(context).getBoolean(KEY_HIDE_FLOAT_NOTIFICATION, false)
+
+    fun setHideFloatNotification(context: Context, hidden: Boolean) {
+        store(context).edit().putBoolean(KEY_HIDE_FLOAT_NOTIFICATION, hidden).apply()
     }
 
     private fun store(context: Context) =

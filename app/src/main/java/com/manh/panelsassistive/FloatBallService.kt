@@ -354,6 +354,10 @@ class FloatBallService : Service() {
                 applyEnvironment()
                 return START_STICKY
             }
+            ACTION_UPDATE_NOTIFICATION -> {
+                startInForeground()
+                return START_STICKY
+            }
             ACTION_UPDATE_POPUP_APPEARANCE -> {
                 popupDialog?.window?.let { window -> applyPopupBlur(window, overlaySurface) }
                 if (popupDialog?.isShowing == true) {
@@ -436,11 +440,18 @@ class FloatBallService : Service() {
      * the same deep glass colour as the settings pages.
      */
     private fun buildNotification(): Notification {
+        val hidden = AppPrefs.hideFloatNotification(this)
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, NOTIFICATION_CHANNEL)
+            Notification.Builder(
+                this,
+                if (hidden) NOTIFICATION_CHANNEL_QUIET else NOTIFICATION_CHANNEL
+            ).apply { if (hidden) setSilent(true) }
         } else {
             @Suppress("DEPRECATION")
-            Notification.Builder(this)
+            Notification.Builder(this).apply {
+                @Suppress("DEPRECATION")
+                setPriority(if (hidden) Notification.PRIORITY_MIN else Notification.PRIORITY_LOW)
+            }
         }
         return builder
             .setSmallIcon(android.graphics.drawable.Icon.createWithBitmap(ballNotificationBitmap(96, true)))
@@ -475,18 +486,26 @@ class FloatBallService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val channel = NotificationChannel(
-            NOTIFICATION_CHANNEL,
-            getString(R.string.float_ball_notification_channel),
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            setShowBadge(false)
-            setSound(null, null)
-            enableVibration(false)
-            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        listOf(
+            NOTIFICATION_CHANNEL to NotificationManager.IMPORTANCE_LOW,
+            // Foreground services must show a notification; MIN keeps it at the
+            // bottom of the shade without sound, badge or status-bar icon.
+            NOTIFICATION_CHANNEL_QUIET to NotificationManager.IMPORTANCE_MIN
+        ).forEach { (id, importance) ->
+            val channel = NotificationChannel(
+                id,
+                getString(R.string.float_ball_notification_channel) +
+                    if (id == NOTIFICATION_CHANNEL_QUIET) " (ẩn)" else "",
+                importance
+            ).apply {
+                setShowBadge(false)
+                setSound(null, null)
+                enableVibration(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            }
+            manager.createNotificationChannel(channel)
         }
-        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
-            .createNotificationChannel(channel)
     }
 
     private fun showFloatBall() {
@@ -1116,7 +1135,7 @@ class FloatBallService : Service() {
 
 
 
-    /** Vertical bars ordered by Cài đặt → Bản mở rộng, with optional shortcuts below. */
+    /** Vertical bars ordered by Cài đặt → Bảng mở rộng, with optional shortcuts below. */
     private fun showExpansionPanel() {
         if (popup != null) removePopup(stopIfEmpty = false)
         val panel = LinearLayout(this).apply {
@@ -1126,8 +1145,12 @@ class FloatBallService : Service() {
         val audio = getSystemService(android.media.AudioManager::class.java)
         val sliderKeys = AppPrefs.expansionSliders(this)
         val ringerChoices = AppPrefs.expansionRingerModes(this).filter { it.enabled }
+        val showRinger = audio != null && ringerChoices.isNotEmpty()
+        val widthDp = (28 + 48 * sliderKeys.size).coerceIn(200, 380)
+        // Icon row + 156dp bars + panel padding, plus the mode pill when shown.
+        val baseHeightDp = 213 + if (showRinger) 48 else 0
 
-        // Bar order and visibility come from Cài đặt → Bản mở rộng; media is last
+        // Bar order and visibility come from Cài đặt → Bảng mở rộng; media is last
         // by default so it sits at the far right edge of the panel.
         val volumeRows = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1181,17 +1204,24 @@ class FloatBallService : Service() {
             panel.addView(
                 ringerModePill(audio, ringerChoices),
                 LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(36)).apply {
-                    topMargin = dp(6)
+                    topMargin = dp(12)
                     gravity = Gravity.CENTER_HORIZONTAL
                 }
             )
         }
 
-        // Shortcuts are managed in Cài đặt → Bản mở rộng, so the panel shows
+        // Shortcuts are managed in Cài đặt → Bảng mở rộng, so the panel shows
         // only filled slots and shrinks to the bars when there are none.
         val shortcutEntries = AppPrefs.expansionShortcuts(this)
             .mapIndexedNotNull { index, shortcut -> shortcut?.let { index to it } }
         val shortcutRows = shortcutEntries.chunked(4)
+        // Toggle row (30dp + 3dp) + area padding, then 54dp rows with 4dp gaps.
+        val shortcutHeightDp = if (shortcutRows.isEmpty()) 0 else {
+            38 + shortcutRows.size * 54 + (shortcutRows.size - 1) * 4
+        }
+        val maxHeightPx = resources.displayMetrics.heightPixels - dp(80)
+        val expandedHeightPx = minOf(dp(baseHeightDp + shortcutHeightDp), maxHeightPx)
+        val collapsedHeightPx = minOf(dp(baseHeightDp + 38), maxHeightPx)
         if (shortcutRows.isNotEmpty()) {
             val shortcutArea = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -1217,7 +1247,7 @@ class FloatBallService : Service() {
                         ))
                         contentDescription = shortcut.label
                         // Long press forces a freeform window; removing shortcuts
-                        // stays in Cài đặt → Bản mở rộng.
+                        // stays in Cài đặt → Bảng mở rộng.
                         shortcutView.setOnLongClickListener {
                             if (shortcut.type == PanelItemType.APP) {
                                 val component = ComponentName.unflattenFromString(shortcut.value)
@@ -1266,6 +1296,12 @@ class FloatBallService : Service() {
                     shortcutsExpanded = !shortcutsExpanded
                     shortcutArea.visibility = if (shortcutsExpanded) View.VISIBLE else View.GONE
                     (getChildAt(0) as? PopupIconView)?.setIcon(shortcutsExpanded)
+                    // The window background is the panel: resize it with the content,
+                    // otherwise the collapsed panel leaves a tall empty sheet.
+                    popupDialog?.window?.setLayout(
+                        dp(widthDp),
+                        if (shortcutsExpanded) expandedHeightPx else collapsedHeightPx
+                    )
                 }
             }
             panel.addView(shortcutToggle, LinearLayout.LayoutParams(
@@ -1283,21 +1319,16 @@ class FloatBallService : Service() {
         }
         // Slider columns + mode pill + panel padding, then the optional
         // shortcut block (toggle + 54dp rows).
-        val baseHeightDp = 200 + if (audio != null && ringerChoices.isNotEmpty()) 42 else 0
-        val shortcutHeightDp = if (shortcutRows.isEmpty()) 0 else {
-            38 + shortcutRows.size * 54 + (shortcutRows.size - 1) * 4
-        }
-        val widthDp = (28 + 48 * sliderKeys.size).coerceIn(200, 380)
         showOverlayPanel(
             scroll,
             dp(widthDp),
-            minOf(dp(baseHeightDp + shortcutHeightDp), resources.displayMetrics.heightPixels - dp(80)),
+            expandedHeightPx,
             windowBackground = sharedPanelBackground(),
             surface = OverlaySurface.EXPANSION
         )
     }
 
-    /** Compact bell / vibrate / silent chips; order and visibility come from Cài đặt → Bản mở rộng. */
+    /** Compact bell / vibrate / silent chips; order and visibility come from Cài đặt → Bảng mở rộng. */
     private fun ringerModePill(
         audio: android.media.AudioManager,
         choices: List<RingerModeChoice>
@@ -1339,6 +1370,18 @@ class FloatBallService : Service() {
                 setOnClickListener {
                     runCatching { audio.ringerMode = mode }
                     refresh()
+                }
+                // The panel has no settings gear any more: long press opens
+                // the ringer-chip editor in Cài đặt → Bảng mở rộng.
+                setOnLongClickListener {
+                    removePopup(stopIfEmpty = false)
+                    runCatching {
+                        startActivity(
+                            Intent(this@FloatBallService, ExpansionSettingsActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                    true
                 }
             }
             cells.add(Triple(cell, icon, mode))
@@ -1426,8 +1469,6 @@ class FloatBallService : Service() {
         private val density = resources.displayMetrics.density
         private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(78, 235, 244, 255) }
         private val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = GlassUi.SLIDER_COLOR }
-        private val thumbShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(70, 0, 0, 0) }
-        private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
         private var value = initialProgress.coerceIn(0, maximum)
         private var tracking = false
         private var changed = false
@@ -1442,19 +1483,6 @@ class FloatBallService : Service() {
             val radius = 5.5f * density
             canvas.drawRoundRect(cx - radius, top, cx + radius, bottom, radius, radius, trackPaint)
             canvas.drawRoundRect(cx - radius, y, cx + radius, bottom, radius, radius, activePaint)
-            val halfWidth = 15f * density
-            val halfHeight = 4.5f * density
-            val shadowOffset = 1.5f * density
-            canvas.drawRoundRect(
-                cx - halfWidth, y - halfHeight + shadowOffset,
-                cx + halfWidth, y + halfHeight + shadowOffset,
-                halfHeight, halfHeight, thumbShadow
-            )
-            canvas.drawRoundRect(
-                cx - halfWidth, y - halfHeight,
-                cx + halfWidth, y + halfHeight,
-                halfHeight, halfHeight, thumbPaint
-            )
         }
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
@@ -1493,13 +1521,13 @@ class FloatBallService : Service() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(2), 0, dp(2), 0)
-            addView(VerticalBrightnessTrackView(this@FloatBallService, maximum.coerceAtLeast(1), progress, {
-                onChanged(it)
-            }, onFinished), LinearLayout.LayoutParams(dp(44), dp(142)))
             addView(PopupIconView(this@FloatBallService, icon).apply {
                 setIconColor(Color.WHITE)
                 contentDescription = label
-            }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { topMargin = dp(7) })
+            }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { bottomMargin = dp(6) })
+            addView(VerticalBrightnessTrackView(this@FloatBallService, maximum.coerceAtLeast(1), progress, {
+                onChanged(it)
+            }, onFinished), LinearLayout.LayoutParams(dp(44), dp(156)))
         }
         parent.addView(column, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
     }
@@ -2991,6 +3019,8 @@ class FloatBallService : Service() {
         const val ACTION_UPDATE_FLOAT_BALL = "com.manh.panelsassistive.action.UPDATE_FLOAT_BALL"
         const val ACTION_UPDATE_POPUP_APPEARANCE =
             "com.manh.panelsassistive.action.UPDATE_POPUP_APPEARANCE"
+        const val ACTION_UPDATE_NOTIFICATION =
+            "com.manh.panelsassistive.action.UPDATE_NOTIFICATION"
         private const val MEDIA_VOLUME_RELEASE_DELAY_MS = 500L
         /** Small pause so the removed overlay windows are gone before the scan. */
         private const val SCREEN_SEARCH_HIDE_DELAY_MS = 120L
@@ -3003,6 +3033,7 @@ class FloatBallService : Service() {
         const val WIDGET_HOST_ID = 0x5041
         private const val TAG = "FloatBallService"
         private const val NOTIFICATION_CHANNEL = "float_ball"
+        private const val NOTIFICATION_CHANNEL_QUIET = "float_ball_quiet"
         private const val NOTIFICATION_ID = 41
         @Volatile
         var running: Boolean = false
@@ -3101,6 +3132,15 @@ class FloatBallService : Service() {
             context.startService(
                 Intent(context, FloatBallService::class.java).apply {
                     action = ACTION_UPDATE_POPUP_APPEARANCE
+                }
+            )
+        }
+
+        fun refreshNotification(context: Context) {
+            if (!running) return
+            context.startService(
+                Intent(context, FloatBallService::class.java).apply {
+                    action = ACTION_UPDATE_NOTIFICATION
                 }
             )
         }

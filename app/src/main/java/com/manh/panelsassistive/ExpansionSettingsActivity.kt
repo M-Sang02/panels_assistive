@@ -34,8 +34,8 @@ class ExpansionSettingsActivity : Activity() {
         root.addView(GlassUi.backBar(this) { finish() })
         root.addView(GlassUi.pageHeader(
             this,
-            "Bản mở rộng",
-            "Chọn thanh hiển thị, sắp thứ tự và quản lý lối tắt."
+            "Bảng mở rộng",
+            "Chọn thanh hiển thị, nút chế độ chuông, thứ tự và lối tắt."
         ))
         root.addView(sliderCard())
         root.addView(ringerCard())

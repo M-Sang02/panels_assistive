@@ -127,6 +127,7 @@ class AdvancedSettingsActivity : Activity() {
         ))
         root.addView(permissionsCard())
         root.addView(recentsCard())
+        root.addView(notificationCard())
         root.addView(freeformCard())
         root.addView(tilesCard())
         root.addView(widgetPromptCard())
@@ -218,6 +219,29 @@ class AdvancedSettingsActivity : Activity() {
             12,
             GlassUi.TEXT_MUTED
         ).apply { setPadding(0, dp(6), 0, 0) })
+    }
+
+    /** Hides the mandatory foreground-service card as far as Android allows. */
+    private fun notificationCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        val activity = this@AdvancedSettingsActivity
+        addView(cardHeader("bell-off", "Thông báo bóng nổi"))
+        addView(label(
+            "Bóng nổi cần một thông báo dịch vụ để hệ thống giữ nó chạy. Khi bật ẩn, thông báo " +
+                "thu về mức tối thiểu: không âm thanh, không huy hiệu, không icon trên thanh trạng thái " +
+                "(một số máy vẫn hiện trong khay thông báo hoặc trình quản lý tác vụ).",
+            13,
+            GlassUi.TEXT_SECONDARY
+        ).apply { setPadding(0, dp(8), 0, dp(6)) })
+        addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(label("Ẩn thông báo bóng nổi đang hoạt động", 14, GlassUi.TEXT_PRIMARY),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(GlassUi.switch(activity, AppPrefs.hideFloatNotification(activity)) { on ->
+                AppPrefs.setHideFloatNotification(activity, on)
+                FloatBallService.refreshNotification(activity)
+            })
+        })
     }
 
     private fun freeformCard(): LinearLayout = GlassUi.glassCard(this).apply {
