@@ -122,16 +122,39 @@ object GlassUi {
             setStroke(dp(context, 1).coerceAtLeast(1), Color.argb(26, 255, 255, 255))
         }
 
-    /** Rim around overlay panels; alpha and thickness come from the shared pref. */
-    fun panelBorderColor(context: Context): Int =
-        Color.argb(AppPrefs.panelBorderAlpha(context), 225, 238, 250)
-
     fun applyPanelBorder(context: Context, drawable: GradientDrawable) {
-        if (!AppPrefs.panelBorderEnabled(context)) return
-        val widthPx = (AppPrefs.panelBorderWidth(context) * context.resources.displayMetrics.density)
+        applyBorder(
+            context,
+            drawable,
+            AppPrefs.panelBorderEnabled(context),
+            AppPrefs.panelBorderAlpha(context),
+            AppPrefs.panelBorderWidth(context)
+        )
+    }
+
+    /** The widget popup keeps its own rim so it can differ from the other panels. */
+    fun applyWidgetPanelBorder(context: Context, drawable: GradientDrawable) {
+        applyBorder(
+            context,
+            drawable,
+            AppPrefs.widgetPanelBorderEnabled(context),
+            AppPrefs.widgetPanelBorderAlpha(context),
+            AppPrefs.widgetPanelBorderWidth(context)
+        )
+    }
+
+    private fun applyBorder(
+        context: Context,
+        drawable: GradientDrawable,
+        enabled: Boolean,
+        alpha: Int,
+        widthDp: Float
+    ) {
+        if (!enabled) return
+        val widthPx = (widthDp * context.resources.displayMetrics.density)
             .roundToInt()
             .coerceAtLeast(1)
-        drawable.setStroke(widthPx, panelBorderColor(context))
+        drawable.setStroke(widthPx, Color.argb(alpha, 225, 238, 250))
     }
 
     fun tabSurface(context: Context, selected: Boolean): Drawable =

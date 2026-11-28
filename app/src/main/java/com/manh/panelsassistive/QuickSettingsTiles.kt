@@ -119,6 +119,7 @@ object QuickSettingsTiles {
 
     fun actionLabel(context: Context, action: String): String? =
         ActionDispatcher.selectedActionLabel(action)
+            ?: ActionDispatcher.hideBallLabel(context, action)
             ?: ActionDispatcher.quickActions(context)
                 .firstOrNull { it.id == ActionDispatcher.selectedActionType(action) }
                 ?.label

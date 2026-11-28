@@ -81,6 +81,7 @@ class FloatBallService : Service() {
     private var popupList: GridLayout? = null
     private var popupAddButton: View? = null
     private var popupTemporarilyHidden = false
+    private var hideRestore: Runnable? = null
     private var popupEditMode = false
     private var popupScroller: android.widget.HorizontalScrollView? = null
     private var popupViewport: ScrollView? = null
@@ -312,6 +313,10 @@ class FloatBallService : Service() {
                 }
                 return START_STICKY
             }
+            ACTION_HIDE_BALL -> {
+                hideFloatBall(intent.getIntExtra(EXTRA_HIDE_MINUTES, 0))
+                return START_STICKY
+            }
             ACTION_TOGGLE_FLASHLIGHT -> {
                 if (AppPrefs.floatBallEnabled(this)) showFloatBall()
                 performFlashlightToggle()
@@ -382,6 +387,14 @@ class FloatBallService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // A plain start means the user turned the ball back on, which ends any
+        // temporary hide; a null restart keeps the remaining hide time.
+        if (intent != null) {
+            hideRestore?.let { handler.removeCallbacks(it) }
+            hideRestore = null
+            AppPrefs.setFloatBallHiddenUntil(this, 0L)
+        }
+        scheduleFloatBallRestore()
         AppPrefs.setFloatBallEnabled(this, true)
         showFloatBall()
         QuickSettingsTiles.updateListeningServices(this)
@@ -511,7 +524,9 @@ class FloatBallService : Service() {
     }
 
     private fun showFloatBall() {
-        if (floatBall != null || BackgroundRecordingService.isActive || floatBallSuppressed()) return
+        if (floatBall != null || BackgroundRecordingService.isActive ||
+            floatBallSuppressed() || floatBallHidden()
+        ) return
         val size = dp(AppPrefs.floatBallSize(this))
         val view = FloatBallIconView(this).apply {
             setIconSources(this@FloatBallService)
@@ -557,12 +572,44 @@ class FloatBallService : Service() {
     private fun floatBallSuppressed(): Boolean =
         PanelsAccessibilityEnvironment.isBlocked(this)
 
+    /** True while the user asked the ball to stay away for a while. */
+    private fun floatBallHidden(): Boolean =
+        System.currentTimeMillis() < AppPrefs.floatBallHiddenUntil(this)
+
+    private fun hideFloatBall(minutes: Int) {
+        if (minutes <= 0) return
+        AppPrefs.setFloatBallHiddenUntil(
+            this,
+            System.currentTimeMillis() + minutes * 60_000L
+        )
+        removeFloatBall()
+        scheduleFloatBallRestore()
+    }
+
+    /** Keeps the hide across service restarts; fires once the deadline passes. */
+    private fun scheduleFloatBallRestore() {
+        hideRestore?.let { handler.removeCallbacks(it) }
+        hideRestore = null
+        val delay = AppPrefs.floatBallHiddenUntil(this) - System.currentTimeMillis()
+        if (delay <= 0) {
+            AppPrefs.setFloatBallHiddenUntil(this, 0L)
+            return
+        }
+        val runnable = Runnable {
+            hideRestore = null
+            AppPrefs.setFloatBallHiddenUntil(this, 0L)
+            applyEnvironment()
+        }
+        hideRestore = runnable
+        handler.postDelayed(runnable, delay)
+    }
+
     private fun applyEnvironment() {
         if (!AppPrefs.floatBallEnabled(this)) return
         if (floatBall != null && floatBallParams?.type != overlayWindowType()) {
             removeFloatBall()
         }
-        if (floatBallSuppressed()) {
+        if (floatBallSuppressed() || floatBallHidden()) {
             removeFloatBall()
             return
         }
@@ -1545,7 +1592,8 @@ class FloatBallService : Service() {
         return panelBackground(
             target?.backgroundColor ?: AppPrefs.popupPanelColor(this),
             target?.backgroundOpacity ?: AppPrefs.popupPanelOpacity(this),
-            AppPrefs.popupPanelCorner(this)
+            AppPrefs.popupPanelCorner(this),
+            widgetPanel = true
         )
     }
 
@@ -1555,11 +1603,20 @@ class FloatBallService : Service() {
             .firstOrNull { it.id == AppPrefs.currentPanelId(this, landscape) }
     }
 
-    private fun panelBackground(color: Int, opacity: Int, corner: Int) = GradientDrawable().apply {
+    private fun panelBackground(
+        color: Int,
+        opacity: Int,
+        corner: Int,
+        widgetPanel: Boolean = false
+    ) = GradientDrawable().apply {
         val alpha = opacity.coerceIn(0, 100) * 255 / 100
         setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
         cornerRadius = dp(corner).toFloat()
-        GlassUi.applyPanelBorder(this@FloatBallService, this)
+        if (widgetPanel) {
+            GlassUi.applyWidgetPanelBorder(this@FloatBallService, this)
+        } else {
+            GlassUi.applyPanelBorder(this@FloatBallService, this)
+        }
     }
 
     private fun sliderTileBackground() = GradientDrawable().apply {
@@ -3059,6 +3116,8 @@ class FloatBallService : Service() {
         const val ACTION_SHOW_EXPANSION_PANEL = "com.manh.panelsassistive.action.SHOW_EXPANSION_PANEL"
         const val ACTION_SCREEN_SEARCH = "com.manh.panelsassistive.action.SCREEN_SEARCH"
         const val EXTRA_PANEL_ID = "com.manh.panelsassistive.extra.PANEL_ID"
+        const val EXTRA_HIDE_MINUTES = "com.manh.panelsassistive.extra.HIDE_MINUTES"
+        private const val ACTION_HIDE_BALL = "com.manh.panelsassistive.action.HIDE_BALL"
 
         fun start(context: Context, action: String? = null, panelId: String? = null) {
             if (!Settings.canDrawOverlays(context)) {
@@ -3079,6 +3138,17 @@ class FloatBallService : Service() {
             } else {
                 context.startService(intent)
             }
+        }
+
+        /** Hides the running ball for [minutes]; it returns when the time is up. */
+        fun hideFor(context: Context, minutes: Int) {
+            if (!running || minutes <= 0) return
+            context.startService(
+                Intent(context, FloatBallService::class.java).apply {
+                    action = ACTION_HIDE_BALL
+                    putExtra(EXTRA_HIDE_MINUTES, minutes)
+                }
+            )
         }
 
         private enum class PopupIcon {

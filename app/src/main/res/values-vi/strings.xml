@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Hỗ trợ Panels</string>
+    <string name="app_name">Bảng hỗ trợ</string>
     <string name="music_listener_label">Điều khiển nhạc</string>
     <string name="brand_name">PANELS ASSISTIVE</string>
     <string name="settings_title">Cài đặt</string>
@@ -203,6 +203,7 @@
     <string name="action_nav_back">Điều hướng: Quay lại (Trợ năng)</string>
     <string name="action_nav_recents">Điều hướng: Ứng dụng gần đây (Trợ năng)</string>
     <string name="action_nav_home">Điều hướng: Trang chủ (Trợ năng)</string>
+    <string name="action_nav_group">3 nút điều hướng</string>
     <string name="action_call_assistant">Gọi trợ lý hệ thống (Trợ năng)</string>
     <string name="action_auto_rotation">Bật/tắt tự động xoay</string>
     <string name="action_circle_search">Khoanh vùng tìm kiếm</string>
@@ -210,6 +211,10 @@
     <string name="expansion_freeform_disabled">Bật Cửa sổ tự do trong Cài đặt nâng cao để nhấn giữ mở app trong cửa sổ nổi.</string>
     <string name="expansion_freeform_apps_only">Chỉ lối tắt ứng dụng mới mở được cửa sổ nổi.</string>
     <string name="action_none">Không làm gì</string>
+    <string name="action_hide_float_ball">Tạm ẩn bóng nổi</string>
+    <string name="action_hide_float_ball_minutes">%1$d phút</string>
+    <string name="action_hide_float_ball_hours">%1$d giờ</string>
+    <string name="action_hide_float_ball_time">%1$d giờ %2$d phút</string>
     <string name="auto_rotation_permission_required">Cho phép Panels Assistive thay đổi cài đặt hệ thống để bật/tắt tự động xoay.</string>
     <string name="volume_update_failed">Không thể thay đổi mức âm lượng này.</string>
     <string name="expansion_panel_title">Bảng mở rộng</string>
@@ -268,7 +273,7 @@
     <string name="media_volume">Âm lượng media</string>
     <string name="action_notification_panel">Mở bảng thông báo (Trợ năng)</string>
     <string name="action_accessibility_settings">Mở cài đặt Trợ năng</string>
-    <string name="action_open_settings">Mở Panels Assistive</string>
+    <string name="action_open_settings">Mở Bảng hỗ trợ</string>
     <string name="enable_accessibility_for_action">Bật Trợ năng của Panels Assistive để dùng nút điều hướng và thông báo.</string>
     <string name="accessibility_required_title">Thao tác này cần quyền Trợ năng</string>
     <string name="accessibility_required_message">Thao tác này mở bảng thông báo. Hãy bật dịch vụ Panels Assistive trong phần cài đặt Trợ năng của Android. Các tính năng khác không cần quyền Trợ năng.</string>

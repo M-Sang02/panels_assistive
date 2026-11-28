@@ -255,8 +255,16 @@ class GestureSettingsActivity : Activity() {
     ): View {
         val actions = actionChoices(includeAssistant)
         val selectedType = ActionDispatcher.selectedActionType(selectedAction)
-        val selected = actions.firstOrNull { it.id == selectedType } ?: actions.first()
-        val selectedName = ActionDispatcher.selectedActionLabel(selectedAction) ?: selected.label
+        val selected = actions.firstOrNull { it.id == selectedType }
+            ?: actions.firstOrNull {
+                it.id == ActionDispatcher.NAV_GROUP && selectedType in ActionDispatcher.NAV_IDS
+            }
+            ?: actions.first()
+        val selectedName = ActionDispatcher.selectedActionLabel(selectedAction)
+            ?: ActionDispatcher.navLabel(this, selectedType)
+            ?: ActionDispatcher.hideBallLabel(this, selectedAction)
+            ?: selected.label
+        val selectedIcon = if (selectedType in ActionDispatcher.NAV_IDS) selectedType else selected.id
         val selectedLabel = TextView(this).apply {
             text = selectedName
             textSize = 14f
@@ -271,30 +279,15 @@ class GestureSettingsActivity : Activity() {
             background = GlassUi.glassSurface(this@GestureSettingsActivity, 14)
             isClickable = true
             isFocusable = true
-            addView(ActionGlyphView(this@GestureSettingsActivity, selected.id, GlassUi.ACCENT), LinearLayout.LayoutParams(dp(24), dp(24)))
+            addView(ActionGlyphView(this@GestureSettingsActivity, selectedIcon, GlassUi.ACCENT), LinearLayout.LayoutParams(dp(24), dp(24)))
             addView(selectedLabel, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             setOnClickListener {
                 var currentId = selectedType
-                val items = actions.map { choice ->
-                    GlassDialogs.Item(
-                        id = choice.id,
-                        label = choice.label,
-                        actionId = choice.id.takeIf { it != ActionDispatcher.NONE },
-                        glyph = if (choice.id == ActionDispatcher.NONE) "ban" else null,
-                        selected = choice.id == currentId
-                    )
-                }
-                GlassDialogs.show(
-                    this@GestureSettingsActivity,
-                    getString(R.string.select_action),
-                    items,
-                    "Gán hành động cho thao tác này"
-                ) { picked ->
-                    val choice = actions.firstOrNull { it.id == picked.id } ?: return@show
+                fun commit(choice: ActionChoice) {
                     when {
                         choice.id == ActionDispatcher.OPEN_SELECTED_APP ||
                             choice.id == ActionDispatcher.OPEN_SELECTED_SHORTCUT -> {
-                            val target = pickerTarget ?: return@show
+                            val target = pickerTarget ?: return
                             startActivity(
                                 Intent(this@GestureSettingsActivity, WidgetPickerActivity::class.java)
                                     .putExtra(
@@ -332,29 +325,62 @@ class GestureSettingsActivity : Activity() {
                         }
                     }
                 }
+                val items = actions.map { choice ->
+                    GlassDialogs.Item(
+                        id = choice.id,
+                        label = choice.label,
+                        actionId = choice.id.takeIf { it != ActionDispatcher.NONE },
+                        glyph = if (choice.id == ActionDispatcher.NONE) "ban" else null,
+                        selected = choice.id == currentId ||
+                            (choice.id == ActionDispatcher.NAV_GROUP && currentId in ActionDispatcher.NAV_IDS) ||
+                            (choice.id == ActionDispatcher.HIDE_FLOAT_BALL &&
+                                currentId.startsWith("${ActionDispatcher.HIDE_FLOAT_BALL}:"))
+                    )
+                }
+                GlassDialogs.show(
+                    this@GestureSettingsActivity,
+                    getString(R.string.select_action),
+                    items,
+                    "Gán hành động cho thao tác này"
+                ) { picked ->
+                    val choice = actions.firstOrNull { it.id == picked.id } ?: return@show
+                    if (choice.id == ActionDispatcher.HIDE_FLOAT_BALL) {
+                        ActionDispatcher.pickHideBallDuration(this@GestureSettingsActivity) { minutes ->
+                            commit(
+                                ActionChoice(
+                                    ActionDispatcher.hideBallId(minutes),
+                                    ActionDispatcher.hideBallLabel(this@GestureSettingsActivity, minutes)
+                                )
+                            )
+                        }
+                    } else if (choice.id == ActionDispatcher.NAV_GROUP) {
+                        val navs = ActionDispatcher.navChoices(this@GestureSettingsActivity)
+                        GlassDialogs.show(
+                            this@GestureSettingsActivity,
+                            choice.label,
+                            navs.map {
+                                GlassDialogs.Item(
+                                    id = it.id,
+                                    label = it.label,
+                                    actionId = it.id,
+                                    selected = it.id == currentId
+                                )
+                            },
+                            "Chọn một nút điều hướng"
+                        ) { navPicked ->
+                            navs.firstOrNull { it.id == navPicked.id }?.let { commit(it) }
+                        }
+                    } else {
+                        commit(choice)
+                    }
+                }
             }
         }
         return button
     }
 
-    private fun actionChoices(includeAssistant: Boolean = true): List<ActionChoice> = buildList {
-        add(ActionChoice(ActionDispatcher.NONE, getString(R.string.action_none)))
-        addAll(ActionDispatcher.quickActions(this@GestureSettingsActivity, includeAssistant))
-        add(ActionChoice(
-            ActionDispatcher.OPEN_SELECTED_APP,
-            getString(R.string.action_open_selected_app)
-        ))
-        add(ActionChoice(
-            ActionDispatcher.OPEN_SELECTED_SHORTCUT,
-            getString(R.string.action_open_selected_shortcut)
-        ))
-        add(ActionChoice(ActionDispatcher.EXPANSION_PANEL, getString(R.string.action_expansion_panel)))
-        add(ActionChoice(ActionDispatcher.BRIGHTNESS_SLIDER, getString(R.string.action_brightness_slider)))
-        add(ActionChoice(ActionDispatcher.MEDIA_VOLUME, getString(R.string.action_media_volume)))
-        add(ActionChoice(ActionDispatcher.TOGGLE_FLOAT_BALL, getString(R.string.action_toggle_float_ball)))
-        add(ActionChoice(ActionDispatcher.ACCESSIBILITY_SETTINGS, getString(R.string.action_accessibility_settings)))
-        add(ActionChoice(ActionDispatcher.OPEN_APP, getString(R.string.action_open_settings)))
-    }
+    private fun actionChoices(includeAssistant: Boolean = true): List<ActionChoice> =
+        ActionDispatcher.pickerActions(this@GestureSettingsActivity, includeAssistant)
 
     private fun requestRecordingPermission() {
         val missing = mutableListOf<String>()

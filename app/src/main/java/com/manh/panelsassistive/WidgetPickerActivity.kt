@@ -217,9 +217,15 @@ class WidgetPickerActivity : Activity() {
     }
 
     private fun renderActions(query: String) {
-        val actions = ActionDispatcher.selectableActions(this).filter {
-            it.label.contains(query, ignoreCase = true)
-        }
+        // A panel item cannot hold the gesture-only "pick an app/shortcut"
+        // targets or a do-nothing action; those are assigned from Tác vụ và cử chỉ.
+        val actions = ActionDispatcher.pickerActions(this)
+            .filter {
+                it.id != ActionDispatcher.NONE &&
+                    it.id != ActionDispatcher.OPEN_SELECTED_APP &&
+                    it.id != ActionDispatcher.OPEN_SELECTED_SHORTCUT
+            }
+            .filter { it.label.contains(query, ignoreCase = true) }
         if (actions.isEmpty()) {
             list.addView(message(getString(R.string.no_shortcuts_available)))
             return
@@ -243,23 +249,13 @@ class WidgetPickerActivity : Activity() {
                     setPadding(dp(12), 0, 0, 0)
                 })
                 setOnClickListener {
-                    val slot = expansionSlot
-                    if (slot >= 0) {
-                        AppPrefs.setExpansionShortcut(
-                            this@WidgetPickerActivity,
-                            slot,
-                            ExpansionShortcut(PanelItemType.ACTION, action.id, action.label)
-                        )
+                    if (action.id == ActionDispatcher.NAV_GROUP) {
+                        chooseNavAction(action.label)
+                    } else if (action.id == ActionDispatcher.HIDE_FLOAT_BALL) {
+                        chooseHideDuration()
                     } else {
-                        AppPrefs.addPanelItem(
-                            this@WidgetPickerActivity,
-                            landscapeLayout,
-                            panelId,
-                            PanelItem(PanelItemType.ACTION, action.id, action.label, targetPosition),
-                            allowOverlap = AppPrefs.panelFreeMode(this@WidgetPickerActivity)
-                        )
+                        saveAction(action.id, action.label)
                     }
-                    finishPicking()
                 }
             }
             row.layoutParams = LinearLayout.LayoutParams(
@@ -268,6 +264,49 @@ class WidgetPickerActivity : Activity() {
             ).apply { bottomMargin = dp(8) }
             list.addView(row)
         }
+    }
+
+    /** One row stands for back/home/recents; the button is chosen afterwards. */
+    private fun chooseNavAction(title: String) {
+        val navs = ActionDispatcher.navChoices(this)
+        GlassDialogs.show(
+            this,
+            title,
+            navs.map { GlassDialogs.Item(id = it.id, label = it.label, actionId = it.id) },
+            "Chọn một nút điều hướng"
+        ) { picked ->
+            navs.firstOrNull { it.id == picked.id }?.let { saveAction(it.id, it.label) }
+        }
+    }
+
+    /** The hide-ball entry is followed by a duration chooser, like the nav group. */
+    private fun chooseHideDuration() {
+        ActionDispatcher.pickHideBallDuration(this) { minutes ->
+            saveAction(
+                ActionDispatcher.hideBallId(minutes),
+                ActionDispatcher.hideBallLabel(this, minutes)
+            )
+        }
+    }
+
+    private fun saveAction(actionId: String, label: String) {
+        val slot = expansionSlot
+        if (slot >= 0) {
+            AppPrefs.setExpansionShortcut(
+                this,
+                slot,
+                ExpansionShortcut(PanelItemType.ACTION, actionId, label)
+            )
+        } else {
+            AppPrefs.addPanelItem(
+                this,
+                landscapeLayout,
+                panelId,
+                PanelItem(PanelItemType.ACTION, actionId, label, targetPosition),
+                allowOverlap = AppPrefs.panelFreeMode(this)
+            )
+        }
+        finishPicking()
     }
 
     private fun renderProviders(query: String) {

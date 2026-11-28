@@ -203,6 +203,7 @@
     <string name="action_nav_back">Navigation: Back (Accessibility)</string>
     <string name="action_nav_recents">Navigation: Recent apps (Accessibility)</string>
     <string name="action_nav_home">Navigation: Home (Accessibility)</string>
+    <string name="action_nav_group">Three navigation buttons</string>
     <string name="action_call_assistant">Call system assistant (Accessibility)</string>
     <string name="action_auto_rotation">Toggle auto-rotate</string>
     <string name="action_circle_search">Circle to Search</string>
@@ -210,6 +211,10 @@
     <string name="expansion_freeform_disabled">Turn on Freeform windows in Advanced settings to open apps in a floating window with a long press.</string>
     <string name="expansion_freeform_apps_only">Only app shortcuts can open in a floating window.</string>
     <string name="action_none">Do nothing</string>
+    <string name="action_hide_float_ball">Temporarily hide Float Ball</string>
+    <string name="action_hide_float_ball_minutes">%1$d min</string>
+    <string name="action_hide_float_ball_hours">%1$d h</string>
+    <string name="action_hide_float_ball_time">%1$d h %2$d min</string>
     <string name="auto_rotation_permission_required">Allow Panels Assistive to change system settings to toggle auto-rotate.</string>
     <string name="volume_update_failed">Could not change this volume level.</string>
     <string name="expansion_panel_title">Expansion Panel</string>

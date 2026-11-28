@@ -310,7 +310,7 @@ class WidgetPanelSettingsActivity : Activity() {
         val page = selectedPage()
         addView(text("Nền bảng", 16, this@WidgetPanelSettingsActivity.foreground, true))
         addView(text(
-            "Mỗi bảng có nền riêng. Bảng mới tự nhận một màu nền mới; bo góc và viền dùng chung.",
+            "Mỗi bảng có nền riêng. Bảng mới tự nhận một màu nền mới; bo góc và viền riêng của bảng tiện ích.",
             12,
             secondary
         ).apply { setPadding(0, dp(6), 0, dp(2)) })
@@ -383,19 +383,66 @@ class WidgetPanelSettingsActivity : Activity() {
             )
             addView(GlassUi.switch(
                 this@WidgetPanelSettingsActivity,
-                AppPrefs.panelBorderEnabled(this@WidgetPanelSettingsActivity)
+                AppPrefs.widgetPanelBorderEnabled(this@WidgetPanelSettingsActivity)
             ) { enabled ->
-                AppPrefs.setPanelBorderEnabled(this@WidgetPanelSettingsActivity, enabled)
+                AppPrefs.setWidgetPanelBorderEnabled(this@WidgetPanelSettingsActivity, enabled)
                 updatePreviewBackground()
                 refreshPopupSurface()
-            }.apply { contentDescription = "Bật tắt viền trắng" })
+            }.apply { contentDescription = "Bật tắt viền trắng bảng tiện ích" })
         })
         addView(text(
-            "Tắt để bảng tiện ích không còn đường viền sáng quanh nền. Độ đậm và độ dày " +
-                "chỉnh chung ở Nền bảng trong Cài đặt.",
+            "Viền này chỉ thuộc bảng tiện ích, không ảnh hưởng các bảng khác. " +
+                "Chỉnh độ đậm và độ dày riêng bên dưới.",
             12,
             GlassUi.TEXT_MUTED
         ))
+        val borderAlphaValue = text("${borderAlphaPercent()}%", 13, GlassUi.ACCENT, true)
+        addView(text("Độ đậm viền", 13, secondary, true).apply { setPadding(0, dp(12), 0, 0) })
+        addView(borderAlphaValue)
+        addView(GlassUi.slider(this@WidgetPanelSettingsActivity).apply {
+            max = 100
+            progress = borderAlphaPercent()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    AppPrefs.setWidgetPanelBorderAlpha(
+                        this@WidgetPanelSettingsActivity,
+                        (progress * 255 / 100).coerceIn(0, 255)
+                    )
+                    borderAlphaValue.text = "$progress%"
+                    updatePreviewBackground()
+                    refreshPopupSurface()
+                }
+
+                override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+            })
+        })
+        val borderWidthValue = text(
+            borderWidthLabel(AppPrefs.widgetPanelBorderWidth(this@WidgetPanelSettingsActivity)),
+            13,
+            GlassUi.ACCENT,
+            true
+        )
+        addView(text("Độ dày viền", 13, secondary, true).apply { setPadding(0, dp(12), 0, 0) })
+        addView(borderWidthValue)
+        addView(GlassUi.slider(this@WidgetPanelSettingsActivity).apply {
+            max = 5
+            progress = borderWidthProgress()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    val width = 0.5f + progress * 0.5f
+                    AppPrefs.setWidgetPanelBorderWidth(this@WidgetPanelSettingsActivity, width)
+                    borderWidthValue.text = borderWidthLabel(width)
+                    updatePreviewBackground()
+                    refreshPopupSurface()
+                }
+
+                override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+            })
+        })
         addView(widgetBlurSection())
     }
 
@@ -504,9 +551,20 @@ class WidgetPanelSettingsActivity : Activity() {
         previewGrid.background = GradientDrawable().apply {
             setColor(Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color)))
             cornerRadius = dp(AppPrefs.popupPanelCorner(this@WidgetPanelSettingsActivity)).toFloat()
-            GlassUi.applyPanelBorder(this@WidgetPanelSettingsActivity, this)
+            GlassUi.applyWidgetPanelBorder(this@WidgetPanelSettingsActivity, this)
         }
         updatePopupChips(color)
+    }
+
+    private fun borderAlphaPercent(): Int = AppPrefs.widgetPanelBorderAlpha(this) * 100 / 255
+
+    /** 0..5 maps to 0.5dp..3dp. */
+    private fun borderWidthProgress(): Int =
+        ((AppPrefs.widgetPanelBorderWidth(this) - 0.5f) / 0.5f).toInt().coerceIn(0, 5)
+
+    private fun borderWidthLabel(width: Float): String {
+        val rounded = (width * 2).toInt() / 2f
+        return if (rounded % 1f == 0f) "${rounded.toInt()}dp" else "$rounded dp"
     }
 
     private fun updatePopupChips(color: Int) {

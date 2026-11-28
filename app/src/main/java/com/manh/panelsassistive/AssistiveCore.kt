@@ -27,12 +27,14 @@ import android.speech.SpeechRecognizer
 import android.service.voice.VoiceInteractionSession
 import android.service.voice.VoiceInteractionSessionService
 import android.service.voice.VoiceInteractionService
+import android.text.InputType
 import android.text.TextUtils
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -172,6 +174,7 @@ internal object PanelViewportMetrics {
 object AppPrefs {
     private const val FILE_NAME = "panels_assistive"
     private const val KEY_FLOAT_BALL_ENABLED = "float_ball_enabled"
+    private const val KEY_FLOAT_BALL_HIDDEN_UNTIL = "float_ball_hidden_until"
     private const val KEY_START_ON_BOOT = "start_on_boot"
     private const val KEY_CIRCLE_SEARCH_DELAY = "circle_search_delay"
     private const val KEY_CIRCLE_SEARCH_VIBRATE = "circle_search_vibrate"
@@ -211,6 +214,9 @@ object AppPrefs {
     private const val KEY_PANEL_BORDER = "panel_border_enabled"
     private const val KEY_PANEL_BORDER_ALPHA = "panel_border_alpha"
     private const val KEY_PANEL_BORDER_WIDTH = "panel_border_width"
+    private const val KEY_WIDGET_BORDER = "widget_panel_border_enabled"
+    private const val KEY_WIDGET_BORDER_ALPHA = "widget_panel_border_alpha"
+    private const val KEY_WIDGET_BORDER_WIDTH = "widget_panel_border_width"
     private const val KEY_TAB_TRANSITION = "tab_transition"
     private const val KEY_PANEL_FREE_MODE = "panel_free_mode"
     private const val KEY_FREEFORM_APPS = "freeform_apps"
@@ -344,6 +350,14 @@ object AppPrefs {
 
     fun setFloatBallEnabled(context: Context, enabled: Boolean) {
         store(context).edit().putBoolean(KEY_FLOAT_BALL_ENABLED, enabled).apply()
+    }
+
+    /** Wall-clock end of a temporary hide; 0 when the Float Ball is not hidden. */
+    fun floatBallHiddenUntil(context: Context) =
+        store(context).getLong(KEY_FLOAT_BALL_HIDDEN_UNTIL, 0L)
+
+    fun setFloatBallHiddenUntil(context: Context, until: Long) {
+        store(context).edit().putLong(KEY_FLOAT_BALL_HIDDEN_UNTIL, until).apply()
     }
 
     fun startOnBoot(context: Context) =
@@ -1463,6 +1477,24 @@ object AppPrefs {
         store(context).edit().putFloat(KEY_PANEL_BORDER_WIDTH, value.coerceIn(0.5f, 3f)).apply()
     }
 
+    // The widget popup has its own rim settings; toggling it never touches the
+    // expansion/brightness panels.
+    fun widgetPanelBorderEnabled(context: Context) =
+        store(context).getBoolean(KEY_WIDGET_BORDER, true)
+    fun setWidgetPanelBorderEnabled(context: Context, enabled: Boolean) {
+        store(context).edit().putBoolean(KEY_WIDGET_BORDER, enabled).apply()
+    }
+    fun widgetPanelBorderAlpha(context: Context) =
+        store(context).getInt(KEY_WIDGET_BORDER_ALPHA, 65).coerceIn(0, 255)
+    fun setWidgetPanelBorderAlpha(context: Context, value: Int) {
+        store(context).edit().putInt(KEY_WIDGET_BORDER_ALPHA, value.coerceIn(0, 255)).apply()
+    }
+    fun widgetPanelBorderWidth(context: Context) =
+        store(context).getFloat(KEY_WIDGET_BORDER_WIDTH, 1f).coerceIn(0.5f, 3f)
+    fun setWidgetPanelBorderWidth(context: Context, value: Float) {
+        store(context).edit().putFloat(KEY_WIDGET_BORDER_WIDTH, value.coerceIn(0.5f, 3f)).apply()
+    }
+
     fun tabTransition(context: Context): String {
         val value = store(context).getString(KEY_TAB_TRANSITION, "slide") ?: "slide"
         return if (value in setOf("none", "fade", "slide", "flip")) value else "slide"
@@ -2460,6 +2492,8 @@ object ActionDispatcher {
     const val MEDIA_VOLUME = "media_volume"
     const val FLASHLIGHT = "flashlight"
     const val TOGGLE_FLOAT_BALL = "toggle_float_ball"
+    /** Group entry; the chosen duration is stored after the colon ("hide_float_ball:15"). */
+    const val HIDE_FLOAT_BALL = "hide_float_ball"
     const val NAV_BACK = "navigation_back"
     const val NAV_RECENTS = "navigation_recents"
     const val NAV_HOME = "navigation_home"
@@ -2473,7 +2507,12 @@ object ActionDispatcher {
     const val OPEN_SELECTED_SHORTCUT = "open_selected_shortcut"
     const val AUTO_ROTATION = "auto_rotation"
     const val CIRCLE_SEARCH = "circle_search"
+    const val NAV_GROUP = "navigation_group"
     const val NONE = "none"
+
+    val NAV_IDS = setOf(NAV_BACK, NAV_HOME, NAV_RECENTS)
+
+    private const val MAX_HIDE_MINUTES = 24 * 60
 
     fun quickActions(context: Context, includeAssistant: Boolean = true): List<ActionChoice> = buildList {
         add(ActionChoice(FLASHLIGHT, context.getString(R.string.action_flashlight)))
@@ -2494,11 +2533,7 @@ object ActionDispatcher {
         }
     }
 
-    /**
-     * Every action that can run on its own (no app/shortcut picker needed).
-     * Used by the expansion-panel action list, which shows the same choices as
-     * the gesture pickers.
-     */
+    /** Every action that can run on its own; used by the pin-a-feature shortcut screen. */
     fun selectableActions(context: Context, includeAssistant: Boolean = true): List<ActionChoice> =
         quickActions(context, includeAssistant) + listOf(
             ActionChoice(EXPANSION_PANEL, context.getString(R.string.action_expansion_panel)),
@@ -2508,6 +2543,150 @@ object ActionDispatcher {
             ActionChoice(ACCESSIBILITY_SETTINGS, context.getString(R.string.action_accessibility_settings)),
             ActionChoice(OPEN_APP, context.getString(R.string.action_open_settings))
         )
+
+    /**
+     * Ordered list shown by every action picker. The three navigation buttons
+     * share one entry ([NAV_GROUP]) and the temporary hide shares [HIDE_FLOAT_BALL];
+     * picking either opens its own chooser.
+     */
+    fun pickerActions(context: Context, includeAssistant: Boolean = true): List<ActionChoice> = buildList {
+        add(ActionChoice(NONE, context.getString(R.string.action_none)))
+        add(ActionChoice(HIDE_FLOAT_BALL, context.getString(R.string.action_hide_float_ball)))
+        add(ActionChoice(WIDGET_POPUP, context.getString(R.string.action_widget_popup)))
+        add(ActionChoice(EXPANSION_PANEL, context.getString(R.string.action_expansion_panel)))
+        add(ActionChoice(MEDIA_VOLUME, context.getString(R.string.action_media_volume)))
+        add(ActionChoice(BRIGHTNESS_SLIDER, context.getString(R.string.action_brightness_slider)))
+        add(ActionChoice(BACKGROUND_RECORDING, context.getString(R.string.action_background_recording)))
+        add(ActionChoice(FLASHLIGHT, context.getString(R.string.action_flashlight)))
+        add(ActionChoice(AUTO_ROTATION, context.getString(R.string.action_auto_rotation)))
+        add(ActionChoice(OPEN_SELECTED_APP, context.getString(R.string.action_open_selected_app)))
+        add(ActionChoice(OPEN_SELECTED_SHORTCUT, context.getString(R.string.action_open_selected_shortcut)))
+        if (includeAssistant) {
+            add(ActionChoice(
+                OPEN_ASSISTANT_SETTINGS,
+                context.getString(R.string.action_open_assistant_settings)
+            ))
+            add(ActionChoice(CALL_ASSISTANT, context.getString(R.string.action_call_assistant)))
+        }
+        add(ActionChoice(NAV_GROUP, context.getString(R.string.action_nav_group)))
+        add(ActionChoice(NOTIFICATION_PANEL, context.getString(R.string.action_notification_panel), true))
+        add(ActionChoice(ACCESSIBILITY_SETTINGS, context.getString(R.string.action_accessibility_settings)))
+        add(ActionChoice(TOGGLE_FLOAT_BALL, context.getString(R.string.action_toggle_float_ball)))
+        add(ActionChoice(OPEN_APP, context.getString(R.string.action_open_settings)))
+        add(ActionChoice(CIRCLE_SEARCH, context.getString(R.string.action_circle_search)))
+    }
+
+    fun navChoices(context: Context): List<ActionChoice> = listOf(
+        ActionChoice(NAV_BACK, context.getString(R.string.action_nav_back), true),
+        ActionChoice(NAV_HOME, context.getString(R.string.action_nav_home), true),
+        ActionChoice(NAV_RECENTS, context.getString(R.string.action_nav_recents), true)
+    )
+
+    fun navLabel(context: Context, id: String): String? =
+        navChoices(context).firstOrNull { it.id == id }?.label
+
+    fun hideBallId(minutes: Int) = "$HIDE_FLOAT_BALL:$minutes"
+
+    fun hideBallMinutes(action: String): Int =
+        action.substringAfter(':', "").toIntOrNull()?.coerceIn(0, MAX_HIDE_MINUTES) ?: 0
+
+    fun hideBallLabel(context: Context, minutes: Int): String =
+        context.getString(R.string.action_hide_float_ball) + " · " + durationLabel(context, minutes)
+
+    /** "Tạm ẩn bóng nổi · 15 phút"; null when [action] hides nothing. */
+    fun hideBallLabel(context: Context, action: String): String? {
+        val minutes = hideBallMinutes(action)
+        return if (minutes > 0) hideBallLabel(context, minutes) else null
+    }
+
+    private fun durationLabel(context: Context, minutes: Int): String {
+        val hours = minutes / 60
+        val rest = minutes % 60
+        return when {
+            hours > 0 && rest > 0 ->
+                context.getString(R.string.action_hide_float_ball_time, hours, rest)
+            hours > 0 -> context.getString(R.string.action_hide_float_ball_hours, hours)
+            else -> context.getString(R.string.action_hide_float_ball_minutes, rest)
+        }
+    }
+
+    /** Shared duration chooser for the gesture and widget-panel action pickers. */
+    fun pickHideBallDuration(activity: Activity, onPicked: (Int) -> Unit) {
+        val durations = listOf(5, 15, 30, 60, 120)
+        val customId = "custom"
+        val items = durations.map {
+            GlassDialogs.Item(
+                id = it.toString(),
+                label = durationLabel(activity, it),
+                actionId = HIDE_FLOAT_BALL
+            )
+        } + GlassDialogs.Item(id = customId, label = "Tuỳ chỉnh", glyph = "pencil")
+        GlassDialogs.show(
+            activity,
+            activity.getString(R.string.action_hide_float_ball),
+            items,
+            "Bóng nổi sẽ hiện lại sau:"
+        ) { picked ->
+            if (picked.id == customId) {
+                pickCustomHideDuration(activity, onPicked)
+            } else {
+                picked.id.toIntOrNull()?.let(onPicked)
+            }
+        }
+    }
+
+    private fun pickCustomHideDuration(activity: Activity, onPicked: (Int) -> Unit) {
+        val sheet = GlassDialogs.sheet(
+            activity,
+            activity.getString(R.string.action_hide_float_ball),
+            "Nhập số giờ và phút"
+        )
+        val hours = numberField(activity, "Giờ")
+        val minutes = numberField(activity, "Phút")
+        sheet.content.addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, GlassUi.dp(activity, 8), 0, 0)
+            addView(hours, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(
+                minutes,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = GlassUi.dp(activity, 10)
+                }
+            )
+        })
+        sheet.content.addView(TextView(activity).apply {
+            text = "Áp dụng"
+            textSize = 15f
+            setTextColor(GlassUi.ACCENT)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, GlassUi.dp(activity, 14), 0, GlassUi.dp(activity, 8))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                val total = (hours.text.toString().toIntOrNull() ?: 0) * 60 +
+                    (minutes.text.toString().toIntOrNull() ?: 0)
+                if (total < 1) {
+                    Toast.makeText(activity, "Nhập thời gian hợp lệ", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                sheet.dismiss()
+                onPicked(total.coerceAtMost(MAX_HIDE_MINUTES))
+            }
+        })
+        sheet.show()
+    }
+
+    private fun numberField(activity: Activity, hint: String) = EditText(activity).apply {
+        background = GlassUi.fieldBackground(activity, 14)
+        this.hint = hint
+        setHintTextColor(GlassUi.TEXT_MUTED)
+        setTextColor(GlassUi.TEXT_PRIMARY)
+        textSize = 16f
+        inputType = InputType.TYPE_CLASS_NUMBER
+        gravity = Gravity.CENTER
+        setSingleLine()
+        setPadding(0, GlassUi.dp(activity, 10), 0, GlassUi.dp(activity, 10))
+    }
 
     fun openAssistantSettings(context: Context) {
         val actions = listOf(
@@ -2574,6 +2753,11 @@ object ActionDispatcher {
         }
         if (action.startsWith("$OPEN_SELECTED_SHORTCUT:")) {
             dispatchSelectedShortcut(context, action)
+            return
+        }
+        if (action.startsWith("$HIDE_FLOAT_BALL:")) {
+            val minutes = hideBallMinutes(action)
+            if (minutes > 0) FloatBallService.hideFor(context, minutes)
             return
         }
         when (action) {

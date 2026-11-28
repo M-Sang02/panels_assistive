@@ -99,7 +99,8 @@ class BackgroundSettingsActivity : Activity() {
             addView(borderRow)
             addView(body(
                 "Tắt để nền bảng không còn đường viền sáng. Khi bật, chỉnh được độ trong suốt " +
-                    "và độ dày bên dưới. Áp dụng cho mọi bảng nổi.",
+                    "và độ dày bên dưới. Áp dụng cho thanh độ sáng và bảng mở rộng; " +
+                    "bảng tiện ích có viền riêng.",
                 12f,
                 GlassUi.TEXT_MUTED
             ))
