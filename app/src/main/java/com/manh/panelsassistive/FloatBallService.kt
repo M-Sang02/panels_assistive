@@ -1125,58 +1125,7 @@ class FloatBallService : Service() {
         }
         val audio = getSystemService(android.media.AudioManager::class.java)
         val sliderKeys = AppPrefs.expansionSliders(this)
-        val hasAudio = audio != null && sliderKeys.any { it != "brightness" }
-
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), 0, dp(6), 0)
-            val muted = audio != null &&
-                audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) == 0
-            val volumeIcon = LucideGlyphView(
-                this@FloatBallService,
-                if (muted) "volume-x" else "volume-2",
-                Color.WHITE
-            ).apply {
-                contentDescription = "Tắt hoặc mở âm lượng media"
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    val manager = audio ?: return@setOnClickListener
-                    val stream = android.media.AudioManager.STREAM_MUSIC
-                    val max = manager.getStreamMaxVolume(stream).coerceAtLeast(1)
-                    val next = if (manager.getStreamVolume(stream) == 0) max / 2 else 0
-                    runCatching { manager.setStreamVolume(stream, next, 0) }
-                    setIconName(if (next == 0) "volume-x" else "volume-2")
-                }
-            }
-            addView(volumeIcon, LinearLayout.LayoutParams(dp(20), dp(20)))
-            addView(TextView(this@FloatBallService).apply {
-                text = if (hasAudio) "Âm lượng" else "Độ sáng"
-                textSize = 11f
-                setTextColor(Color.argb(190, 245, 248, 252))
-                includeFontPadding = false
-                setPadding(dp(8), 0, 0, 0)
-            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            val gear = LucideGlyphView(this@FloatBallService, "settings", Color.argb(210, 245, 248, 252)).apply {
-                contentDescription = "Mở cài đặt bảng mở rộng"
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    removePopup(stopIfEmpty = false)
-                    runCatching {
-                        startActivity(
-                            Intent(this@FloatBallService, ExpansionSettingsActivity::class.java)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    }
-                }
-            }
-            addView(gear, LinearLayout.LayoutParams(dp(20), dp(20)))
-        }
-        panel.addView(header, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(32)
-        ))
+        val ringerChoices = AppPrefs.expansionRingerModes(this).filter { it.enabled }
 
         // Bar order and visibility come from Cài đặt → Bản mở rộng; media is last
         // by default so it sits at the far right edge of the panel.
@@ -1228,10 +1177,14 @@ class FloatBallService : Service() {
             )
         }
         panel.addView(volumeRows)
-        if (audio != null) {
-            panel.addView(ringerModePill(audio), LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(38)
-            ).apply { topMargin = dp(4) })
+        if (audio != null && ringerChoices.isNotEmpty()) {
+            panel.addView(
+                ringerModePill(audio, ringerChoices),
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(36)).apply {
+                    topMargin = dp(6)
+                    gravity = Gravity.CENTER_HORIZONTAL
+                }
+            )
         }
 
         // Shortcuts are managed in Cài đặt → Bản mở rộng, so the panel shows
@@ -1328,13 +1281,13 @@ class FloatBallService : Service() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        // Header + slider columns + mode pill + panel padding, then the optional
+        // Slider columns + mode pill + panel padding, then the optional
         // shortcut block (toggle + 54dp rows).
-        val baseHeightDp = 288
+        val baseHeightDp = 200 + if (audio != null && ringerChoices.isNotEmpty()) 42 else 0
         val shortcutHeightDp = if (shortcutRows.isEmpty()) 0 else {
-            33 + shortcutRows.size * 54 + (shortcutRows.size - 1) * 4
+            38 + shortcutRows.size * 54 + (shortcutRows.size - 1) * 4
         }
-        val widthDp = (28 + 66 * sliderKeys.size).coerceIn(220, 380)
+        val widthDp = (28 + 48 * sliderKeys.size).coerceIn(200, 380)
         showOverlayPanel(
             scroll,
             dp(widthDp),
@@ -1344,20 +1297,18 @@ class FloatBallService : Service() {
         )
     }
 
-    /** Bell / vibrate / silent pill under the expansion bars. */
-    private fun ringerModePill(audio: android.media.AudioManager): LinearLayout {
-        val modes = listOf(
-            Triple(android.media.AudioManager.RINGER_MODE_NORMAL, "bell", "Chuông"),
-            Triple(android.media.AudioManager.RINGER_MODE_VIBRATE, "vibrate", "Rung"),
-            Triple(android.media.AudioManager.RINGER_MODE_SILENT, "bell-off", "Im lặng")
-        )
+    /** Compact bell / vibrate / silent chips; order and visibility come from Cài đặt → Bản mở rộng. */
+    private fun ringerModePill(
+        audio: android.media.AudioManager,
+        choices: List<RingerModeChoice>
+    ): LinearLayout {
         val cells = mutableListOf<Triple<FrameLayout, LucideGlyphView, Int>>()
         val pill = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(3), dp(3), dp(3), dp(3))
             background = GradientDrawable().apply {
                 setColor(Color.argb(42, 235, 244, 255))
-                cornerRadius = dp(19).toFloat()
+                cornerRadius = dp(18).toFloat()
                 setStroke(dp(1), Color.argb(46, 235, 244, 255))
             }
         }
@@ -1368,25 +1319,30 @@ class FloatBallService : Service() {
                 val active = mode == current
                 cell.background = if (active) GradientDrawable().apply {
                     setColor(GlassUi.SLIDER_COLOR)
-                    cornerRadius = dp(16).toFloat()
+                    cornerRadius = dp(15).toFloat()
                 } else null
                 icon.setIconColor(if (active) Color.rgb(10, 20, 30) else Color.argb(190, 245, 248, 252))
             }
         }
-        modes.forEach { (mode, glyph, label) ->
+        choices.forEach { choice ->
+            val (mode, glyph, label) = when (choice.key) {
+                "vibrate" -> Triple(android.media.AudioManager.RINGER_MODE_VIBRATE, "vibrate", "Rung")
+                "silent" -> Triple(android.media.AudioManager.RINGER_MODE_SILENT, "bell-off", "Im lặng")
+                else -> Triple(android.media.AudioManager.RINGER_MODE_NORMAL, "bell", "Chuông")
+            }
             val icon = LucideGlyphView(this, glyph, Color.WHITE)
             val cell = FrameLayout(this).apply {
                 contentDescription = label
                 isClickable = true
                 isFocusable = true
-                addView(icon, FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+                addView(icon, FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER))
                 setOnClickListener {
                     runCatching { audio.ringerMode = mode }
                     refresh()
                 }
             }
             cells.add(Triple(cell, icon, mode))
-            pill.addView(cell, LinearLayout.LayoutParams(0, dp(32), 1f))
+            pill.addView(cell, LinearLayout.LayoutParams(dp(40), dp(30)))
         }
         refresh()
         return pill
@@ -1431,27 +1387,10 @@ class FloatBallService : Service() {
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER
             addView(PopupIconView(this@FloatBallService, PopupIcon.BRIGHTNESS).apply {
                 setIconColor(Color.WHITE)
             }, LinearLayout.LayoutParams(dp(20), dp(20)))
-            addView(View(this@FloatBallService), LinearLayout.LayoutParams(0, dp(1), 1f))
-            val gear = LucideGlyphView(this@FloatBallService, "settings", Color.argb(210, 245, 248, 252))
-                .apply {
-                    contentDescription = "Mở cài đặt hiển thị"
-                    isClickable = true
-                    isFocusable = true
-                    setOnClickListener {
-                        removePopup(stopIfEmpty = false)
-                        runCatching {
-                            startActivity(
-                                Intent(Settings.ACTION_DISPLAY_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        }
-                    }
-                }
-            addView(gear, LinearLayout.LayoutParams(dp(20), dp(20)))
         }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1561,17 +1500,6 @@ class FloatBallService : Service() {
                 setIconColor(Color.WHITE)
                 contentDescription = label
             }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { topMargin = dp(7) })
-            addView(TextView(this@FloatBallService).apply {
-                text = label
-                textSize = 9f
-                setTextColor(Color.argb(210, 245, 248, 252))
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                includeFontPadding = false
-            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(18)).apply {
-                topMargin = dp(2)
-            })
         }
         parent.addView(column, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
     }

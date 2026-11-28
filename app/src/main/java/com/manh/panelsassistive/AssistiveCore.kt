@@ -73,6 +73,12 @@ data class ExpansionShortcut(
     val label: String
 )
 
+/** One chip of the ringer bar; disabled chips stay listed but are not drawn. */
+data class RingerModeChoice(
+    val key: String,
+    val enabled: Boolean = true
+)
+
 /** What the panel was created for; only the starting geometry differs. */
 object PanelKind {
     const val WIDGET = "widget"
@@ -224,6 +230,7 @@ object AppPrefs {
     /** Sentinel in the shared music key: tapping any music widget opens no app. */
     const val WIDGET_NO_APP = "__none__"
     private const val KEY_EXPANSION_SLIDERS = "expansion_sliders"
+    private const val KEY_EXPANSION_RINGER = "expansion_ringer_modes"
     private const val KEY_PANEL_LABELS = "panel_labels"
     private const val KEY_CLOSE_PANEL_AFTER_TAP = "close_panel_after_tap"
     private const val KEY_FLOAT_BALL_ICON_URI = "float_ball_icon_uri"
@@ -406,6 +413,31 @@ object AppPrefs {
         val valid = keys.filter { it in EXPANSION_SLIDER_KEYS }.distinct()
         store(context).edit()
             .putString(KEY_EXPANSION_SLIDERS, valid.ifEmpty { DEFAULT_EXPANSION_SLIDERS }.joinToString(","))
+            .apply()
+    }
+
+    /** Ringer chips in display order; a disabled chip keeps its place but is hidden. */
+    val RINGER_MODE_KEYS = listOf("normal", "vibrate", "silent")
+    private const val DEFAULT_EXPANSION_RINGER = "normal:1,vibrate:1,silent:1"
+
+    fun expansionRingerModes(context: Context): List<RingerModeChoice> {
+        val saved = store(context).getString(KEY_EXPANSION_RINGER, null) ?: DEFAULT_EXPANSION_RINGER
+        val parsed = saved.split(',').mapNotNull { entry ->
+            val key = entry.substringBefore(':')
+            if (key !in RINGER_MODE_KEYS) return@mapNotNull null
+            RingerModeChoice(key, entry.substringAfter(':', "1") != "0")
+        }.distinctBy { it.key }
+        if (parsed.isEmpty()) return RINGER_MODE_KEYS.map { RingerModeChoice(it) }
+        val missing = RINGER_MODE_KEYS.filter { key -> parsed.none { it.key == key } }
+        return parsed + missing.map { RingerModeChoice(it) }
+    }
+
+    fun setExpansionRingerModes(context: Context, choices: List<RingerModeChoice>) {
+        val ordered = choices.filter { it.key in RINGER_MODE_KEYS }.distinctBy { it.key }
+        store(context).edit()
+            .putString(KEY_EXPANSION_RINGER, ordered.joinToString(",") {
+                "${it.key}:${if (it.enabled) 1 else 0}"
+            })
             .apply()
     }
 

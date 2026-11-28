@@ -38,6 +38,7 @@ class ExpansionSettingsActivity : Activity() {
             "Chọn thanh hiển thị, sắp thứ tự và quản lý lối tắt."
         ))
         root.addView(sliderCard())
+        root.addView(ringerCard())
         root.addView(shortcutCard())
         setContentView(ScrollView(this).apply { addView(root) })
     }
@@ -80,6 +81,38 @@ class ExpansionSettingsActivity : Activity() {
                 AppPrefs.setExpansionSliders(this@ExpansionSettingsActivity, keys)
                 render()
             }.apply { setPadding(0, 0, dp(4), 0) })
+            row.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+            addView(row)
+        }
+    }
+
+    private fun ringerCard(): LinearLayout = GlassUi.glassCard(this).apply {
+        addView(cardHeader("bell", "Nút chế độ chuông"))
+        addView(hint("Bật/tắt từng nút chuông, rung, im lặng và đổi thứ tự của chúng dưới các thanh âm lượng. Tắt hết sẽ ẩn cả thanh."))
+        AppPrefs.expansionRingerModes(this@ExpansionSettingsActivity).forEachIndexed { index, choice ->
+            val row = LinearLayout(this@ExpansionSettingsActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(8), dp(8), dp(8))
+                background = GlassUi.glassSurface(this@ExpansionSettingsActivity, 14)
+                alpha = if (choice.enabled) 1f else 0.55f
+                addView(LucideGlyphView(this@ExpansionSettingsActivity, ringerIcon(choice.key), GlassUi.ACCENT),
+                    LinearLayout.LayoutParams(dp(20), dp(20)))
+                addView(TextView(this@ExpansionSettingsActivity).apply {
+                    text = ringerLabel(choice.key)
+                    textSize = 14f
+                    setTextColor(GlassUi.TEXT_PRIMARY)
+                    setPadding(dp(10), 0, 0, 0)
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(glyphButton("chevron-up", "Đưa lên") { moveRinger(index, -1) })
+                addView(glyphButton("chevron-down", "Đưa xuống") { moveRinger(index, 1) })
+                addView(GlassUi.switch(this@ExpansionSettingsActivity, choice.enabled) { on ->
+                    setRingerEnabled(choice.key, on)
+                }.apply { setPadding(0, 0, dp(4), 0) })
+            }
             row.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -151,6 +184,36 @@ class ExpansionSettingsActivity : Activity() {
         keys.add(to, moved)
         AppPrefs.setExpansionSliders(this, keys)
         render()
+    }
+
+    private fun moveRinger(index: Int, delta: Int) {
+        val choices = AppPrefs.expansionRingerModes(this).toMutableList()
+        val to = index + delta
+        if (index !in choices.indices || to !in choices.indices) return
+        val moved = choices.removeAt(index)
+        choices.add(to, moved)
+        AppPrefs.setExpansionRingerModes(this, choices)
+        render()
+    }
+
+    private fun setRingerEnabled(key: String, enabled: Boolean) {
+        val choices = AppPrefs.expansionRingerModes(this).map {
+            if (it.key == key) it.copy(enabled = enabled) else it
+        }
+        AppPrefs.setExpansionRingerModes(this, choices)
+        render()
+    }
+
+    private fun ringerLabel(key: String) = when (key) {
+        "vibrate" -> "Rung"
+        "silent" -> "Im lặng"
+        else -> "Chuông"
+    }
+
+    private fun ringerIcon(key: String) = when (key) {
+        "vibrate" -> "vibrate"
+        "silent" -> "bell-off"
+        else -> "bell"
     }
 
     private fun sliderLabel(key: String) = when (key) {
